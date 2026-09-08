@@ -31,6 +31,9 @@ out, Stewart opens a new **Opus 5** session in this folder; that session reads
   dyne·cm. Gravity = 981 cm/s². Convert SI motor constants at the boundary.
 - **Coordinates:** Y up. +X = east, +Z = south (so north = −Z). Hub centre at
   origin. Looking down with north at the top of the screen, +X is right.
+  Car-local axes: +X right, +Y up, **−Z forward** (three.js convention). Never
+  build a basis with +Z forward: (right, up, +Z) is left-handed and the
+  quaternion becomes a reflection (this bit us on day 1).
 - **No bundler, no build step for dev.** `index.html` loads an importmap +
   one `<script type="module">` that imports THREE / OrbitControls / RAPIER,
   awaits `RAPIER.init()`, sets `window.THREE / RAPIER / OrbitControls`, and

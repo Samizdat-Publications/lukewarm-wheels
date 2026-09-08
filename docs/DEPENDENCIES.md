@@ -114,7 +114,7 @@ Full method list (`dist/control/ray_cast_vehicle_controller.d.ts`):
 
 - Lifecycle / query: `free()`, `updateVehicle(dt, …)`, `currentVehicleSpeed()`, `chassis()`,
   `numWheels()`, `addWheel(chassisConnectionCs, directionCs, axleCs, suspensionRestLength, radius)`
-- Axes: `indexUpAxis` (get **and** set), `indexForwardAxis` (get) but **`setIndexForwardAxis`**
+- Axes: `indexUpAxis` (get **and** set), `indexForwardAxis` (get) but **`setIndexForwardAxis`** is a SETTER PROPERTY: write `vc.setIndexForwardAxis = 2`, do not call it
   (set) — the asymmetric setter name is a real quirk of the typings, not a typo here.
 - Per-wheel get/set pairs (index `i` is the first arg; getters return `number | null`):
   `wheelChassisConnectionPointCs` / `setWheelChassisConnectionPointCs`,

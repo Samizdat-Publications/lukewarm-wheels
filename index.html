@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Criss Cross Crash</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1a1d24; color: #e8eaf0; font: 13px/1.4 system-ui, sans-serif; overflow: hidden; }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #hud { position: fixed; left: 12px; top: 12px; margin: 0; padding: 10px 12px; background: rgba(10,12,16,.72); border: 1px solid #333; border-radius: 8px; font: 12px/1.45 ui-monospace, Consolas, monospace; white-space: pre; pointer-events: none; max-width: calc(100vw - 24px); overflow: hidden; }
+  #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #1a1d24; font-size: 16px; z-index: 10; }
+  #loading.done { display: none; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/",
+    "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.20.0/dist/rapier.mjs"
+  }
+}
+</script>
+</head>
+<body>
+<div id="loading">Loading physics and renderer…</div>
+<canvas id="view"></canvas>
+<pre id="hud">booting…</pre>
+
+<!-- HW:SCRIPTS (tools/build.mjs inlines src/manifest.json here, in order) -->
+<script src="src/00-namespace.js"></script>
+<script src="src/10-config.js"></script>
+<script src="src/20-catalog.js"></script>
+<script src="src/30-track-layout.js"></script>
+<script src="src/31-track-mesh.js"></script>
+<script src="src/40-electrical.js"></script>
+<script src="src/41-booster.js"></script>
+<script src="src/42-vehicle.js"></script>
+<script src="src/43-sim.js"></script>
+<script src="src/50-render-scene.js"></script>
+<script src="src/51-render-cars.js"></script>
+<script src="src/60-ui.js"></script>
+<script src="src/90-main.js"></script>
+<!-- /HW:SCRIPTS -->
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import RAPIER from '@dimforge/rapier3d-compat';
+  await RAPIER.init();
+  window.THREE = THREE; window.RAPIER = RAPIER; window.OrbitControls = OrbitControls;
+  window.__hwLibsReady = true;
+  document.getElementById('loading').classList.add('done');
+  window.dispatchEvent(new CustomEvent('hw:libs-ready'));
+</script>
+</body>
+</html>
