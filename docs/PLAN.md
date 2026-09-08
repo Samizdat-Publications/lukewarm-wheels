@@ -17,7 +17,7 @@ ids that must be `done` first. Update this file whenever status changes.
 | T08 | `src/42-vehicle.js` raycast vehicle + sled fallback + car API | fable | T03, T02 | done | kinematic park for lifted cars |
 | T09 | `src/43-sim.js` world, fixed-step loop, events, crash detection | fable | T05-T08 | done | |
 | T10 | `index.html` + `src/90-main.js` boot, minimal debug render so it runs | fable | T09, T02 | done | debug renderer + HUD in 90-main.js |
-| T11 | `src/50-render-scene.js` lights, floor, track material, hub body, gear train x-ray, camera presets | opus | T10 | doing | Opus agent launched 2026-09-08 |
+| T11 | `src/50-render-scene.js` lights, floor, track material, hub body, gear train x-ray, camera presets | opus | T10 | done | 5 presets, x-ray gear train, pickLane, crash sparks; docs/agent-reports/T11.md |
 | T12 | `src/20-catalog.js` + `src/51-render-cars.js` five castings, liveries on canvas textures | opus | T03, T01 | done | wiki data confirmed via the Fandom **API** (docs/CATALOG-SOURCES.md); 421 tris/car; preview `tools/cars-preview.html`, shot `docs/screenshots/T12-cars.png`, report `docs/agent-reports/T12.md` |
 | T13 | `src/60-ui.js` panel, switch, gauges, car placement, tuning drawer | opus | T10 | done | see docs/agent-reports/T13.md; screenshots docs/screenshots/T13-ui.png, T13-tuning.png |
 | T14 | `tools/build.mjs` -> `dist/index.html` single file, CSP-safe | opus | T10 | done | 62.8 KB, 13 inlined scripts, 0 console errors; docs/agent-reports/T14-T17.md. Re-run after any src change |

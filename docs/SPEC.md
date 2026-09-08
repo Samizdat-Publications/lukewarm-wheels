@@ -161,6 +161,16 @@ cabin wedge + wheels), liveries via canvas textures, metallic paint, window
 tint, base colour from the catalog. Camera presets: Overview, Crash zone,
 Chase (follow selected car), Booster close-up, Gear train x-ray.
 
+T11 notes (deviations from the contract above): `pickLane` takes two scalars,
+`pickLane(ndcX, ndcY)`, not a vector. The room floor is at y = -4 cm: the set
+stands on short grey connector feet and the red hub module body (y -3.6 .. -0.45)
+houses the gear train and battery box. The second circuit's *visual* floor ribbon
+is lifted 0.03 cm so the two coplanar ribbons do not z-fight in the crossing
+(colliders untouched). Car groups must expose `userData.wheels = [FL,FR,RL,RR]`
+with the axle along local X (`rotation.z = PI/2`); the renderer writes
+`rotation.x` = wheel spin and then calls `HW.renderCars.sync(car, group)`, which
+may override anything it set.
+
 ### 5.10 UI (src/60-ui.js)
 Left panel: Booster switch (big toggle), Line up all five, Reset, Nudge
 (selected car), car picker (five chips; click a lane to place facing the lane
