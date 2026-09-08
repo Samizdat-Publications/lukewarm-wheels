@@ -41,6 +41,42 @@ _State at the end of Fable session 1, 2026-09-08 late. All five Opus agents fini
 - Agents noted that several of them shared one Playwright browser and stole each other's tabs.
   Run browser-verifying agents sequentially, or give physics work the Node harness.
 
+## Stewart's answers (2026-09-08) — these override ROADMAP section 8
+1. **Real set:** he does NOT own one. Get dimensions from the web. The set is Mattel **V2791**
+   "Criss Cross Crash" (2010, discontinued 2012); the cars are the 1999 5-pack **#21081**.
+   Search eBay / Worthpoint / Mercari listings and YouTube reviews for photos with rulers or
+   known-size objects (a D cell is 34 x 61 mm, a 1:64 car ~66 mm, standard track 38.1 mm
+   wide) and scale from those. Stewart will fetch specific photos if told exactly which
+   listing or angle is needed.
+2. **Blender 5.1 is installed.** Use it headless: `blender -b -P tools/blender/<script>.py`.
+   Find the exe with `where blender` or under `C:/Program Files/Blender Foundation/Blender 5.1/`.
+3. **API keys (Gemini, ElevenLabs):** the next session must write step-by-step terminal
+   commands that put the keys into `.env` (gitignored) without a key ever appearing in chat
+   or in a prompt (Stewart types the value himself, e.g. with `Set-Content -Path .env`),
+   plus a `tools/env-check.mjs` that prints only whether each key is present.
+   **Every command given to Stewart must begin with**
+   `cd "C:/Users/stewa/OneDrive/Documents/Claude/Projects/Hot Wheels Sim"` (or be a
+   one-liner that includes it) so he never has to type the path.
+4. **Machine:** ROG Zephyrus G16 (GU605CR), Intel Core Ultra 9 285H, 32 GB RAM, NVIDIA RTX
+   5070 Ti Laptop 12 GB plus Intel Arc 140T iGPU, Windows 11 Home 25H2 (build 26200.9278),
+   954 GB SSD with about 200 GB free. Plenty for the HD build. When measuring fps make sure
+   Chrome runs on the NVIDIA GPU (Windows Graphics settings, High performance).
+5. **Priority:** artifact first, then HD build.
+
+## Known UX gap Stewart hit (fix early in T18 / T13 follow-up)
+He switched the booster on with all five cars lined up, and also placed cars elsewhere on
+the track, and nothing moved. Causes: (a) with five cars sitting in the nips the motor
+starts under full load and bogs to ~2,400 rpm, so launches are feeble and cars stall within
+a few cm; the real-toy order is **switch ON first, let the rpm gauge settle, then Line up
+or drop cars one at a time** (keys 1-5, or double-click a car chip); (b) a car placed
+mid-track has nothing pushing it (only boosters push and the track is flat), so placement
+should default to a booster gate or the hint should say so; (c) the T18 energy shortfall.
+Required changes: "Line up all five" auto-starts the motor and staggers the drops ~0.3 s
+apart; a toast "Turn the booster on first" when a car is dropped into a nip with the motor
+off; a "Launch" button that drops the selected car into the nearest outbound nip; a
+three-line "How to play" box at the top of the panel. Verify with `tools/lobetest.mjs`
+five-car mode, then in a real browser (not the pane), before calling it done.
+
 ## How to resume (any model)
 1. Read `CLAUDE.md`, `docs/SPEC.md` (s5 geometry, s6 interfaces), `docs/PLAN.md`, then
    the agent reports in `docs/agent-reports/`.
