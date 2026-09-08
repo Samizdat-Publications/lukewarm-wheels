@@ -1,6 +1,6 @@
 # HANDOFF — live project state
 
-_Last updated: 2026-09-08 late by Opus 5 (T18a). Update this block whenever you stop._
+_Last updated: 2026-09-08 by Opus 5 (session 2, T18 diagnosis). Update this block whenever you stop._
 
 ## Strategy
 `docs/ROADMAP.md` is the director's brief for the Opus 5 session: build targets
@@ -100,6 +100,74 @@ session must reproduce in a real browser, not only in `tools/lobetest.mjs`:
   lobes (the 0.25 cm samples give a visible polygon). Cosmetic; Phase 4 territory.
 - He confirms the general look is good ("it looks great"). Priority stays: make cars lap.
 
+## T18 findings (2026-09-08, Opus 5 session 2) — READ BEFORE TOUCHING PHYSICS
+Measured in **real Chrome** (Browser pane), stepping `HW.sim.step(1/240)` synchronously.
+Everything below is data, not conjecture. Methodology: `HW.sim.create(cfg)` after each config
+change (colliders bake friction/geometry at create time), spin motor 240 steps, `spawnAtGate('N-out')`.
+
+### 1. The frame loop is NOT broken; `stepCount: 0` in the pane is an artifact
+The Browser pane fully SUSPENDS requestAnimationFrame while hidden, so `HW.sim.stepCount`
+stays 0 and `javascript_tool` times out on any rAF-waiting promise. This is not Stewart's bug.
+Do not chase it. Always step synchronously (never trust the live view in the pane).
+
+### 2. Stewart's "few inches" is the FIVE-CAR case, not the lone-car case
+A lone car in real Chrome reaches **s = 342 cm** (two lobes) before stalling — not a few inches.
+The lone-car stall and the five-car "few inches" are DIFFERENT failures. Five cars share one
+flywheel and launch off a bogged motor; that is still the open `lineUpFive` item.
+
+### 3. The lobe is NOT the energy sink. Steady-state decay is healthy.
+Per-step `dv` on the real nip launch is **-0.1 to -0.8 cm/s** for most of the lap
+(~24-190 cm/s2). That is the right order for a die-cast car. The old "lobe scrub eats the
+car" theory is WRONG.
+
+### 4. Ruled out by ablation (each measured, each made ~no difference to v@s=85)
+`floorFriction` (0 is bit-identical to baseline — the chassis is NOT dragging),
+`wallFriction`, `carFriction`, `crrScale`, `linDamping`, `angDamping`, suspension damping,
+`frictionSlip` (1.0 is WORSE: 88; 0.02 ~ baseline), `wallRestitution` (0.0 / 0.1 / 0.9 all
+within noise), `wallSegLen` (0.5 / 1.5 / 3.0 within noise). A loss insensitive to every
+coefficient is STRUCTURAL, not dissipative. `latMax` stays 0.47 cm, so the car rides the
+wall steadily and does NOT pinball.
+- Corollary: `crrScale` 1.0 -> 0.5 (old HANDOFF candidate #1) is worth ~2%. Crr 0.022 gives
+  only 21 cm/s2 against a measured ~500. Drop that idea.
+- Corollary: `lobeBankDeg` 35 is CATASTROPHIC (car dies at s=85). More bank is not the fix.
+
+### 5. The real sink: discrete slam events at geometry transitions
+Energy leaves in a few large steps, not continuously. They correlate exactly with the
+per-wheel contact flags dropping wheels (`0101`, `1010`, `0111` = airborne on two wheels).
+Biggest: **s = 72 -> 79, v 222 -> 150 cm/s**, at the N-lobe entry where bank + lift ramp in.
+The transitions are too abrupt for a rigid four-wheel car: it is launched, then slams.
+
+### 6. Confirmed improvement (not yet landed)
+`lobeBlend: 0.5 -> 1.0` gives **v@s=140: 93 -> 135 cm/s**, peak launch 316 -> 400, airborne
+time 2% -> 1%. Right mechanism, real gain. Still `laps: 0`, so it is progress, not a fix.
+
+### 7. The geometry is FRAGILE — these values put the car off the track
+`lobeBlend 0.8`, `lobeLift 1.0`, `lobeLift 0` each make the car leave the track and get
+parked by the `lift()` safety (shows up as `airPct 99` + `maxS` 75-116). Only particular
+(blend, lift) pairs are stable. Sweep both together, never one alone, and always check
+`car.offTrack` / whether `lift()` fired before believing a number.
+
+### 8. Instrumentation gotchas that cost time here
+- Do NOT inject speed with `body.setLinvel` to make a "coast test". The raycast wheels start
+  at zero spin and the tyre model burns ~8 g decelerating the car to spin them up, which
+  looks exactly like a catastrophic geometry defect. Measure on the real nip launch.
+- Raycast wheels are RAYS: they never appear in `world.contactPairsWith`. Wheel forces are
+  invisible to a contact query. Use `car.wheelState(k).contact` for the four wheels.
+- `maxS` is a bad metric: it flips between 170 / 190 / 342 on whether the inbound nip happens
+  to catch the car (a threshold). Use **v at a fixed s** (s=85, s=140) as the signal.
+- The inbound nip DOES engage correctly (s=178: 14 -> 211 cm/s). Old open question, answered.
+- The nip drives the car through **chassis friction**: `carFriction=0` or `wallFriction=0`
+  kills the launch at s=170. Do not zero those "to isolate rolling losses".
+- `lobeLift` is **2.0 cm** in config, not the 9 cm still listed in "Assumptions". 9 cm was
+  already found unclimbable and cut. Fix that assumptions line.
+
+### 9. Next moves
+1. Sweep (`lobeBlend`, `lobeLift`) jointly on a stability grid; keep only pairs where
+   `offTrack` never fires, then maximise v@s=140. Land the winner in `10-config.js`.
+2. Remaining shortfall after that is the hub arrival energy; then `lineUpFive` (stagger the
+   drops, motor already spinning) for the five-car case = Stewart's actual report.
+3. Re-run selftest (target 8/8), rebuild dist, publish artifact.
+
 ## How to resume (any model)
 1. Read `CLAUDE.md`, `docs/SPEC.md` (s5 geometry, s6 interfaces), `docs/PLAN.md`, then
    the agent reports in `docs/agent-reports/`.
@@ -160,7 +228,7 @@ like this when measuring; the live view runs in slow motion there.
 
 ## Assumptions to surface to Stewart
 Hub 26 cm across, foam wheel radius derived 2.59 cm, straights 10 cm at 45 deg, bend
-radius 15 cm, lobe radius derived 20.5 cm (footprint ~131 cm), lobe apex 9 cm, lobe wall
+radius 15 cm, lobe radius derived 20.5 cm (footprint ~131 cm), lobe apex 2.0 cm (config lobeLift; the 9 cm guess was cut as unclimbable), lobe wall
 height 2.6 cm, 280-class motor, gear 6.5:1, foam nip ~5 N normal force, wall friction 0.10,
 car masses 35-47 g. All ESTIMATE unless RESEARCH.md says MEASURED.
 
