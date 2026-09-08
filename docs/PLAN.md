@@ -20,10 +20,10 @@ ids that must be `done` first. Update this file whenever status changes.
 | T11 | `src/50-render-scene.js` lights, floor, track material, hub body, gear train x-ray, camera presets | opus | T10 | doing | Opus agent launched 2026-09-08 |
 | T12 | `src/20-catalog.js` + `src/51-render-cars.js` five castings, liveries on canvas textures | opus | T03, T01 | doing | Opus agent launched 2026-09-08 |
 | T13 | `src/60-ui.js` panel, switch, gauges, car placement, tuning drawer | opus | T10 | doing | Opus agent launched 2026-09-08 |
-| T14 | `tools/build.mjs` -> `dist/index.html` single file, CSP-safe | opus | T10 | doing | Opus agent launched 2026-09-08 (with T17) |
+| T14 | `tools/build.mjs` -> `dist/index.html` single file, CSP-safe | opus | T10 | done | 62.8 KB, 13 inlined scripts, 0 console errors; docs/agent-reports/T14-T17.md. Re-run after any src change |
 | T15 | Showroom tab (turntable, close-ups, exploded view, collector cards) | opus | T12, T13 | todo | |
 | T16 | Motor whine audio (WebAudio, pitch from rpm), optional | opus | T13 | todo | |
-| T17 | `tools/selftest.html` automated checks from SPEC section 7 | opus | T10 | doing | with T14 |
+| T17 | `tools/selftest.html` automated checks from SPEC section 7 | opus | T10 | done | 8 checks, 7 PASS; only 8 fails: motor bogs 12291->2448 rpm under five nips so no car reaches the crossing (feeds T18). docs/agent-reports/T17-selftest-output.txt |
 | T18a | **Lobe stability**: a car at 250-330 cm/s leaves the arc mid-lobe even when flat. See HANDOFF.md hypotheses | fable/opus | T10 | doing | Opus agent launched 2026-09-08; critical path |
 | T18 | Tune defaults against SPEC section 1 behaviours; record in HANDOFF | fable | T18a, T11-T13 | todo | Opus may do this if Fable is out |
 | T19 | Publish: `dist/index.html` as Artifact and/or Cloudflare; README | opus | T14, T18 | todo | |

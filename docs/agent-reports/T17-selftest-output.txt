@@ -1,0 +1,71 @@
+tools/selftest.html — http://localhost:8765/tools/selftest.html
+Run with Playwright Chromium, 2026-09-08. Zero console errors / warnings in both runs.
+Text captured verbatim from window.__selftest.text.
+
+NOTE: src/ was moving under this test — T11, T12, T13 and T18a agents were landing files
+while it ran. Run B is the later (current) state and is the one to trust.
+
+
+================================ RUN B (current src) ================================
+
+Criss Cross Crash self-test — THREE r185, RAPIER 0.20.0, physics 240 Hz
+
+PASS   1. circuits close                 NS gap 0.0000 cm (len 336.5), EW gap 0.0000 cm (len 336.5)  limit 0.05
+PASS   2. curve radius formula           R=20.455844 closed form 20.455844, 4 lobe arcs agree, max err 0.00e+0
+PASS   3. booster zones on lane          8 zones, worst offset 0.0000 cm (limit 0.5)
+PASS   4. no-load rpm                    12908 rpm vs closed form 12908 rpm (0.00%, limit 5%), I=0.153 A
+PASS   5. battery sag under load         I 0.153 -> 1.441 A, V 6.266 -> 5.131 V (open circuit 6.400), rpm 12908 -> 7219
+PASS   6. lone-car launch                Porsche 959: peak 317 cm/s (want 150-600), exit 317 cm/s after 0.07 s
+PASS   7. lone-car lap                   lap 1 after 2.63 s on circuit NS
+FAIL   8. five cars pile up              0 crashes in 15 s, 0/5 lifted (none), 5 stalled, no NaN, laps 0/0/0/0/0
+      motor 12291 rpm free -> 2448 rpm bogged under five nips; fastest car 264 cm/s
+      Porsche 959 NS s=32 v=2 STALL | Aeroflash NS s=197 v=1 STALL | Ford GT-90 EW s=30 v=1 STALL | Chevy Stocker EW s=11 v=1 STALL | Chevy 1500 NS s=187 v=2 STALL
+      root cause is upstream physics, not this harness: cars never reach the crossing (see check 7 / T18a, and T18 tuning).
+
+passed=7  failed=1  warned=0
+SUITE FAILED
+
+
+============================ RUN A (src ~15 minutes earlier) ========================
+Kept for contrast: it is the same harness against the pre-T18a physics, and check 7
+caught exactly the bug HANDOFF.md describes.
+
+PASS   1. circuits close                 NS gap 0.0000 cm (len 336.5), EW gap 0.0000 cm (len 336.5)  limit 0.05
+PASS   2. curve radius formula           R=20.455844 closed form 20.455844, 4 lobe arcs agree, max err 0.00e+0
+PASS   3. booster zones on lane          8 zones, worst offset 0.0000 cm (limit 0.5)
+PASS   4. no-load rpm                    12908 rpm vs closed form 12908 rpm (0.00%, limit 5%), I=0.153 A
+PASS   5. battery sag under load         I 0.153 -> 1.441 A, V 6.266 -> 5.131 V (open circuit 6.400), rpm 12908 -> 7219
+PASS   6. lone-car launch                Porsche 959: peak 317 cm/s (want 150-600), exit 317 cm/s after 0.07 s
+WARN   7. lone-car lap                   no lap in 15.00 s — max s 88.9 of 336.5 cm, still on track. Known open bug T18a (lobe stability), owned by another agent.
+FAIL   8. five cars pile up              0 crashes in 15 s, 1/5 lifted (Chevy 1500), 4 stalled, no NaN, laps 0/0/0/0/0
+      motor 12291 rpm free -> 1548 rpm bogged under five nips; fastest car 264 cm/s
+
+passed=6  failed=1  warned=1
+SUITE FAILED
+
+Independent five-car trace on a FRESH world (sim.create(), not sim.reset()) during run A,
+same result, so check 8 is not an artefact of running after checks 6-7:
+
+1s  crashes=0 | Porsche:NS s=83 v=56  Aeroflash:NS s=242 v=55  Ford:EW s=70 v=73  Chevy Stocker:EW s=184 v=1 STALL  Chevy 1500:NS s=13 v=1
+2s  crashes=0 | Porsche:NS s=27 v=26  Aeroflash:NS s=197 v=10  Ford:EW s=28 v=4   Chevy Stocker:EW s=184 v=1 STALL  Chevy 1500:NS s=13 v=1 STALL
+3s  crashes=0 | all five STALLED at s = 33 / 196 / 27 / 184 / 13, v <= 2 cm/s
+4s..15s      | unchanged — nothing moves again, 0 crashes
+
+
+==================================== READING ========================================
+
+Checks 1-6 are geometry and drive-train identities; they are exact and stable across both
+runs (closure 0.0000 cm, radius formula to 1e-16, no-load rpm to 0.00%).
+
+Check 7 flipped WARN -> PASS between runs: the T18a lobe-stability fix landed in src/ while
+this was being written, and a lone car now completes a lap in 2.63 s. The check is a live
+regression test for that fix.
+
+Check 8 still fails, and the failure is a drive-train headroom problem, not a solver problem
+(no NaN anywhere, and a lone car laps fine):
+  - five nips loaded at once drag the motor from 12291 rpm to 2448 rpm;
+  - every car therefore leaves its nip well below launch speed (fastest 264 cm/s) and coasts
+    to a stop long before the `#` crossing, so no crash can occur;
+  - reproduced on a fresh sim.create() world, so it is not test-ordering.
+Tuning candidates for T18: gearRatio, foamK / foamMu, motorR / motorKt, cell internal
+resistance (cellRFresh), foamWheelMassG (flywheel energy available at launch).

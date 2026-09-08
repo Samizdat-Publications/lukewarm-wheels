@@ -49,6 +49,8 @@ out, Stewart opens a new **Opus 5** session in this folder; that session reads
   `node tools/build.mjs` inlines them into `dist/index.html` (single file,
   CDN-only externals, artifact-CSP safe).
 - **Dev server:** `node tools/serve.mjs` → http://localhost:8765/
+- **Self-test:** http://localhost:8765/tools/selftest.html (`node tools/selftest.mjs`
+  prints the URL). Checks run in the page; results on `window.__selftest`.
 - Each `src/*.js` file is an IIFE: `(function(HW){ ... })(window.HW)`. It
   exposes exactly what `docs/SPEC.md §Interfaces` says, nothing else.
 - All tunable numbers live in `src/10-config.js` (`HW.config`). Never hardcode

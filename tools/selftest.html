@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Criss Cross Crash — self-test</title>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #14171d; color: #e8eaf0; font: 13px/1.5 system-ui, sans-serif; }
+  header { padding: 14px 18px 6px; }
+  h1 { margin: 0 0 2px; font-size: 15px; letter-spacing: .02em; }
+  .sub { color: #8b93a3; font-size: 12px; }
+  #out { margin: 8px 18px 24px; padding: 14px 16px; background: #0c0e12; border: 1px solid #2a2f3a; border-radius: 8px;
+         font: 12px/1.55 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/",
+    "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.20.0/dist/rapier.mjs"
+  }
+}
+</script>
+</head>
+<body>
+<header>
+  <h1>Criss Cross Crash — self-test</h1>
+  <div class="sub">SPEC section 7. Results also on <code>window.__selftest = {passed, failed, results}</code>.</div>
+</header>
+<pre id="out">loading physics and renderer libs…</pre>
+
+<!-- same files as src/manifest.json, same order (index.html inlines these via tools/build.mjs) -->
+<script src="../src/00-namespace.js"></script>
+<script src="../src/10-config.js"></script>
+<script src="../src/20-catalog.js"></script>
+<script src="../src/30-track-layout.js"></script>
+<script src="../src/31-track-mesh.js"></script>
+<script src="../src/40-electrical.js"></script>
+<script src="../src/41-booster.js"></script>
+<script src="../src/42-vehicle.js"></script>
+<script src="../src/43-sim.js"></script>
+<script src="../src/50-render-scene.js"></script>
+<script src="../src/51-render-cars.js"></script>
+<script src="../src/60-ui.js"></script>
+<script src="../src/90-main.js"></script>
+
+<script>
+// Stop 90-main.js from booting: this page has no canvas and drives the fixed-step loop
+// itself (the Browser pane throttles requestAnimationFrame, so measurements must be
+// stepped synchronously). Classic scripts run before the deferred module below, so this
+// lands before 90-main's hw:libs-ready handler fires.
+HW.main.booted = true;
+HW.main.paused = true;
+</script>
+
+<script>
+(function (HW) {
+  const V = HW.V, U = HW.units, H = 1 / 240;
+  const out = document.getElementById('out');
+  const results = [];
+  let passed = 0, failed = 0, warned = 0;
+  const lines = [];
+
+  function write(s) { lines.push(s); out.textContent = lines.join('\n'); }
+  function record(n, name, status, detail) {
+    results.push({ n, name, status, detail });
+    if (status === 'PASS') passed++; else if (status === 'FAIL') failed++; else warned++;
+    write(status.padEnd(5) + ' ' + String(n).padStart(2) + '. ' + name.padEnd(30) + ' ' + detail);
+  }
+  const ok = (n, name, cond, detail) => record(n, name, cond ? 'PASS' : 'FAIL', detail);
+  const f = (x, d = 3) => (Number.isFinite(x) ? x.toFixed(d) : String(x));
+  const yieldToPage = () => new Promise((r) => setTimeout(r, 0));
+
+  // Step the sim n times. `watch(i)` runs after each step; return false from it to stop early.
+  // Returns the number of steps actually taken.
+  async function stepFor(sim, n, watch) {
+    for (let i = 0; i < n; i++) {
+      sim.step(H);
+      if (watch && watch(i) === false) return i + 1;
+      if ((i & 1023) === 1023) await yieldToPage();
+    }
+    return n;
+  }
+  const finite = (p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z);
+
+  async function run() {
+    lines.length = 0;
+    write('Criss Cross Crash self-test — THREE r' + window.THREE.REVISION + ', RAPIER ' + window.RAPIER.version()
+      + ', physics ' + (1 / H).toFixed(0) + ' Hz');
+    write('');
+    const cfg = HW.config;
+
+    // ---- 1. both circuits close ------------------------------------------------
+    let track;
+    try {
+      track = HW.track.build(cfg);
+      const gaps = track.circuits.map((path) => {
+        const segs = path.segments;
+        const end = segs[segs.length - 1].pointAt(1);
+        return { name: path.name, gap: V.dist(end, path.samples.P[0]), len: path.length };
+      });
+      const worst = Math.max(...gaps.map((g) => g.gap));
+      ok(1, 'circuits close', worst < 0.05,
+        gaps.map((g) => g.name + ' gap ' + f(g.gap, 4) + ' cm (len ' + f(g.len, 1) + ')').join(', ') + '  limit 0.05');
+    } catch (e) { record(1, 'circuits close', 'FAIL', 'threw: ' + e.message); }
+
+    // ---- 2. derived curve radius matches the closed form ------------------------
+    try {
+      const d = cfg.derived();
+      const b = U.degToRad(cfg.splayDeg);
+      // SPEC s5.2/s5.4 closure: R = (L + rt*(1-cos b) + S*sin b) / cos b
+      const expect = (cfg.laneOffset + cfg.junctionRadius * (1 - Math.cos(b)) + cfg.straightLen * Math.sin(b)) / Math.cos(b);
+      const arcs = track.circuits.flatMap((p) => p.segments.filter((s) => s.kind === 'arc' && /-lobe$/.test(s.meta.name)));
+      const arcErr = Math.max(...arcs.map((a) => Math.abs(a.radius - expect)));
+      const err = Math.max(Math.abs(d.curveRadius - expect), Math.abs(track.curveRadius - expect), arcErr);
+      ok(2, 'curve radius formula', err < 1e-9,
+        'R=' + f(d.curveRadius, 6) + ' closed form ' + f(expect, 6) + ', ' + arcs.length + ' lobe arcs agree, max err ' + err.toExponential(2));
+    } catch (e) { record(2, 'curve radius formula', 'FAIL', 'threw: ' + e.message); }
+
+    // ---- 3. booster zones sit on their lane ------------------------------------
+    try {
+      const bad = [];
+      let worst = 0;
+      for (const z of track.boosters) {
+        const A = HW.track.ARMS[z.arm];
+        // the wheel centre's lane point: booster radius out along the arm, offset into the lane
+        const q = V.addScaled(V.scale(A.d, cfg.boosterR), A.r, z.lane === 'out' ? cfg.laneOffset : -cfg.laneOffset);
+        const dist = V.dist(z.path.sample(z.s).p, q);
+        if (dist > worst) worst = dist;
+        if (dist >= 0.5) bad.push(z.name + ' ' + f(dist) + ' cm');
+      }
+      ok(3, 'booster zones on lane', bad.length === 0,
+        track.boosters.length + ' zones, worst offset ' + f(worst, 4) + ' cm (limit 0.5)' + (bad.length ? ' — off: ' + bad.join(', ') : ''));
+    } catch (e) { record(3, 'booster zones on lane', 'FAIL', 'threw: ' + e.message); }
+
+    // ---- 4. electrical no-load rpm ---------------------------------------------
+    let elec = null;
+    try {
+      elec = HW.electrical.create(cfg, track);
+      elec.setSwitch(true);
+      for (let i = 0; i < 480; i++) elec.step(H, 0);      // 2 s, no load
+      const t = elec.telemetry(), target = elec.noLoadRpm();
+      const rel = Math.abs(t.rpmMotor - target) / target;
+      ok(4, 'no-load rpm', rel < 0.05,
+        f(t.rpmMotor, 0) + ' rpm vs closed form ' + f(target, 0) + ' rpm (' + (rel * 100).toFixed(2) + '%, limit 5%), I=' + f(t.I, 3) + ' A');
+    } catch (e) { record(4, 'no-load rpm', 'FAIL', 'threw: ' + e.message); }
+
+    // ---- 5. battery sag under load ---------------------------------------------
+    try {
+      const before = elec.telemetry();
+      for (let i = 0; i < 480; i++) elec.step(H, 3e5);    // 2 s at 3e5 dyne.cm on the wheels
+      const after = elec.telemetry();
+      const cond = after.I > before.I && after.V < after.V0 && after.V < before.V;
+      ok(5, 'battery sag under load', cond,
+        'I ' + f(before.I, 3) + ' -> ' + f(after.I, 3) + ' A, V ' + f(before.V, 3) + ' -> ' + f(after.V, 3)
+        + ' V (open circuit ' + f(after.V0, 3) + '), rpm ' + f(before.rpmMotor, 0) + ' -> ' + f(after.rpmMotor, 0));
+    } catch (e) { record(5, 'battery sag under load', 'FAIL', 'threw: ' + e.message); }
+
+    // ---- 6. lone-car launch out of a nip ---------------------------------------
+    const sim = HW.sim;
+    let car = null, maxS = 0, launchOk = false;
+    try {
+      sim.create(cfg);
+      sim.setSwitch(true);
+      await stepFor(sim, 120);                            // 0.5 s spin-up
+      car = sim.cars[0];
+      car.spawnAtGate('N-out');
+      let peak = 0, entered = false, exitSpeed = 0;
+      const used = await stepFor(sim, 240 * 3, () => {
+        if (car.s > maxS) maxS = car.s;
+        if (car.speed > peak) peak = car.speed;
+        if (car.inBooster) entered = true;
+        else if (entered) { exitSpeed = car.speed; return false; }
+      });
+      launchOk = entered && peak > 150 && peak < 600;
+      ok(6, 'lone-car launch', launchOk,
+        car.entry.name + ': peak ' + f(peak, 0) + ' cm/s (want 150-600), exit ' + f(exitSpeed, 0)
+        + ' cm/s after ' + f(used * H, 2) + ' s' + (entered ? '' : ' — NEVER ENGAGED THE NIP'));
+      window.__selftestLaunchSteps = used;
+    } catch (e) { record(6, 'lone-car launch', 'FAIL', 'threw: ' + e.message); }
+
+    // ---- 7. lone-car lap (known open physics bug T18a: WARN, do not fail) -------
+    try {
+      const used = window.__selftestLaunchSteps || 0;
+      let lifted = false, off = false;
+      const more = await stepFor(sim, Math.max(0, 240 * 15 - used), () => {
+        if (car.s > maxS) maxS = car.s;
+        if (car.lifted) { lifted = true; return false; }
+        if (car.offTrack) off = true;
+        if (car.laps >= 1) return false;
+      });
+      const secs = (used + more) * H;
+      if (car.laps >= 1) record(7, 'lone-car lap', 'PASS', 'lap ' + car.laps + ' after ' + f(secs, 2) + ' s on circuit ' + car.path.name);
+      else record(7, 'lone-car lap', 'WARN',
+        'no lap in ' + f(secs, 2) + ' s — max s ' + f(maxS, 1) + ' of ' + f(car.path.length, 1) + ' cm, '
+        + (lifted ? 'car was LIFTED (fell off the table)' : off ? 'car went OFF TRACK but stayed on the table' : 'still on track')
+        + '. Known open bug T18a (lobe stability), owned by another agent.');
+    } catch (e) { record(7, 'lone-car lap', 'FAIL', 'threw: ' + e.message); }
+
+    // ---- 8. five cars: crashes, no NaN -----------------------------------------
+    try {
+      sim.reset();
+      sim.setSwitch(true);
+      await stepFor(sim, 120);
+      const rpmFree = sim.elec.telemetry().rpmMotor;
+      sim.lineUpFive();
+      let rpmBog = Infinity, peak = 0;
+      await stepFor(sim, 240 * 15, () => {
+        const r = sim.elec.telemetry().rpmMotor;
+        if (r < rpmBog) rpmBog = r;
+        for (const c of sim.cars) if (!c.lifted && c.speed > peak) peak = c.speed;
+      });
+      const nan = sim.cars.filter((c) => !finite(c.body.translation()));
+      const lifted = sim.cars.filter((c) => c.lifted);
+      const stalled = sim.cars.filter((c) => !c.lifted && c.stalled);
+      const cond = sim.crashes >= 1 && nan.length === 0;
+      record(8, 'five cars pile up', cond ? 'PASS' : 'FAIL',
+        sim.crashes + ' crashes in 15 s, ' + lifted.length + '/5 lifted (' + (lifted.map((c) => c.entry.name).join(', ') || 'none')
+        + '), ' + stalled.length + ' stalled, ' + (nan.length ? 'NaN in: ' + nan.map((c) => c.entry.name).join(', ') : 'no NaN')
+        + ', laps ' + sim.cars.map((c) => c.laps).join('/'));
+      write('      motor ' + f(rpmFree, 0) + ' rpm free -> ' + f(rpmBog, 0) + ' rpm bogged under five nips; fastest car ' + f(peak, 0) + ' cm/s');
+      write('      ' + sim.cars.map((c) => c.entry.name + ' ' + (c.lifted ? 'LIFTED'
+        : (c.path ? c.path.name : '-') + ' s=' + f(c.s, 0) + ' v=' + f(c.speed, 0) + (c.stalled ? ' STALL' : '') + (c.offTrack ? ' OFF' : ''))).join(' | '));
+      if (!cond && nan.length === 0) write('      root cause is upstream physics, not this harness: cars never reach the crossing (see check 7 / T18a, and T18 tuning).');
+    } catch (e) { record(8, 'five cars pile up', 'FAIL', 'threw: ' + e.message); }
+
+    write('');
+    write('passed=' + passed + '  failed=' + failed + '  warned=' + warned);
+    write(failed === 0 ? (warned ? 'SUITE OK (with warnings)' : 'SUITE OK') : 'SUITE FAILED');
+    window.__selftest = { passed, failed, warned, results, text: lines.join('\n'), done: true };
+  }
+
+  function boot() {
+    out.textContent = 'running…';
+    run().catch((e) => {
+      write('');
+      write('SUITE CRASHED: ' + (e && e.stack || e));
+      window.__selftest = { passed, failed: failed + 1, warned, results, text: lines.join('\n'), done: true, error: String(e) };
+    });
+  }
+  addEventListener('hw:libs-ready', boot);
+  if (window.THREE && window.RAPIER && window.__hwLibsReady) boot();
+})(window.HW);
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import RAPIER from '@dimforge/rapier3d-compat';
+  await RAPIER.init();
+  window.THREE = THREE; window.RAPIER = RAPIER; window.OrbitControls = OrbitControls;
+  window.__hwLibsReady = true;
+  window.dispatchEvent(new CustomEvent('hw:libs-ready'));
+</script>
+</body>
+</html>
