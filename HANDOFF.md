@@ -161,12 +161,113 @@ parked by the `lift()` safety (shows up as `airPct 99` + `maxS` 75-116). Only pa
 - `lobeLift` is **2.0 cm** in config, not the 9 cm still listed in "Assumptions". 9 cm was
   already found unclimbable and cut. Fix that assumptions line.
 
-### 9. Next moves
-1. Sweep (`lobeBlend`, `lobeLift`) jointly on a stability grid; keep only pairs where
-   `offTrack` never fires, then maximise v@s=140. Land the winner in `10-config.js`.
-2. Remaining shortfall after that is the hub arrival energy; then `lineUpFive` (stagger the
-   drops, motor already spinning) for the five-car case = Stewart's actual report.
-3. Re-run selftest (target 8/8), rebuild dist, publish artifact.
+### 9. THE LAUNCH IS GRIP-LIMITED, NOT SPEED-LIMITED (biggest finding of the session)
+Sweeping the drivetrain changes the foam surface speed and does **nothing** to the car:
+
+| gearRatio | foam surface speed | car peak |
+|---|---|---|
+| 6.5 (current) | 537 cm/s | **316** |
+| 4.5 | 745 | **316** |
+| 3.5 | 861 | **316** |
+| 2.5 | 902 | **316** |
+
+Launch speed is decoupled from the drive train. The nip can only push with mu*N over its
+contact length, and the car leaves the zone long before surface speed matters. This is
+physically correct for a real booster, and it means:
+- `gearRatio`, `motorKe/Kt`, `cells`, `foamWheelMassG` are **NOT** levers on launch speed.
+  Every attempt to fix the energy shortfall by "spinning the wheels faster" is wasted work.
+- The real levers are `foamK` (nip normal force), `foamMu`, and `boostExtra` (contact length).
+  Sweeping those moves peak launch 316 -> 400 cm/s.
+- Watch for a second apparent cap at exactly **400 cm/s**; it recurs across unrelated configs
+  and has not been explained. Find it before tuning further.
+
+### 10. First completed lap
+`lobeLift 6, lobeBlend 1.0, foamK 2.4e6, foamMu 1.2, boostExtra 3.0` -> **laps: 1**
+(the only lap achieved all session). It then goes `offTrack`. So: enough energy to lap is
+now demonstrated; the remaining problem is stability at the higher speed, not energy.
+
+### 11. `lobeBlend: 1.0` fixes the off-track instability
+The earlier "cars leave the track" cases (reported as `airPct 99`, which is really the
+`lift()` safety parking a departed car) do **not** occur at `lobeBlend 1.0`. Set it there
+before sweeping anything else. `lobeBankDeg 30` also helps once `lobeLift` is large
+(min speed on lobe 98 -> 147 at lift 10); `lobeBankDeg 35` at lift 2 is still catastrophic.
+
+### 12. The circuit constraint that actually decides everything
+The nips are the ONLY energy input. A car must coast from one nip to the next or it can
+never lap. Current coast range peaks at `maxS` ~342 and the next nip is ~20 cm further on.
+Any tuning must be judged on "does it reach the next nip", not on speed at a point.
+`maxS` alone is still a bad metric (it is a threshold on nip capture) - report `laps`.
+
+### 13. REAL-SET GEOMETRY FROM STEWART'S PHOTOS (2026-09-08) - the model is wrong
+Stewart supplied four eBay listing photos (overhead x2, eye-level side, hub close-up). No
+ruler in frame, so everything below is scaled off the known track width (3.81 cm outer /
+3.175 cm lane) and is ESTIMATE, but the qualitative finding is certain:
+
+- **The four lobes are TALL, INCLINED TEARDROP LOOPS, not near-flat banked turns.** Every
+  lobe rises well off the floor. The two rear lobes stand up nearly vertical, supported at
+  their apex by a thin blue post; the two front lobes are propped high at their outer ends
+  by tall blue ladder supports. Apex height scales to roughly **10-16 cm** above the hub.
+  `lobeLift: 2.0` is therefore about a **10x underestimate** and `lobeBankDeg: 15` badly
+  understates how far the car leans.
+- **A climb is a reservoir, not a loss.** The old HANDOFF note ("9 cm costs 8800 cm2/s2 per
+  lobe and the car cannot make the apex") treated the lift as pure dissipation. It is paid
+  going up and returned coming down; it only costs if the car stalls before the apex.
+  Flattening the lobes removed the gravity swoop AND left the car in a long flat scrubbing
+  turn. Re-model the lobe as a real inclined loop.
+- Footprint scales to roughly **105-110 cm** (config derives 131) and the red hub to roughly
+  **30-32 cm** across (config assumes 26). Both worth re-deriving from the photos properly.
+- The hub close-up shows the four booster modules and the black foam wheels in their slots.
+  Foam wheel diameter looks smaller than the derived 2.59 cm **radius**. Re-measure against
+  the track width in that photo before trusting `foamWheelRadius`.
+- Caution: at the real apex height the current model starves (min speed on lobe falls to
+  ~96-98 and the car cannot get home). Raising `lobeLift` to reality REQUIRES the stronger
+  nip from item 9 first. Change them together, never separately.
+
+### 14. Video references (not yet watched - do this first next session)
+- Set running, short: https://www.youtube.com/watch?v=VILmpR2Xwww  (Stewart: "probably all you need")
+- Longer, more detail: https://www.youtube.com/watch?v=vRY5e9nQZv0
+Pull one lap time, how long five cars last before the pile-up, and whether cars ride the
+outer wall on the loops. Those numbers are what Phase 3 tuning should target.
+
+### 15. WHICH SET, AND THE 2+2 ARCHITECTURE (2026-09-08, decided with Stewart)
+Stewart also sent photos of the **newer** set (blue/orange, Mattel **FDF25** "Criss Cross Crash",
+~2018+, sold with extra attachments). **Decision: stay on the ORANGE OG V2791.** Reasons: all
+existing SPEC/RESEARCH grounding and the 1999 five-pack car choice target V2791; FDF25 has MORE
+parts to model (launch ramp, crash zones, attachments), not fewer; and Stewart owns neither, so
+the newer set buys no accuracy. Log FDF25 as a possible Phase 6+ upgrade.
+
+**But the FDF25 product photography is much clearer than the eBay shots and the two sets share
+architecture, so use it as reference.** It shows the thing the model gets wrong at the
+ARCHITECTURE level, not the parameter level:
+
+> **The four lobes are NOT identical. It is TWO near-vertical LOOPS + TWO wide ELEVATED SWEEPS.**
+
+On FDF25 the two rear lobes are unmistakable full vertical loops standing on a single centre
+post; the two front lobes are big sweeping curves carried out and around on tall legs. Re-reading
+the orange V2791 photos with that in mind shows the same 2+2: the two rear lobes stand up as
+loops (which is exactly why they read as small round circles in the overhead shots while the two
+front ones read as wide teardrops on ladder supports).
+
+`src/30-track-layout.js` builds **four identical banked 270 deg curves**. That is wrong. Before
+any more tuning, re-derive the layout as 2 loops + 2 sweeps. This also probably explains why no
+single (`lobeLift`, `lobeBankDeg`) pair ever worked: one geometry is being asked to be both a
+vertical loop and a flat sweep at once.
+
+Consequence for item 13: the "apex 10-16 cm" estimate applies to the SWEEPS. The LOOPS are a
+different shape entirely (a car goes up and over inverted, held by centripetal force), and their
+height is set by loop diameter, which scales off the track width in the FDF25 photos.
+
+### 16. Next moves (supersedes the old list)
+1. Watch the two videos; time a lap; write `docs/REFERENCES.md`.
+1b. RE-DERIVE THE LAYOUT AS 2 VERTICAL LOOPS + 2 ELEVATED SWEEPS (item 15). Do this before
+    any further tuning; the current 4-identical-lobes layout cannot be tuned into correctness.
+2. Re-model the lobe as a tall inclined loop from the photos (item 13). Export a config-driven
+   profile so geometry cannot drift from `10-config.js`.
+3. Sweep `foamK`/`foamMu`/`boostExtra` jointly with `lobeLift`/`lobeBlend`. Judge on `laps`
+   over 60 s AND `offTrack` never firing. Land the winner.
+4. Explain the 400 cm/s cap.
+5. Then `lineUpFive` (motor already spinning, stagger drops) = Stewart's actual bug report.
+6. Then selftest 8/8, rebuild dist, publish artifact.
 
 ## How to resume (any model)
 1. Read `CLAUDE.md`, `docs/SPEC.md` (s5 geometry, s6 interfaces), `docs/PLAN.md`, then
