@@ -1,6 +1,6 @@
 # HANDOFF — live project state
 
-_Last updated: 2026-09-08 evening by Fable 5.1 (session 1). Update this block whenever you stop._
+_Last updated: 2026-09-08 late by Opus 5 (T18a). Update this block whenever you stop._
 
 ## Strategy
 `docs/ROADMAP.md` is the director's brief for the Opus 5 session: build targets
@@ -18,20 +18,27 @@ Stewart, risks, and the suggested first hour. Read it after this file.
   loaded, cars survive the hub crossing and the 15 cm junction bends, five-car line-up
   produces crashes at the `#` crossing, a car completed a lap once (Chevy 1500, before the
   wall-height change).
-- **ONE OPEN PHYSICS BUG (T18a, critical path)**: a car entering a lobe arc at 250-330 cm/s
-  leaves the track around mid-arc (s ~ 90 on circuit NS, arc runs s=48..147). It happens
-  even with `lobeLift = 0` (flat, unbanked arc), so lift/bank are not the cause. Trace from
-  session 1 (lift 9, blend 0.35): by s=67 the car was 4 cm above the lane, 9 cm to the
-  INSIDE (left) of the left-hand turn and tumbling (roll 30-150 deg), no wheel contact,
-  no wall contact impulse. Hypotheses, in order: (1) the raycast vehicle's side-friction
-  impulse (bilateral, clamped by frictionSlip*suspension force) fights the wall contact
-  at 4 g and pops the car up; test with `vehicleMode: 'sled'` and with
-  `sideFriction: 0.1`; (2) chord-box wall joints (every 1.5 cm, 4 deg kinks) deliver
-  impulsive kicks at 300 cm/s; test with `wallSegLen: 0.5` and/or `wallRound: 0.14`;
-  (3) the car rolls over the wall because the wall reaction acts below its centre of
-  mass; test with `comDrop: 0.6` and a taller `lobeWallHeight`; (4) speed threshold:
-  lower `foamK` to 6e5 (exit ~200 cm/s) and find the speed at which the arc is survivable.
-  Repro script is in "How to test" below.
+- **T18a is FIXED (2026-09-08, Opus 5): cars no longer leave the track.** A lone car now runs the
+  whole circuit -- both 270 deg lobes, both junction turns, both crossings -- with a max roll of
+  20 deg and `offTrack` false, and it laps (lap 1 at 2.67 s, lap 2 at 6.74 s in the headless
+  harness). Four separate defects, all firing in the first 0.4 s of a launch: the nip's side push
+  acted BELOW the c.o.m. and spun the car to 188 rad/s inside the nip; the floor trimesh had no
+  `FIX_INTERNAL_EDGES` so 0.25 cm strip triangles fired ghost impulses of hundreds of cm/s with no
+  manifold; the lobe wall height was keyed on `lift > 0` (so every "flat arc" test silently used
+  0.9 cm walls, shorter than the car) and stepped instead of ramping; and the crossing wall gap was
+  cut from the lane CENTRE, leaving a 9.8 cm hole with square end caps that speared cars. Banked
+  arcs (SPEC 5.2 `bankMaxDeg`) are now implemented. Full write-up, measurements and the exact
+  verification snippets: `docs/agent-reports/T18a.md`.
+- **REMAINING (now T18): cars STALL.** The lone car makes ~2 laps and then stops, usually in the
+  17 cm dead zone between the two nips on one hub straight or a few cm short of a nip; it is about
+  10 % short on energy. `lineUpFive` therefore produces 0 crashes (nothing falls off the table).
+  `vehicleMode: 'sled'` still flips out of a lobe. Footprint drifted 131 -> 140 cm because
+  `junctionRadius` went 15 -> 25 (curveRadius is still 20.46). `lobeLift` is now 2 cm, not 9.
+- **Headless physics harness (new, use this instead of the browser):** `node tools/sweep.mjs '{...}'`,
+  `node tools/grid.mjs` (GRID/BASE env vars), and `tools/lobetest.mjs` (`run()`, `five()`). It loads
+  `rapier3d-compat` straight from a local copy of the CDN module and runs the real `HW.sim` with no
+  renderer -- ~1 s per 20 s of simulated time, deterministic, and it cannot be stolen by another
+  agent's browser tab. Set `RAPIER_MJS` to a local `rapier.mjs` if the default path is gone.
 - Opus agents were launched by session 1 for T11, T12, T13, T14+T17 and T18a. Each writes
   `docs/agent-reports/<task>.md` when done. If those reports exist, read them; if a task
   has no report, assume it did not finish and re-run it from `docs/PLAN.md`.
@@ -77,6 +84,22 @@ like this when measuring; the live view runs in slow motion there.
   motor cannot do it from 4 D cells; config uses 280-class constants.
 - Standard track is 3.175 cm between walls; the instruction sheet shows two independent
   circuits (see PROMPT.md), not one continuous one.
+- **Rapier trimesh floors NEED `TriMeshFlags.FIX_INTERNAL_EDGES`.** Without it a fast body catches
+  on the internal edges between strip triangles: you get an impulse of hundreds of cm/s whose
+  contact normal is the edge direction, and `contactPairsWith` shows nothing afterwards. This looks
+  exactly like "the car randomly explodes" and cost most of T18a.
+- **`world.lengthUnit` should stay 1 here, NOT 100.** It normalizes the solver tolerances; at 100
+  the allowed linear error is 0.5 cm inside a 3.175 cm lane, so cars sink into the floor and the
+  launch collapses to 85 cm/s. Measured: 1 best, 2-3 usable, >= 10 unusable.
+- **Any sideways force on a car must act through the centre of mass.** Roll inertia is ~33 g.cm2;
+  a 1 N nip push on a 0.15 cm lever arm spins the car up to 188 rad/s in 60 ms. `addForce` acts at
+  the c.o.m.; `addForceAtPoint` at the body centre is already 0.35 cm above it (`comDrop`).
+- **`setWheelMaxSuspensionForce(i, 1e9)` is a trap.** Rapier divides the suspension force by
+  `dot(contactNormal, -rayDir)`; once a car rolls, that blows up and an uncapped wheel launches it.
+- A wall run that stops (crossing, foam-wheel slot) leaves a square end cap ~0.44 cm outboard of
+  the car. At 300 cm/s a car that drifts that far is destroyed by it. Wall runs now get a set-back
+  lead-in at each end, and the lead-in must live INSIDE the run: anything built out in the crossing
+  square sits on the other circuit's lane centreline.
 
 ## Assumptions to surface to Stewart
 Hub 26 cm across, foam wheel radius derived 2.59 cm, straights 10 cm at 45 deg, bend
@@ -85,8 +108,9 @@ height 2.6 cm, 280-class motor, gear 6.5:1, foam nip ~5 N normal force, wall fri
 car masses 35-47 g. All ESTIMATE unless RESEARCH.md says MEASURED.
 
 ## Next up (in order)
-1. T18a lobe stability (Opus agent launched; if no report, do it first, nothing else matters
-   until a lone car laps reliably).
+1. T18 energy tuning: a lone car must lap indefinitely (it currently stalls after ~2 laps) and
+   `lineUpFive` must produce crashes at the `#` again. Start from
+   `docs/agent-reports/T18a.md` "Remaining issues" and use the headless harness.
 2. Integrate T11/T12/T13 (renderer, cars, UI) once their reports exist: remove the debug
    renderer fallback only after `HW.render` works.
 3. T14 build -> `dist/index.html`, T17 selftest, then T18 tuning against SPEC s1 behaviours,

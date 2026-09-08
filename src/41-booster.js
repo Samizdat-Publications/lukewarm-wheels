@@ -41,11 +41,19 @@
               const dv = vW - vCar;
               const F = Fmax * M.clamp(dv / cfg.slipVel, -1, 1);
               car.body.addForce({ x: t.x * F, y: t.y * F, z: t.z * F }, true);
-              // push toward the far wall (wheelSide -1 = wheel on the left -> push right)
-              // applied low on the body (near wheel height) so it does not lever the car onto two wheels
+              // Push toward the far wall (wheelSide -1 = wheel on the left -> push right).
+              // MUST act through the centre of mass (boostPushY = 0). The real foam nip touches
+              // the whole side of the casting and the far wall pushes straight back, so the pair
+              // is a near-zero couple. Applying it BELOW the c.o.m. (an earlier bug) spins the car
+              // about its roll axis at hundreds of rad/s inside the nip and throws it off the track.
               const r = car.frame.right, u = car.frame.up, push = -z.wheelSide * N * cfg.boostPushFrac;
-              const cp = car.body.translation();
-              car.body.addForceAtPoint({ x: r.x * push, y: r.y * push, z: r.z * push }, { x: cp.x - u.x * 0.5, y: cp.y - u.y * 0.5, z: cp.z - u.z * 0.5 }, true);
+              const Fp = { x: r.x * push, y: r.y * push, z: r.z * push };
+              if (cfg.boostPushY === 0) {
+                car.body.addForce(Fp, true);                       // addForce acts at the centre of mass
+              } else {
+                const c0 = car.body.worldCom();
+                car.body.addForceAtPoint(Fp, { x: c0.x + u.x * cfg.boostPushY, y: c0.y + u.y * cfg.boostPushY, z: c0.z + u.z * cfg.boostPushY }, true);
+              }
               tau += F * z.wheelRadius;
               car.inBooster = z.name; z.engaged = car.id; z.lastF = F;
               break;

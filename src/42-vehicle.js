@@ -43,7 +43,9 @@
           controller.setWheelSuspensionCompression(i, cfg.suspCompression);
           controller.setWheelSuspensionRelaxation(i, cfg.suspRelaxation);
           controller.setWheelMaxSuspensionTravel(i, cfg.suspTravel);
-          controller.setWheelMaxSuspensionForce(i, 1e9);
+          // Cap the suspension force. Rapier (like Bullet) scales it by 1/dot(contactNormal, -rayDir);
+          // when a car rolls that factor blows up and an uncapped wheel fires the car into the air.
+          controller.setWheelMaxSuspensionForce(i, cfg.suspMaxForceMult * m * U.G / 4);
           controller.setWheelFrictionSlip(i, cfg.frictionSlip);
           controller.setWheelSideFrictionStiffness(i, cfg.sideFriction);
         });

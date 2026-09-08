@@ -24,8 +24,8 @@ ids that must be `done` first. Update this file whenever status changes.
 | T15 | Showroom tab (turntable, close-ups, exploded view, collector cards) | opus | T12, T13 | todo | |
 | T16 | Motor whine audio (WebAudio, pitch from rpm), optional | opus | T13 | todo | |
 | T17 | `tools/selftest.html` automated checks from SPEC section 7 | opus | T10 | done | 8 checks, 7 PASS; only 8 fails: motor bogs 12291->2448 rpm under five nips so no car reaches the crossing (feeds T18). docs/agent-reports/T17-selftest-output.txt |
-| T18a | **Lobe stability**: a car at 250-330 cm/s leaves the arc mid-lobe even when flat. See HANDOFF.md hypotheses | fable/opus | T10 | doing | Opus agent launched 2026-09-08; critical path |
-| T18 | Tune defaults against SPEC section 1 behaviours; record in HANDOFF | fable | T18a, T11-T13 | todo | Opus may do this if Fable is out |
+| T18a | **Lobe stability**: a car at 250-330 cm/s leaves the arc mid-lobe even when flat. See HANDOFF.md hypotheses | fable/opus | T10 | done | Fixed 2026-09-08. Cars no longer leave the track (max roll 20 deg, 0 off-track). 4 root causes: nip push below the c.o.m., floor trimesh without FIX_INTERNAL_EDGES, wall height keyed on `lift>0` + hard height step, crossing wall gap cut on the lane centre. Banked arcs implemented (SPEC 5.2). Report: docs/agent-reports/T18a.md. REMAINDER -> T18: cars now STALL (2 laps max, not 3); sled mode still flips; footprint drifted 131 -> 140 cm |
+| T18 | Tune defaults against SPEC section 1 behaviours; record in HANDOFF | fable | T18a, T11-T13 | todo | Now also owns the T18a remainder: lone car must lap indefinitely (currently stalls after ~2 laps) and lineUpFive must produce crashes again. Use the headless harness `node tools/sweep.mjs`/`tools/grid.mjs` |
 | T19 | Publish: `dist/index.html` as Artifact and/or Cloudflare; README | opus | T14, T18 | todo | |
 
 ## Delegation prompt template (for Opus subagents)

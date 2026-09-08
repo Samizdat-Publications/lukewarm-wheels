@@ -24,7 +24,7 @@
 
   // Horizontal arc from p0 with heading h, radius R, sweep (rad), turning dir ('left'|'right').
   // Optional apex lift (cm) with blend fraction and armD (outward arm direction = tilt axis).
-  function arcSeg(p0, h, R, sweep, dir, meta, lift = 0, blend = 0.12, armD = null) {
+  function arcSeg(p0, h, R, sweep, dir, meta, lift = 0, blend = 0.12, armD = null, bankDeg = 0) {
     const left = dir === 'left';
     const c = V.addScaled(p0, left ? V.leftOf(h) : V.rightOf(h), R);
     const e0 = left ? V.rightOf(h) : V.leftOf(h); // centre -> start
@@ -39,9 +39,15 @@
     }
     const ease = (u) => M.smoothstep(0, blend, u) * M.smoothstep(0, blend, 1 - u);
     const profile = (u) => { const th = u * sweep; return (Math.cos(th - half) - Math.cos(half)) / denom; };
+    // Banked channel (SPEC s5.2). The lane cross-section rolls about the tangent so the OUTER edge
+    // lifts: at 20.5 cm radius and 250-300 cm/s a lobe pulls 3-4.5 g, and without bank the whole of
+    // that has to come from the outer wall, whose friction then scrubs the car to a stop before the
+    // apex. Banking hands a large share to the wheels (N_wall = m(a cos b - g sin b)).
+    const bankMax = HW.units.degToRad(bankDeg) * (left ? 1 : -1);
     return {
-      kind: 'arc', meta, center: c, radius: R, sweep, dir, phi, upPlane, lift,
+      kind: 'arc', meta, center: c, radius: R, sweep, dir, phi, upPlane, lift, bankMax,
       length: R * sweep * (lift > 0 ? 1.03 : 1),
+      bankAt(u) { return bankMax === 0 ? 0 : bankMax * ease(u); },
       pointAt(u) {
         const th = u * sweep;
         const p = V.addScaled(c, V.rotY(e0, sgn * th), R);
@@ -60,15 +66,15 @@
     const hInBack = V.norm(V.addScaled(V.scale(A.d, Math.cos(b)), A.r, -Math.sin(b)));   // from the in-turn outward (reverse of arrival heading)
     const aOut = V.addScaled(V.scale(A.d, H), A.r, L);
     const aIn = V.addScaled(V.scale(A.d, H), A.r, -L);
-    const outTurn = arcSeg(aOut, A.d, rt, b, 'right', { arm, name: arm + '-out-turn' });
+    const outTurn = arcSeg(aOut, A.d, rt, b, 'right', { arm, name: arm + '-out-turn' }, 0, cfg.junctionBlend, null, cfg.junctionBankDeg);
     const e1 = outTurn.pointAt(1);
     const e2 = V.addScaled(e1, hOut, S);
     const e1m = V.addScaled(V.addScaled(aIn, A.d, rt * Math.sin(b)), A.r, -rt * (1 - Math.cos(b))); // mirror of e1
     const e2m = V.addScaled(e1m, hInBack, S);
     const sweep = Math.PI + 2 * b;
-    const arc = arcSeg(e2, hOut, R, sweep, 'left', { arm, name: arm + '-lobe' }, cfg.lobeLift, cfg.lobeBlend, A.d);
+    const arc = arcSeg(e2, hOut, R, sweep, 'left', { arm, name: arm + '-lobe' }, cfg.lobeLift, cfg.lobeBlend, A.d, cfg.lobeBankDeg);
     const hIn = V.scale(hInBack, -1);
-    const inTurn = arcSeg(e1m, hIn, rt, b, 'right', { arm, name: arm + '-in-turn' });
+    const inTurn = arcSeg(e1m, hIn, rt, b, 'right', { arm, name: arm + '-in-turn' }, 0, cfg.junctionBlend, null, cfg.junctionBankDeg);
     const c1 = V.dist(arc.pointAt(1), e2m), c2 = V.dist(inTurn.pointAt(1), aIn);
     if (c1 > 0.05 || c2 > 0.05) console.warn('[track] lobe', arm, 'closure error', c1.toFixed(3), c2.toFixed(3));
     return [
@@ -106,6 +112,15 @@
         let up = seg.upAt(u);
         let right = V.norm(V.cross(t, up));
         up = V.norm(V.cross(right, t));
+        if (seg.bankAt) {                      // roll the cross-section about the tangent
+          const bk = seg.bankAt(u);
+          if (bk !== 0) {
+            const cb = Math.cos(bk), sb = Math.sin(bk);
+            up = V.norm(V.sub(V.scale(up, cb), V.scale(right, sb)));
+            right = V.norm(V.cross(t, up));
+            up = V.norm(V.cross(right, t));
+          }
+        }
         P.push(p); T.push(t); UP.push(up); RT.push(right); SEG.push(si); SS.push(s);
       }
       s += V.dist(prev, seg.pointAt(1));
