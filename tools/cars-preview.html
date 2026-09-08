@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Criss Cross Crash — car preview (T12)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #14171d; color: #e8eaf0; font: 13px/1.4 system-ui, sans-serif; overflow: hidden; }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #hud { position: fixed; left: 12px; top: 12px; margin: 0; padding: 8px 10px; background: rgba(8,10,14,.72);
+         border: 1px solid #333; border-radius: 8px; font: 11px/1.5 ui-monospace, Consolas, monospace; white-space: pre; pointer-events: none; }
+  #cards { position: fixed; right: 12px; top: 12px; bottom: 12px; width: 236px; overflow: auto;
+           background: rgba(8,10,14,.78); border: 1px solid #333; border-radius: 8px; padding: 8px; }
+  .hw-card { border-bottom: 1px solid #2b2f38; padding: 6px 4px 10px; }
+  .hw-card h3 { margin: 4px 0 2px; font-size: 13px; }
+  .hw-card-year { color: #8b93a3; font-weight: 400; }
+  .hw-card-pack { margin: 0 0 4px; color: #8b93a3; font-size: 11px; }
+  .hw-card-swatch { width: 100%; height: 8px; border-radius: 3px; border: 2px solid; }
+  .hw-card-specs { border-collapse: collapse; font-size: 10.5px; width: 100%; }
+  .hw-card-specs th { text-align: left; color: #8b93a3; font-weight: 500; padding-right: 6px; vertical-align: top; width: 34%; }
+  .hw-card-specs td { color: #dfe3ea; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<pre id="hud">loading…</pre>
+<div id="cards"></div>
+
+<script src="../src/00-namespace.js"></script>
+<script src="../src/10-config.js"></script>
+<script src="../src/20-catalog.js"></script>
+<script src="../src/51-render-cars.js"></script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+window.THREE = THREE;
+
+const HW = window.HW;
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14171d);
+const camera = new THREE.PerspectiveCamera(32, 1, 0.5, 400);
+camera.position.set(6.2, 24, 38);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(3.2, 0.6, 0);
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x2a2118, 1.1));
+const key = new THREE.DirectionalLight(0xfff3e0, 2.2);
+key.position.set(8, 14, 6);
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+key.shadow.camera.left = -16; key.shadow.camera.right = 16;
+key.shadow.camera.top = 16; key.shadow.camera.bottom = -16;
+key.shadow.camera.near = 1; key.shadow.camera.far = 50;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xa8c4ff, 0.5);
+fill.position.set(-9, 6, -8);
+scene.add(fill);
+
+const turntable = new THREE.Group();
+scene.add(turntable);
+
+const disc = new THREE.Mesh(
+  new THREE.CylinderGeometry(10.5, 10.5, 0.4, 64),
+  new THREE.MeshStandardMaterial({ color: 0x232833, roughness: 0.85, metalness: 0.1 }));
+disc.position.y = -0.2;
+disc.receiveShadow = true;
+turntable.add(disc);
+
+// five cars on the turntable, nose (-Z) pointing out from the centre
+const groups = [];
+const bboxes = [];
+let tris = 0;
+const R = 7.6;
+HW.catalog.forEach((entry, i) => {
+  const g = HW.renderCars.buildMesh(entry);
+  g.updateMatrixWorld(true);                 // measure in car-local space, before placing
+  const bb = new THREE.Box3().setFromObject(g);
+  bboxes.push(entry.name.padEnd(14) +
+    'mesh W' + (bb.max.x - bb.min.x).toFixed(2) + ' H' + (bb.max.y - bb.min.y).toFixed(2) +
+    ' L' + (bb.max.z - bb.min.z).toFixed(2) +
+    '  spec W' + entry.widthCm + ' H' + entry.heightCm + ' L' + entry.lengthCm);
+  const a = i / HW.catalog.length * Math.PI * 2;
+  g.position.set(Math.sin(a) * R, entry.heightCm / 2 + HW.config.carClearance, Math.cos(a) * R);
+  g.rotation.y = a - Math.PI / 2;            // the car's +X flank faces outward
+  turntable.add(g);
+  groups.push(g);
+  g.traverse((o) => { if (o.isMesh && o.geometry) {
+    const idx = o.geometry.index, p = o.geometry.attributes.position;
+    tris += (idx ? idx.count : p.count) / 3;
+  } });
+});
+
+// collector cards
+document.getElementById('cards').innerHTML = HW.catalog.map((e) => HW.renderCars.collectorCard(e)).join('');
+
+// fake wheel spin through the real sync() path
+const fakeCar = { t: 0, wheelState(k) { return { rot: fakeCar.t * (4 + k * 0.02), len: null }; } };
+
+document.getElementById('hud').textContent =
+  'T12 car preview — ' + HW.catalog.length + ' castings, ' + Math.round(tris) + ' tris total (' +
+  Math.round(tris / HW.catalog.length) + ' / car)\n' + bboxes.join('\n');
+
+window.__hwPreview = { groups, tris, bboxes, ready: true };
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+let last = performance.now();
+renderer.setAnimationLoop(() => {
+  const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+  turntable.rotation.y += dt * 0.25;
+  fakeCar.t += dt;
+  for (const g of groups) HW.renderCars.sync(fakeCar, g);
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
