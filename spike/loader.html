@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hot Wheels Sim - dependency spike</title>
+<style>body{font-family:ui-monospace,Consolas,monospace;background:#111;color:#ddd;padding:16px}pre{white-space:pre-wrap}</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+    "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.webgpu.js",
+    "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.tsl.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/",
+    "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.20.0/dist/rapier.mjs"
+  }
+}
+</script>
+</head>
+<body>
+<pre id="out">loading…</pre>
+<script type="module">
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+
+try {
+  const THREE = await import('three');
+  const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+  const RAPIER = (await import('@dimforge/rapier3d-compat')).default;
+
+  await RAPIER.init();
+
+  const world = new RAPIER.World({ x: 0, y: -981, z: 0 });
+
+  // fixed ground
+  const groundBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0));
+  world.createCollider(RAPIER.ColliderDesc.cuboid(50, 1, 50), groundBody);
+
+  // dynamic falling box
+  const boxBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 40, 0));
+  world.createCollider(RAPIER.ColliderDesc.cuboid(2, 2, 2).setRestitution(0.2), boxBody);
+
+  for (let i = 0; i < 240; i++) world.step();
+
+  const p = boxBody.translation();
+
+  log('THREE.REVISION        = ' + THREE.REVISION);
+  log('typeof OrbitControls  = ' + typeof OrbitControls);
+  log('RAPIER.version()      = ' + RAPIER.version());
+  log('world.timestep        = ' + world.timestep);
+  log('box final y           = ' + p.y.toFixed(4) + '  (x=' + p.x.toFixed(4) + ', z=' + p.z.toFixed(4) + ')');
+  log('vehicle controller    = ' + typeof RAPIER.DynamicRayCastVehicleController);
+  log('createVehicleController = ' + typeof world.createVehicleController);
+  log('EventQueue            = ' + typeof RAPIER.EventQueue);
+  log('OK');
+
+  window.THREE = THREE;
+  window.RAPIER = RAPIER;
+  window.OrbitControls = OrbitControls;
+  window.__spikeResult = lines.join('\n');
+  window.dispatchEvent(new CustomEvent('hw:libs-ready'));
+} catch (err) {
+  log('ERROR: ' + (err && err.stack ? err.stack : String(err)));
+  window.__spikeResult = lines.join('\n');
+}
+</script>
+</body>
+</html>
