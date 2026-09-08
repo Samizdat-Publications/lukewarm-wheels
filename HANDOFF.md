@@ -2,6 +2,11 @@
 
 _Last updated: 2026-09-08 evening by Fable 5.1 (session 1). Update this block whenever you stop._
 
+## Strategy
+`docs/ROADMAP.md` is the director's brief for the Opus 5 session: build targets
+(artifact vs HD), phases 2-7, the Blender/Gemini/ElevenLabs pipeline, questions for
+Stewart, risks, and the suggested first hour. Read it after this file.
+
 ## Where we are (read this first)
 - **Phase 1 foundation is DONE and runs in the browser**: `node tools/serve.mjs`, open
   http://localhost:8765/. Debug renderer + text HUD. Keys: Space = booster switch,

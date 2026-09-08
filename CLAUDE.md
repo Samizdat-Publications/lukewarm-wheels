@@ -16,7 +16,14 @@ wall scrub, banked curves, rigid collisions and crash detection.
 Full design: `docs/SPEC.md`. Grounding facts: `docs/RESEARCH.md`.
 Verified CDN URLs + Rapier API notes: `docs/DEPENDENCIES.md`.
 Task board with owners and status: `docs/PLAN.md`.
+Strategy / phases / asset pipeline for the rest of the project: `docs/ROADMAP.md`.
 The improved build prompt (what we are answering): `PROMPT.md`.
+
+## Tools available on this machine (per Stewart)
+Blender (ask to confirm install), Godot (not used: we stay on Three.js, see ROADMAP §4),
+Adobe Mixamo (humanoid animation; only for an optional hand), Gemini API keys (image
+generation for tampos/textures), ElevenLabs keys (sound effects). Keys go in `.env`
+(gitignored), never in the repo or in prompts to subagents.
 
 ## Budget rules (why the docs are so explicit)
 Stewart is near his weekly Fable 5.1 cap. Fable does architecture, physics
