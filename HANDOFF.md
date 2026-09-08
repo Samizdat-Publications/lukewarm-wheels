@@ -8,40 +8,38 @@ _Last updated: 2026-09-08 late by Opus 5 (T18a). Update this block whenever you 
 Stewart, risks, and the suggested first hour. Read it after this file.
 
 ## Where we are (read this first)
-- **Phase 1 foundation is DONE and runs in the browser**: `node tools/serve.mjs`, open
-  http://localhost:8765/. Debug renderer + text HUD. Keys: Space = booster switch,
-  L = line up five, R = reset, N = nudge stalled, 1-5 = drop a car at its gate.
-- Physics core (Fable): track geometry from the real instruction sheet, lane meshes and
-  solid wall colliders, battery/motor/gear model, foam nip model, raycast-vehicle cars,
-  crash/stall/lap events, telemetry bus. Committed in git (local repo, no remote).
-- **Verified working**: launch from a nip at ~300 cm/s (real toy: 250-400), motor bogs when
-  loaded, cars survive the hub crossing and the 15 cm junction bends, five-car line-up
-  produces crashes at the `#` crossing, a car completed a lap once (Chevy 1500, before the
-  wall-height change).
-- **T18a is FIXED (2026-09-08, Opus 5): cars no longer leave the track.** A lone car now runs the
-  whole circuit -- both 270 deg lobes, both junction turns, both crossings -- with a max roll of
-  20 deg and `offTrack` false, and it laps (lap 1 at 2.67 s, lap 2 at 6.74 s in the headless
-  harness). Four separate defects, all firing in the first 0.4 s of a launch: the nip's side push
-  acted BELOW the c.o.m. and spun the car to 188 rad/s inside the nip; the floor trimesh had no
-  `FIX_INTERNAL_EDGES` so 0.25 cm strip triangles fired ghost impulses of hundreds of cm/s with no
-  manifold; the lobe wall height was keyed on `lift > 0` (so every "flat arc" test silently used
-  0.9 cm walls, shorter than the car) and stepped instead of ramping; and the crossing wall gap was
-  cut from the lane CENTRE, leaving a 9.8 cm hole with square end caps that speared cars. Banked
-  arcs (SPEC 5.2 `bankMaxDeg`) are now implemented. Full write-up, measurements and the exact
-  verification snippets: `docs/agent-reports/T18a.md`.
-- **REMAINING (now T18): cars STALL.** The lone car makes ~2 laps and then stops, usually in the
-  17 cm dead zone between the two nips on one hub straight or a few cm short of a nip; it is about
-  10 % short on energy. `lineUpFive` therefore produces 0 crashes (nothing falls off the table).
-  `vehicleMode: 'sled'` still flips out of a lobe. Footprint drifted 131 -> 140 cm because
-  `junctionRadius` went 15 -> 25 (curveRadius is still 20.46). `lobeLift` is now 2 cm, not 9.
-- **Headless physics harness (new, use this instead of the browser):** `node tools/sweep.mjs '{...}'`,
-  `node tools/grid.mjs` (GRID/BASE env vars), and `tools/lobetest.mjs` (`run()`, `five()`). It loads
-  `rapier3d-compat` straight from a local copy of the CDN module and runs the real `HW.sim` with no
-  renderer -- ~1 s per 20 s of simulated time, deterministic, and it cannot be stolen by another
-  agent's browser tab. Set `RAPIER_MJS` to a local `rapier.mjs` if the default path is gone.
-- Opus agents were launched by session 1 for T11, T12, T13, T14+T17 and T18a. Each writes
-  `docs/agent-reports/<task>.md` when done. If those reports exist, read them; if a task
-  has no report, assume it did not finish and re-run it from `docs/PLAN.md`.
+_State at the end of Fable session 1, 2026-09-08 late. All five Opus agents finished and committed._
+- **Runs end to end**: `node tools/serve.mjs` -> http://localhost:8765/ shows the T11 renderer
+  (hub, gear-train x-ray, camera presets), T12 castings with confirmed liveries, and the T13
+  control panel (switch, line-up, placement by clicking a lane, gauges, tuning drawer).
+  `node tools/build.mjs` -> `dist/index.html` (147 KB, CSP-safe, verified in-browser).
+  `tools/selftest.html` -> 7/8 PASS. Reports for every task are in `docs/agent-reports/`.
+- **Headless physics harness** (use this, not the browser, for tuning):
+  `node tools/lobetest.mjs` (one car, 40 s), `tools/sweep.mjs`, `tools/grid.mjs`. ~1 s of wall
+  time per 20 s simulated, deterministic. Output is JSON: laps, lapTs, off, maxRoll, stalled.
+- **Physics status**: cars no longer leave the track (T18a fixed four defects, see its report
+  and the Lessons below). Launch 317 cm/s standing, 399 peak. A lone car laps twice
+  (t=2.67 s, 6.74 s) then **stalls in the 17 cm dead zone between an inbound nip and the
+  opposite arm's outbound nip** (`endS=14`): it arrives at the hub ~10 % short on energy.
+  `lineUpFive` -> all five bog the motor to ~2,400 rpm and stall before the crossing, so
+  selftest check 8 (>=1 crash) fails. Both are ENERGY problems, not stability problems.
+- **Next concrete moves (T18, in order)**:
+  1. Print a speed-vs-s profile for one lap with `tools/lobetest.mjs` (add a trace option) and
+     do the energy budget: where do the ~90000 (cm/s)^2 of v^2 go (junction bends, lobe scrub,
+     climb, hub)? Fix the biggest sink first. Candidates: `crrScale` 1.0 -> 0.5 (real axle
+     friction is nearer Crr 0.01), `wallFriction` 0.10 -> 0.07, more `lobeBankDeg`, and the
+     inbound nip: with 17 cm between paired nips the outbound nip must catch a car that the
+     inbound nip has already re-accelerated; check the inbound nip actually engages (zones
+     telemetry) and that `boostExtra`/`foamGap` let a slowing car be grabbed.
+  2. `lineUpFive`: spin the motor up first (the real toy is switched on before cars are
+     placed), and stagger the five drops by ~0.3 s so the flywheel recovers between launches;
+     keep the "all five in the nips, then switch on -> motor bogs" case as a deliberate
+     tired-battery demo, not the default.
+  3. Re-run selftest (target 8/8), rebuild `dist/index.html`, publish as an Artifact
+     (favicon car emoji), send Stewart the link. That is the YouTube-parity milestone.
+  4. Then `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
+- Agents noted that several of them shared one Playwright browser and stole each other's tabs.
+  Run browser-verifying agents sequentially, or give physics work the Node harness.
 
 ## How to resume (any model)
 1. Read `CLAUDE.md`, `docs/SPEC.md` (s5 geometry, s6 interfaces), `docs/PLAN.md`, then
@@ -108,10 +106,4 @@ height 2.6 cm, 280-class motor, gear 6.5:1, foam nip ~5 N normal force, wall fri
 car masses 35-47 g. All ESTIMATE unless RESEARCH.md says MEASURED.
 
 ## Next up (in order)
-1. T18 energy tuning: a lone car must lap indefinitely (it currently stalls after ~2 laps) and
-   `lineUpFive` must produce crashes at the `#` again. Start from
-   `docs/agent-reports/T18a.md` "Remaining issues" and use the headless harness.
-2. Integrate T11/T12/T13 (renderer, cars, UI) once their reports exist: remove the debug
-   renderer fallback only after `HW.render` works.
-3. T14 build -> `dist/index.html`, T17 selftest, then T18 tuning against SPEC s1 behaviours,
-   T15 showroom, T19 publish (artifact + README).
+See "Next concrete moves (T18)" above, then `docs/ROADMAP.md` section 10 (first hour) and Phase 3.
