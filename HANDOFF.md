@@ -77,6 +77,29 @@ off; a "Launch" button that drops the selected car into the nearest outbound nip
 three-line "How to play" box at the top of the panel. Verify with `tools/lobetest.mjs`
 five-car mode, then in a real browser (not the pane), before calling it done.
 
+## Stewart's real-browser observation (2026-09-08, after the fixes above) — FIRST THING TO REPRODUCE
+With the booster on first and then Line up (correct order), in real Chrome on the RTX
+laptop: every car travels only "a few inches", hits a wall and stops. His overview
+screenshot showed motor 12,894 rpm no-load, foam surface 537 cm/s, 2 crashes logged
+(Chevy Stocker hit Chevy 1500 at 65 and 85 cm/s), and all five stalled within the hub or
+the first splay. This differs from the headless harness (lone car laps twice), so the next
+session must reproduce in a real browser, not only in `tools/lobetest.mjs`:
+- Suspects: (1) the real frame loop: `maxSubsteps` clamp in `90-main.js` resets the
+  accumulator when a frame is slow (`acc = 0`), which does not change per-step physics but
+  check that `HW.sim.step` is being called at all at 240 Hz in his browser (log
+  `HW.sim.stepCount` over one second); (2) the wall geometry at the lobe entrance: his
+  chase-camera screenshot shows the walls forming a **pinched, pointed fold** where the
+  0.9 cm hub/splay walls meet the 2.6 cm lobe walls (the `wallRampLen` ramp and the
+  "set-back lead-ins" added in T18a). A car pressed against the outer wall there may be
+  catching that fold. Inspect `mesh.wallBoxes` around the out-splay -> lobe transition
+  (s ≈ 38-52 on NS) and the visual mesh; make the height ramp long and smooth, and make sure
+  no box end face points back along the lane; (3) the five-car run shares one flywheel:
+  even with the motor on first, five near-simultaneous launches drop rpm hard; stagger.
+- Also visible in his screenshot: the hub is drawn as a red cross with four grey foam
+  wheels but no housings between lanes, and the track ribbons look stepped/faceted on the
+  lobes (the 0.25 cm samples give a visible polygon). Cosmetic; Phase 4 territory.
+- He confirms the general look is good ("it looks great"). Priority stays: make cars lap.
+
 ## How to resume (any model)
 1. Read `CLAUDE.md`, `docs/SPEC.md` (s5 geometry, s6 interfaces), `docs/PLAN.md`, then
    the agent reports in `docs/agent-reports/`.
