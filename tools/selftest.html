@@ -199,6 +199,7 @@ HW.main.paused = true;
     // laps, reporting the spread. It still WARNs rather than fails: "a lone car circulates
     // indefinitely" (docs/REFERENCES.md) is the open behaviour target, not yet met.
     try {
+      const SECS = 20;    // a lap takes ~2-3 s at speed, but a car spends a lot of it slow
       const perCar = [];
       for (let ci = 0; ci < sim.cars.length; ci++) {
         const c = sim.cars[ci];
@@ -206,7 +207,7 @@ HW.main.paused = true;
         await stepFor(sim, Math.round(1 / H));
         c.spawnAtGate('N-out', ci * 0.09);
         let lifted = false, off = false, top = 0;
-        await stepFor(sim, Math.round(1 / H) * 12, () => {
+        await stepFor(sim, Math.round(1 / H) * SECS, () => {
           if (c.s > top) top = c.s;
           if (c.lifted) { lifted = true; return false; }
           if (c.offTrack) off = true;
@@ -217,7 +218,7 @@ HW.main.paused = true;
       const best = Math.max(...perCar.map((r) => r.laps));
       const gone = perCar.filter((r) => r.lifted || r.off).length;
       const detail = perCar.map((r) => r.n + ' ' + r.laps + (r.lifted ? ' LIFTED' : r.off ? ' OFF' : '')).join(' | ')
-        + '  (' + lapped + '/' + perCar.length + ' lapped, best ' + best + ', ' + gone + ' left the track)';
+        + '  (' + lapped + '/' + perCar.length + ' lapped in ' + SECS + ' s, best ' + best + ', ' + gone + ' left the track)';
       if (lapped >= 2) record(7, 'lone-car lap (fleet)', 'PASS', detail);
       else record(7, 'lone-car lap (fleet)', 'WARN', detail
         + '  -- open: the real toy circulates indefinitely, see HANDOFF "Next moves"');

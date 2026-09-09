@@ -30,7 +30,6 @@
   const SAMPLE_DS = 0.25; // cm between path samples
   const K = Math.SQRT1_2; // cos 45 deg = sin 135 deg
   const HALF_SWEEP = 0.75 * Math.PI; // 135 deg; the arc spans +135 -> -135 through 0
-  const RAMP_POW = 2;     // height profile exponent of a ramp: y = y0 * t^RAMP_POW
 
   const ARMS = {
     N: { d: V.make(0, 0, -1) }, E: { d: V.make(1, 0, 0) },
@@ -63,15 +62,19 @@
     const sb = Math.sin(beta), cb = Math.cos(beta);
     const rt = (K * R - L - S * sb) / (1 - cb);
     const gap = rt * sb + S * cb;
+    const RAMP_POW = cfg.rampPow;
     const rampLen = rt * beta + S;                       // plan distance, hub gate -> arc end
     const tanSigma = st / Math.hypot(ct, 1);             // dy/d(plan) at the arc end
-    // Height profile of a ramp is y0 * t^RAMP_POW with t = plan fraction, so y'(1) = POW*y0/rampLen
-    // must equal tan(sigma). POW 2 keeps the ramp flat where the car is fastest (leaving the nip)
-    // and puts the curvature near the arc joint where it has already slowed.
+    // Height profile of a ramp is y0 * t^rampPow with t = plan fraction, so y'(1) = pow*y0/rampLen
+    // must equal tan(sigma). The exponent decides where the vertical curvature sits: at 2 it is
+    // CONSTANT, which means it jumps from nothing to 2*y0/rampLen^2 the instant the car leaves the
+    // flat hub -- a step of 2.4 g at 300 cm/s that every vehicle model rings on. At 3 or more the
+    // curvature starts at zero and builds, and the chord also sits lower (y0 scales as 1/pow), so
+    // the whole lobe is easier to climb.
     const y0 = rampLen * tanSigma / RAMP_POW;            // height of the arc's chord above the hub
     const apex = y0 + R * (1 + K) * st;
-    const rampArc = Math.hypot(rampLen, y0 * 0.72); // ~3D length of the ramp (y=y0*t^2 average slope)
-    return { tilt, ct, st, R, S, beta, rt, gap, rampLen, rampArc, tanSigma, y0, apex, sigma: Math.atan(tanSigma) };
+    const rampArc = Math.hypot(rampLen, y0 * 0.72); // ~3D length of the ramp
+    return { tilt, ct, st, R, S, beta, rt, gap, rampLen, rampArc, tanSigma, y0, apex, pow: RAMP_POW, sigma: Math.atan(tanSigma) };
   }
 
   // Ramp: junction turn of `beta` at radius rt, then a straight of length S, carrying the height
@@ -100,7 +103,7 @@
       pointAt(u) {
         const t = outbound ? u : 1 - u;
         const p = planAt(t * g.rampLen);
-        p.y = g.y0 * Math.pow(t, RAMP_POW);
+        p.y = g.y0 * Math.pow(t, g.pow);
         return p;
       },
       upAt(u) {

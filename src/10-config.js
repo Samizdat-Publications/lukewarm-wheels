@@ -15,7 +15,7 @@
                                  // Measured: 1 is best, 2-3 usable, >=10 unusable.
     solverIterations: 8,
     ccdSubsteps: 4,
-    vehicleMode: 'raycast',      // 'raycast' (Rapier's) | 'wheels' (ours, 44-wheel-model.js) | 'sled'
+    vehicleMode: 'raycast',      // 'wheels' | 'raycast' | 'springs' | 'sled'
                                  // Rapier's controller loses 0.2 g on a curve and 0.5 g against a
                                  // wall no matter how it is configured (see 44-wheel-model.js for
                                  // the measurements), and that is what caps the loop tilt. 'wheels'
@@ -87,6 +87,10 @@
                                  // 10-16 cm scaled off Stewart's eBay photos.
     straightLen: 1.0,            // ESTIMATE: the short A-H connector between the junction turn and
                                  // the arc. Raising it shrinks the derived junction radius.
+    rampPow: 4.0,                // exponent of the ramp's height profile y = y0 * t^rampPow. At 2 the
+                                 // vertical curvature is constant, so it STEPS from 0 to 2.4 g the
+                                 // instant the car leaves the flat hub; at 3+ it starts at zero, and
+                                 // the chord (and so the whole lobe) also sits lower.
     rollBlendCm: 36.0,           // cm of ARC (each end) that shares the roll-in with the ramp. A rigid
                                  // car can only follow ~ suspTravel/(trackCm * wheelbase) of surface
                                  // warp -- about 2.6 deg/cm -- so the tilt needs ~17 cm per 45 deg and
@@ -147,19 +151,34 @@
     suspMaxForceMult: 10.0,       // per-wheel suspension force cap, in multiples of the car's STATIC per-wheel
                                  // load. Rapier/Bullet divide by dot(contactNormal, -rayDir); once a car rolls,
                                  // that term explodes and an uncapped wheel launches the car vertically.
-    // ---- our wheel model (vehicleMode 'wheels') ----------------------------------
+    // ---- 'wheels': chassis on four low-friction feet, contacts solved by Rapier -----
+    footRadius: 0.40,            // cm. Big enough to survive contact at 300 cm/s; the feet are then
+                                 // moved inboard automatically so they stay inside the chassis width
+                                 // and the WALLS are met by the body, not by a foot.
+    footFrictionMult: 1.0,       // multiplies the casting's crr to get the foot friction
+
+    // ---- 'springs': explicit raycast suspension (vehicleMode 'springs') ------------
     wheelStaticComp: 0.12,       // cm of suspension compression under the car's own static weight.
                                  // Sets the spring rate: k = m*g / (4 * wheelStaticComp), so every
                                  // casting sits at the same ride height whatever it weighs.
     wheelDampRatio: 0.5,         // fraction of critical damping on that spring
+    wheelBumpStop: 6,            // how many times stiffer the wheel gets past suspTravel. A die-cast
+                                 // car's wheel is rigid; this is where that shows up.
     wheelGrip: 0.35,             // lateral friction coefficient at the contact patch. This is the
                                  // ONLY lateral loss in the model, and it is exactly mu*N*slip.
     wheelLatRelax: 0.35,         // fraction of the lateral contact velocity cancelled per step.
                                  // 1.0 is a one-step constraint and is too stiff to apply as an
                                  // explicit force: it pumps the roll mode until the car flips.
-    wheelRollInfluence: 0.15,    // where the lateral force acts: 0 = at the c.o.m. height (no roll
-                                 // couple at all), 1 = at the contact patch (full couple, unstable).
-                                 // Same trick, and roughly the same value, as Bullet's rollInfluence.
+    wheelRollInfluence: 0,       // where the lateral force acts: 0 = at the c.o.m. height (no roll
+                                 // couple at all), 1 = at the contact patch. Same knob as Bullet's
+                                 // rollInfluence, and it has to be 0 here. Measured with
+                                 // tools/wheelprobe.mjs: at 0.15 the four wheel compressions
+                                 // alternate left-right every step and grow from +-0.01 to +-0.2 cm
+                                 // in 60 steps, the loads swing 0 to 7.6x static, and the car is
+                                 // thrown 2.7 cm up onto the tops of the lobe walls. At 0 they sit
+                                 // dead level at 0.120 cm and 1.0x static. The wall contact is a real
+                                 // collider and still transfers load, and it carries most of the
+                                 // cornering here anyway, so little is lost.
 
     frictionSlip: 0.10,          // Rapier wheel friction slip (vehicleMode 'raycast' only) ~ tyre grip coefficient. Hard plastic wheels on a
                                  // plastic track are SLIPPERY, and this number also caps the vehicle controller's

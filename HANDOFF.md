@@ -1,6 +1,6 @@
 # HANDOFF — live project state
 
-_Last updated: 2026-09-08 by Opus 5 (session 3). Update this block whenever you stop._
+_Last updated: 2026-09-09 by Opus 5 (session 4). Update this block whenever you stop._
 
 ## Strategy
 `docs/ROADMAP.md` is the director's brief: build targets (artifact vs HD), phases 2-7, the
@@ -10,82 +10,103 @@ Blender/Gemini/ElevenLabs pipeline, questions for Stewart, risks. Read it after 
 
 ## Where we are
 
-**It runs, it renders, a lone car laps, and the set now has the real 2 rings + 2 sweeps shape.**
 `node tools/serve.mjs` -> http://localhost:8765/ ; `node tools/build.mjs` -> `dist/index.html`
-(170 KB, CSP-safe); `tools/selftest.html` -> **8/8 PASS** in real Chrome.
+(175 KB, CSP-safe); `tools/selftest.html` -> **8/8 PASS** in real Chrome.
 
-Shipped defaults: **loop tilt 40 deg, sweep tilt 16 deg, hubHalf 16, lobeRadius 16, laneOffset 2.5,
-straightLen 1.0, 480 Hz.** Footprint 116 cm, ring apex 22.6 cm, sweep apex 9.7 cm.
-Screenshot: `docs/screenshots/T18-shipped-40-16.png`.
+Shipped defaults: **loop tilt 40 deg, sweep tilt 16 deg, rampPow 4, hubHalf 16, lobeRadius 16,
+laneOffset 2.5, straightLen 1.0, 480 Hz, vehicleMode raycast.** Footprint 116 cm, ring apex
+20.1 cm, sweep apex 8.6 cm. Screenshot: `docs/screenshots/T20-shipped-40-16-pow4.png`.
 
-Measured (20-run ensemble, `node tools/ens.mjs`): **mean 0.85 laps per 25 s, best 4, 0 % off-track.**
-Selftest check 7 runs the whole fleet: **4 of 5 cars lap, best 5 laps, none leaves the track.**
-Five-car pile-up: **3 crashes** (was 0-1).
+- Lone car, 20-run ensemble over 25 s: **mean 0.75 laps, best 3, 5 % off-track.**
+- Selftest fleet check: **2 of 5 cars lap in 20 s, best 3, none leaves the track.**
+- Five-car pile-up: **10 crashes in 15 s**, 4 of 5 cars lapping (was 0-1 crashes two sessions ago).
 
-**Not yet met:** `docs/REFERENCES.md` says a lone car circulates *indefinitely*. Ours still stalls
-after 1-5 laps, and the five-car run ends with cars stalled. See "The blocker" below.
+**Still not met:** `docs/REFERENCES.md` says a lone car circulates *indefinitely*. Ours does 1-3
+laps. And the loop tilt is 40 deg where the real set is ~48.
 
-## The loop tilt, and why it stops at 40
+## CORRECTION: the blocker is NOT the vehicle model
 
-The instruction sheet has the two rear lobes standing up as rings. The layout renders that
-correctly at any tilt -- open
+The previous handoff said Rapier's raycast vehicle controller was dissipating the energy and that
+replacing it would unlock everything. **That was wrong**, and it is worth knowing why before anyone
+spends another session on it.
+
+`src/44-wheel-model.js` now contains a complete, working replacement (`vehicleMode: 'springs'`):
+four explicit raycast wheels, a spring/damper along the contact normal, and a lateral force capped
+at `wheelGrip * N` so the only energy it can remove is mu*N*slip. It is stable (0 % off-track on a
+flat lobe) and it loses **the same as Rapier's**: 0.62 g against a wall and 0.32 g clean, versus
+Rapier's 0.64 and 0.23. Writing our own physics reproduced the loss, so the loss is physics, not a
+library defect.
+
+`node tools/coast.mjs` settles it. It coasts a car with the motor off (and the nip disabled -- see
+the gotchas) and measures the deceleration directly:
+
+| where | drag |
+|---|---|
+| flat straight, normal settings | **0.026 g** -- exactly the casting's rolling resistance (crr 0.022) |
+| ramp and lobe, normal settings | 0.53 - 1.05 g |
+| ramp and lobe, every tyre term off (`wheelGrip` 0, damping ~0, `crrScale` 0) | 0.19 - 0.62 g |
+
+So: **the straight is perfect and the curves are expensive, with no tyre model involved at all.**
+What is left in a curve is the WALL. A car cornering at 4-6 g has to be held by something, the
+geometry gives it only a wall, and scrubbing along it at that load costs 0.2-0.6 g. Our own model
+pays it too.
+
+**What would actually unblock a steeper ring** is therefore to stop the wall carrying the corner:
+- a genuinely BANKED CHANNEL on the lobe -- a moulded groove whose cross-section is banked, so the
+  wheels take the load. `lobeBankDeg` is NOT this: it rolls the cross-section of an otherwise
+  planar surface and measures far worse (coast distance 190 cm -> 70 cm at 20 deg, 50 cm at 35).
+  The real moulded curve is a banked channel; modelling it needs the lobe SURFACE to be banked,
+  not a twist applied on top of a flat one.
+- or simply less cornering load: a bigger `lobeRadius` helps measurably (coast 190 -> 220 cm at
+  R 26) at the cost of footprint.
+
+## The loop tilt
+
+The layout renders any tilt correctly -- open
 `index.html#cfg=%7B%22loopTiltDeg%22%3A48%2C%22sweepTiltDeg%22%3A16%7D` from a cold load and look.
-Loop tilt against mean laps per 25 s, everything else at the shipped defaults:
+Mean laps against tilt, everything else at the shipped defaults:
 
-| tilt | 30 | 36 | **40** | 44 | 48 |
-|---|---|---|---|---|---|
-| mean laps | 1.20 | 1.00 | **0.85** | 0.50 | 0.05 |
-| off-track | 15 % | 10 % | **0 %** | 10 % | 0 % |
+| sample | 40 | 44 | 46 | 48 |
+|---|---|---|---|---|
+| n=30, 20 s | **0.53** | 0.33 | -- | -- |
+| n=20, 25 s | **0.75** | 0.95 | 0.40 | 0.15 |
 
-There is a **cliff between 44 and 48**: that is where the ring apex passes what the launch can
-clear. At 48 the car crests at ~30 cm/s and rolls back down into the nip, gets relaunched, and
-oscillates until it dies. 40 is shipped because it is the steepest tilt that still laps, it is the
-only setting measured with no off-track excursions at all, and it reads unmistakably as 2+2.
+40 and 44 swap places between n=20 and n=30, so treat them as equal; 46 and above are genuinely
+worse. 40 is shipped because it is where the selftest fleet check passes. Above ~44 the ring's apex
+passes what the launch can clear and cars crest at ~30 cm/s and roll back down.
 
-Two things bought that headroom and both are also more faithful:
-- **`hubHalf` 13 -> 16** (the hub is ~32 cm across, which is what Stewart's photos scale to). Worth
-  0.4 of a lap on its own: the junction turn moves outward, so the car does its cornering further
-  from the nip.
-- **`straightLen` 3 -> 1.** At high tilt the derived junction radius collapses (14.2 cm at 48 deg,
-  an 11 g corner at 400 cm/s) because the short connector eats the lateral budget. Shortening it
-  puts the radius back to 20.5.
+## Fixed this session
 
-## THE BLOCKER: the vehicle model, not the geometry
+1. **The torque accumulator was never reset.** `car.preStep` called `body.resetForces(true)` but not
+   `body.resetTorques(true)`, and Rapier keeps the two separately. Every torque from
+   `addForceAtPoint` therefore stayed on the body forever. Nothing noticed while the only forces
+   were `addForce` (no torque) and Rapier's controller (which applies impulses, not forces) -- it
+   made our own wheel model diverge within a few hundred steps and throw every car off the track.
+   It also silently affected the nip whenever `boostPushY != 0`.
+2. **`rampPow`.** The ramp's height was `y0 * t^2`, whose vertical curvature is CONSTANT -- so it
+   stepped from nothing to 2.4 g the instant a car left the flat hub, and every vehicle model rang
+   on it. At `rampPow` 4 the curvature starts at zero and builds, and the chord sits lower (y0
+   scales as 1/pow) so the whole lobe is easier to climb. This took the five-car pile-up from
+   2-3 crashes to **10**.
+3. **`wheelRollInfluence` must be 0** in the springs model. At 0.15 the four wheel compressions
+   alternate left-right every step and grow from +-0.01 to +-0.2 cm in 60 steps, loads swing 0 to
+   7.6x static, and the car is thrown onto the tops of the lobe walls. `tools/wheelprobe.mjs`
+   shows it happening.
+4. **Damp on the contact-point velocity, not on d(comp)/dt.** A finite difference of compression
+   looks smooth until the wheel meets something abrupt, then jumps 0.12 -> 0.45 in one step and
+   the damper alone demands 14x the static load.
 
-`tools/attribute.mjs` splits the per-step energy loss by what was true that step. On a flat 16 cm
-lobe, fleet-averaged over 20 runs, with Rapier's `DynamicRayCastVehicleController`:
+## Gotchas found the hard way
 
-| when | drag | share |
-|---|---|---|
-| chassis riding a wall | **0.53 g** | 52-64 % |
-| all four wheels down, NO wall contact | **0.21 g** | 29-43 % |
-| on an essentially straight track (R = 260) | **0.076 g** | -- |
-
-Rolling resistance is only 0.022 g, so most of that is parasitic. **And none of it responds to
-anything**: measured, unchanged within noise, across `frictionSlip` 0.005-1.0, `sideFriction`
-0-0.8, `suspMaxForceMult` 1.5-40, suspension damping 0.5-40, suspension stiffness 800-20000,
-`crrScale` 0, `wallFriction` 0.005-0.3, `carFriction`, `floorFriction`, restitution 0-0.95,
-`laneWidth` 3.175-4.0, `wallInset`, `wallSegLen`, `wallRound`, and `physicsHz` 240-1920.
-A loss insensitive to every coefficient is not friction.
-
-For scale: `vehicleMode: 'sled'` (a plain box sliding on the floor) loses **0.045 g** total, which
-is the physically right answer. That is a 5-10x difference, and it is exactly the margin the 48 deg
-ring needs.
-
-**So the next real task is a vehicle model we control.** `src/44-wheel-model.js` is a start
-(`vehicleMode: 'wheels'`): four explicit raycast wheels, a spring/damper along the contact normal,
-and a lateral force capped at `wheelGrip * N` so the only energy it removes is mu*N*slip. It is
-NOT finished -- 100 % of cars still leave the track. Two bugs are already fixed in it (a damping
-term that spanned two steps and fired cars 10 cm into the air; a one-step lateral constraint that
-pumped the roll mode) and the remaining failure is understood: the car goes briefly airborne at the
-lobe entry, all four rays then miss because the suspension only has `wheelStaticComp` of droop, and
-it comes down through the track. `sled` fails differently -- a sliding box tips at 2.4 g and the
-lobe pulls 5.9.
-
-Also landed while chasing this: **`floorSolid`** makes the floor collider the closed
-`floorThick`-deep slab instead of the bare top ribbon. A zero-thickness trimesh lets a car that
-gets briefly airborne come down *through* the track (measured: h 1.34 -> 0.64 -> 0.01 -> -1.94 in
-four samples). Worth 13 points of off-track rate on a flat lobe.
+- **The nip BRAKES a coasting car when the motor is off.** vW - vCar is negative, so the foam
+  drags. Any coast test must set `foamK: 0` or start well away from a nip; the first version of
+  `tools/coast.mjs` drove straight into a stationary foam wheel and read 7.9 g of "drag".
+- `vehicleMode 'wheels'` (a chassis on four low-friction feet, contacts left to the solver) is
+  stable but very lossy: small feet snag on the floor trimesh at 300 cm/s (-191 cm/s in a single
+  step, with no chassis manifold at all because the hit was on a foot). Larger feet have to move
+  inboard to keep the walls meeting the body, which costs roll stability. Not recommended.
+- `vehicleMode 'sled'` loses only 0.045 g but a sliding box tips at 2.4 g and the lobe pulls 5.9,
+  so 100 % of cars leave the track.
 
 ## METHODOLOGY — read this before you measure anything
 
@@ -110,6 +131,9 @@ conclusion in the old HANDOFF that rested on one run should be treated as unprov
 | `tools/diag.mjs` | what hit the car? prints contact **MANIFOLDS** (normal + impulse), so a wheel-model loss is distinguishable from a collider hit |
 | `tools/audit.mjs` | static geometry audit: exposed wall end caps, wall gaps, surface warp vs what a rigid car can follow |
 | `tools/geom.mjs` | the derived lobe geometry + a height/lean/curvature profile |
+| `tools/coast.mjs` | how much drag, really? coasts a car with the motor off; deterministic. Set `foamK: 0` or the nip brakes it |
+| `tools/attribute.mjs` | splits the per-step loss by what was true that step: on a wall, wheels up, airborne, clean |
+| `tools/wheelprobe.mjs` | per-wheel compression and load, step by step (vehicleMode springs) |
 | `tools/chaos.mjs` | how much of my result is noise? |
 | `tools/lobetest.mjs` | one run (`run()`, `five()`); the others build on it |
 | `tools/imgzoom.html` | pixel-zoom the instruction sheet / photos in the browser |
@@ -178,24 +202,20 @@ If it is missing: `node tools/fetch-rapier.mjs`.
 
 ## Next moves, in order
 
-1. **Finish `src/44-wheel-model.js`** (or something like it). This is the one thing standing between
-   the sim and everything else: a lone car that circulates indefinitely, the five-car pile-up, and
-   the photo-faithful 48 deg ring all fall out of it. The remaining bug is stated above. Give the
-   suspension real droop (raise `wheelStaticComp` AND `suspRest` together so the rays keep finding
-   the ground), and work out what lifts the car at the ramp -> lobe joint in the first place.
-   Judge it with `node tools/ens.mjs` and `node tools/attribute.mjs`, never one run.
-2. **Then raise `loopTiltDeg` to ~48** and re-run the tilt table above. That is the fidelity
-   milestone: it is what the set actually looks like.
-3. **Then the five-car pile-up.** `lineUpFive` now feeds cars in `lineUpStagger` apart (0.7 s)
-   instead of dropping all five at once, which took crashes from 0-1 to 3; the UI button also
-   switches the motor on first. But cars still stall rather than circulating.
+1. **Bank the lobe channel properly.** This is the one change that would let the ring stand up:
+   make the lobe CROSS-SECTION a banked groove so the wheels take the corner, instead of a flat
+   plane where the wall takes it. Do NOT do it with `lobeBankDeg` -- that rolls the cross-section
+   of an otherwise planar surface and measures much worse. The surface itself has to be banked.
+   Measure with `node tools/coast.mjs` (deterministic, far less noisy than laps) and confirm with
+   `node tools/ens.mjs`.
+2. **Then raise `loopTiltDeg` towards 48** and re-run the tilt table above.
+3. **Then indefinite lapping and the five-car pile-up**, which should follow from (1).
 4. Publish `dist/index.html` as an Artifact (car emoji favicon) and send Stewart the link.
 5. Then `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
 
 **Residual, low priority:** `tools/audit.mjs` reports 48 exposed wall end caps at reach -0.69,
 i.e. 0.69 cm outside the lane edge, at the hub gates. They do not respond to `wallSegLen` or
-`wallRampLen` and no car has been observed hitting one, but a car leaving a nip does drift ~0.6 cm,
-so they are worth a look if unexplained losses show up near the gates.
+`wallRampLen` and no car has been observed hitting one, but a car leaving a nip does drift ~0.6 cm.
 
 ## Known UX gap Stewart hit (still open)
 He switched the booster on with all five cars lined up and nothing moved. Required:
@@ -286,9 +306,9 @@ synchronously like this when measuring; never trust the live view in the pane.
 | lane offset | 2.5 cm | was 3.0; 2.5 buys a 21 cm junction radius instead of 14 |
 | foam wheel radius | 2.09 cm (derived) | photos suggest smaller than the old 2.59; this agrees |
 | lobe radius | 16.0 cm | scaled off the sheet against the 3.81 cm track width |
-| lobe tilt | 40 / 16 deg | the real set is ~48 / ~16; 48 is blocked, see the tilt table |
+| lobe tilt | 40 / 16 deg | the real set is ~48 / ~16; see the tilt table |
 | footprint | 116 cm | photos scale to 105-110 |
-| ring apex | 22.6 cm, sweep 9.7 cm | photos scale the SWEEP apex to 10-16 cm |
+| ring apex | 20.1 cm, sweep 8.6 cm | photos scale the SWEEP apex to 10-16 cm |
 | lobe wall height | 3.4 cm | must exceed the tallest casting (2.3) |
 | motor | 280-class, gear 6.5:1 | a 130 cannot drive four foam nips from 4 D cells |
 | foam nip | ~5.4 N normal | `foamK` 1.2e6 dyne/cm at 0.45 cm squeeze |

@@ -18,8 +18,8 @@
 //
 // THE MODEL, per wheel, once per step:
 //   1. cast a ray from the suspension hard point along the chassis's -up, length suspRest + wheelR;
-//   2. compression = (suspRest + wheelR) - hit distance, clamped to [0, suspTravel];
-//   3. spring force Fs = k*compression + c*d(compression)/dt along the CONTACT NORMAL, capped at
+//   2. compression = (suspRest + wheelR) - hit distance; past suspTravel a bump stop takes over;
+//   3. spring force Fs = k*compression - c*(contact velocity along the normal), capped at
 //      suspMaxForceMult * mg/4 and never negative (a wheel cannot pull);
 //   4. lateral friction: the force that would cancel this wheel's share of the lateral contact
 //      velocity in one step, capped at wheelGrip * Fs -- so the energy it removes is exactly
@@ -52,25 +52,32 @@
         const hit = world.castRayAndGetNormal(ray, reach, true, undefined, undefined, undefined, body);
         if (!hit) { w.contact = false; w.comp = 0; w.load = 0; continue; }
         const toi = hit.timeOfImpact !== undefined ? hit.timeOfImpact : hit.toi;
-        let comp = reach - toi;
+        const comp = reach - toi;
         if (comp <= 0) { w.contact = false; w.comp = 0; w.load = 0; continue; }
-        comp = Math.min(comp, cfg.suspTravel);
         const n = hit.normal;
         // A ray that grazes a wall face returns a near-horizontal normal; that is a wall contact,
         // not a wheel contact, and treating it as suspension fires the car sideways.
         if (V.dot(n, up) < 0.25) { w.contact = false; w.comp = 0; w.load = 0; continue; }
 
-        // NB: rate must span ONE step. Using a prevComp that lagged two steps doubled the damping
-        // term and fired cars 10 cm into the air off a flat track.
-        const rate = w.contact ? (comp - w.comp) / dt : 0;
-        let Fs = k * comp + cDamp * rate;
-        Fs = M.clamp(Fs, 0, capF);
-        w.contact = true; w.comp = comp; w.load = Fs;
-
         // contact point, and the chassis velocity there
         const cp = V.addScaled(hp, down, toi);
         const r = V.sub(cp, com);
         const vp = V.add(linv, V.cross(angv, r));
+
+        // Damp on the REAL contact-point velocity along the normal, not on a difference of
+        // compressions. d(comp)/dt looks smooth until the wheel meets something abrupt -- the ramp
+        // into a lobe is a valley worth 2.4 g at 300 cm/s -- and then compression jumps 0.12 to
+        // 0.45 in a single step, the finite difference reads 158 cm/s, and the damper alone
+        // demands 14x the static load. Measured: sum of wheel forces 3.9x the car's weight, and
+        // the car launched onto the tops of the lobe walls. vN is a genuine velocity and is smooth.
+        const vN = V.dot(vp, n);                       // + = leaving the ground
+        // Beyond suspTravel the wheel is on its bump stop: a die-cast car's wheel is rigid, so the
+        // rate rises steeply rather than the force being clamped (clamping let the chassis sink
+        // through the travel and hit the track collider instead).
+        const over = comp - cfg.suspTravel;
+        let Fs = k * comp + (over > 0 ? k * cfg.wheelBumpStop * over : 0) - cDamp * vN;
+        Fs = M.clamp(Fs, 0, capF);
+        w.contact = true; w.comp = comp; w.load = Fs;
 
         body.addForceAtPoint({ x: n.x * Fs, y: n.y * Fs, z: n.z * Fs }, cp, true);
 

@@ -24,9 +24,11 @@
       // by it changes that (frictionSlip, sideFriction, suspension force cap, damping all measured
       // -- see tools/attribute.mjs). 'sled' has the right energy budget (0.045 g) but a sliding box
       // tips at 2.4 g and the lobe pulls 5.9. 'raycast' is kept for comparison.
-      const mode = cfg.vehicleMode === 'sled' ? 'sled' : cfg.vehicleMode === 'raycast' ? 'raycast' : 'wheels';
+      const MODES = { sled: 1, raycast: 1, springs: 1, wheels: 1 };
+      const mode = MODES[cfg.vehicleMode] ? cfg.vehicleMode : 'wheels';
       const raycast = mode === 'raycast';
-      const ownWheels = mode === 'wheels';
+      const ownWheels = mode === 'springs';
+      const feet = mode === 'wheels';
       const rr = Math.min(cfg.carRound, hy * 0.4);
       const colDesc = R.ColliderDesc.roundCuboid(hx - rr, hy - rr, hz - rr, rr) // rounded corners: castings are, and it stops snagging
         .setMassProperties(m, { x: 0, y: -cfg.comDrop, z: 0 }, { x: Ixx, y: Iyy, z: Izz }, { x: 0, y: 0, z: 0, w: 1 })
@@ -57,6 +59,33 @@
           controller.setWheelFrictionSlip(i, cfg.frictionSlip);
           controller.setWheelSideFrictionStiffness(i, cfg.sideFriction);
         });
+      }
+
+      // 'wheels' mode: four small low-friction FEET at the wheel contact patches, and that is the
+      // whole model. No suspension: a die-cast car has none, and Rapier's solver handles the four
+      // contacts implicitly, which is stable where an explicit spring is not (see 44-wheel-model.js
+      // for what an explicit one costs). The feet are narrower than the chassis so the WALLS are
+      // met by the body, not by the feet -- a wall force at foot height, below the centre of mass,
+      // tips the car outward over the wall. Their friction is the casting's own rolling resistance,
+      // so a free-rolling wheel is what it is: a contact that barely resists motion.
+      // Big enough not to catch: a 0.15 cm ball moves 4 of its own radii per step at 300 cm/s and
+      // snags on the floor trimesh (measured: -191 cm/s in one step, with no chassis manifold at
+      // all because the hit was on a foot). Kept INBOARD of the chassis so the walls are met by the
+      // body: a wall force at foot height is below the centre of mass and tips the car out over the
+      // wall, where a wall force at body height leans it onto its outer feet, which is stable.
+      const footR = Math.min(cfg.footRadius, wheelR);
+      const footX = Math.min(entry.trackCm / 2, hx - footR - 0.05);
+      const footY = -(hy + cfg.carClearance - footR);
+      const footColliders = [];
+      if (feet) {
+        for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+          const fd = R.ColliderDesc.ball(footR)
+            .setTranslation(sx * footX, footY, sz * entry.wheelbaseCm / 2)
+            .setFriction(entry.crr * cfg.crrScale * cfg.footFrictionMult)
+            .setRestitution(0)
+            .setMass(0);           // the chassis collider already carries the whole mass and inertia
+          footColliders.push(world.createCollider(fd, body));
+        }
       }
 
       // Hard points for our own wheel model, chassis-local. Same layout as the raycast one:
@@ -117,7 +146,12 @@
         // called before world.step: forces + suspension
         preStep(dt) {
           if (car.lifted) return;
-          body.resetForces(true);
+          // BOTH accumulators. Rapier keeps force and torque separately, and addForceAtPoint adds
+          // to both -- so resetting only the force leaves every step's torque on the body forever.
+          // Nothing noticed while the only forces were addForce (no torque) and Rapier's own
+          // vehicle controller (impulses, not forces); it made our own wheel model diverge in a
+          // few hundred steps and throw every car off the track.
+          body.resetForces(true); body.resetTorques(true);
           const p = body.translation(); car.pos = p;
           if (car.path) {
             const pr = car.path.project(p, car.s);
@@ -153,6 +187,12 @@
         },
         wheelState(i) {
           if (controller) return { rot: controller.wheelRotation(i) || 0, len: controller.wheelSuspensionLength(i), contact: controller.wheelIsInContact(i) };
+          if (feet) {
+            // no suspension to report; "contact" means this foot is on something
+            let touching = false;
+            world.contactPairsWith(footColliders[i], () => { touching = true; });
+            return { rot: 0, len: 0, contact: touching };
+          }
           if (!ownWheels) return null;
           const w = wheels[i];
           return { rot: 0, len: cfg.suspRest - w.comp, contact: w.contact, load: w.load };
