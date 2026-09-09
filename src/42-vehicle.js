@@ -25,7 +25,7 @@
       // -- see tools/attribute.mjs). 'sled' has the right energy budget (0.045 g) but a sliding box
       // tips at 2.4 g and the lobe pulls 5.9. 'raycast' is kept for comparison.
       const MODES = { sled: 1, raycast: 1, springs: 1, wheels: 1 };
-      const mode = MODES[cfg.vehicleMode] ? cfg.vehicleMode : 'wheels';
+      const mode = MODES[cfg.vehicleMode] ? cfg.vehicleMode : 'raycast';   // unknown -> the usable one
       const raycast = mode === 'raycast';
       const ownWheels = mode === 'springs';
       const feet = mode === 'wheels';
