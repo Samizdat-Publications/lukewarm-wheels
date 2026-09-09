@@ -3,6 +3,7 @@
 // mm hits it head-on and stops dead), a wall gap wide enough to let a car wander out, and any
 // stretch where the surface twists or pitches faster than a rigid four-wheel car can follow.
 // Usage: node tools/audit.mjs '{"loopTiltDeg":45}'
+import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -11,8 +12,10 @@ const RAPIER = (await import(pathToFileURL(path.join(HERE, 'vendor', 'rapier.mjs
 await RAPIER.init();
 globalThis.window = globalThis; globalThis.RAPIER = RAPIER;
 const require = createRequire(import.meta.url);
-for (const f of ['00-namespace', '10-config', '20-catalog', '30-track-layout', '31-track-mesh'])
-  require(path.join(path.dirname(HERE), 'src', f + '.js'));
+const ROOTDIR = path.dirname(HERE);
+// Load the physics half of the app in manifest order, so a new src file is picked up here too.
+const MANIFEST = JSON.parse(readFileSync(path.join(ROOTDIR, 'src', 'manifest.json'), 'utf8'));
+for (const f of MANIFEST.scripts) if (!/(5[0-9]|60|90)-/.test(f)) require(path.join(ROOTDIR, f));
 const HW = globalThis.HW; HW.log = () => {};
 const V = HW.V, cfg = HW.config;
 for (const k in (process.argv[2] ? JSON.parse(process.argv[2]) : {})) cfg[k] = JSON.parse(process.argv[2])[k];

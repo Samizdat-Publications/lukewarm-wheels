@@ -220,7 +220,15 @@ label.cb{display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 8px;
       const mk = (txt, fn, title) => { const b = el('button', null, txt); b.onclick = fn; if (title) b.title = title; return b; };
       add(p, add(el('div', 'sec'),
         add(el('div', 'row'),
-          mk('Line up all five', () => { HW.sim.lineUpFive(); ui.showToast('Five cars at the booster gates'); }, 'L'),
+          // Switch the motor ON first, then feed the cars in. Stewart hit exactly this: he lined up
+          // all five with the booster off, switched on, and nothing moved -- five nips loaded at
+          // once bog the motor from 11,388 rpm to 1,687. The real toy is switched on first.
+          mk('Line up all five', () => {
+            const wasOff = !HW.sim.elec.state.on;
+            if (wasOff) HW.sim.setSwitch(true);
+            HW.sim.lineUpFive();
+            ui.showToast(wasOff ? 'Booster ON, feeding cars in one at a time' : 'Feeding five cars in one at a time');
+          }, 'L'),
           mk('Reset', () => { HW.sim.reset(); ui.showToast('Reset'); }, 'R'),
           mk('Nudge', () => {
             const c = ui.selected;

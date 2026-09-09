@@ -16,8 +16,10 @@ globalThis.window = globalThis;
 globalThis.RAPIER = RAPIER;
 const require = createRequire(import.meta.url);
 const root = path.dirname(HERE);
-for (const f of ['00-namespace', '10-config', '20-catalog', '30-track-layout', '31-track-mesh',
-                 '40-electrical', '41-booster', '42-vehicle', '43-sim']) require(path.join(root, 'src', f + '.js'));
+const ROOTDIR = root;
+// Load the physics half of the app in manifest order, so a new src file is picked up here too.
+const MANIFEST = JSON.parse(readFileSync(path.join(ROOTDIR, 'src', 'manifest.json'), 'utf8'));
+for (const f of MANIFEST.scripts) if (!/(5[0-9]|60|90)-/.test(f)) require(path.join(ROOTDIR, f));
 const HW = globalThis.HW;
 HW.log = () => {};
 

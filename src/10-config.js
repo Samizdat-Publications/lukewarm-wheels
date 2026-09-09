@@ -15,7 +15,13 @@
                                  // Measured: 1 is best, 2-3 usable, >=10 unusable.
     solverIterations: 8,
     ccdSubsteps: 4,
-    vehicleMode: 'raycast',      // 'raycast' | 'sled'
+    vehicleMode: 'raycast',      // 'raycast' (Rapier's) | 'wheels' (ours, 44-wheel-model.js) | 'sled'
+                                 // Rapier's controller loses 0.2 g on a curve and 0.5 g against a
+                                 // wall no matter how it is configured (see 44-wheel-model.js for
+                                 // the measurements), and that is what caps the loop tilt. 'wheels'
+                                 // is our replacement and has the right energy budget but is NOT yet
+                                 // stable -- 100 % of cars leave the track. 'sled' likewise. Until
+                                 // one of them is finished, 'raycast' is the only usable model.
 
     // ---- track geometry (cm) -------------------------------------------------
     laneWidth: 3.175,            // MEASURED: 1.25 in running clearance
@@ -25,6 +31,9 @@
                                  // shorter than the car lets the top corner swing over it and the car tumbles out.
     wallThick: 0.3,
     floorThick: 0.4,
+    floorSolid: true,            // collide against the floor SLAB (a closed floorThick prism) rather
+                                 // than the bare top ribbon. A zero-thickness trimesh lets a car that
+                                 // gets briefly airborne come down THROUGH the track.
     wallSegLen: 1.5,             // cm: length of each box collider along a wall run
     wallInset: 0.08,             // cm: wall collider faces sit this far outside the visual wall (anti-snag)
     wallRound: 0.1,              // cm: rounding radius of wall box colliders
@@ -38,7 +47,11 @@
     wallFlareDeg: 22,            // deg: wheel slot). Without it the square end cap of the wall that RESTARTS
                                  // after the crossing spears any car that drifted >0.44 cm off the lane centre.
     carRound: 0.15,              // cm: rounding radius of car chassis colliders
-    hubHalf: 13.0,               // ESTIMATE: hub arm length from centre (~26 cm across)
+    hubHalf: 16.0,               // ESTIMATE: hub arm length from centre, so ~32 cm across. Stewart's
+                                 // photos scale the red hub to 30-32 cm and this is also worth 0.4 of
+                                 // a lap over the old 13.0: the extra straight between the nip and the
+                                 // junction turn is where the car does its cornering, and moving the
+                                 // turn outward is what makes a 40 deg ring reachable at all.
     laneOffset: 2.5,             // ESTIMATE: lane centreline distance from arm axis inside the hub
     boosterR: 8.5,               // ESTIMATE: foam wheel axis distance from hub centre
     foamGap: 2.0,                // free gap wheel-surface to far wall; cars are 2.2-2.6 wide
@@ -55,18 +68,24 @@
                                  // Bend-radius floor is ~12 cm (a 7 cm car needs w + L^2/8R < lane).
     loopArms: 'NE',              // which arms are steeply tilted rings. The sheet has the two rings
                                  // ADJACENT, so each circuit gets one ring and one shallow sweep.
-    // TILT vs FIDELITY. The instruction sheet clearly has the two rear lobes standing up as rings
-    // and the two front ones low and wide, and the layout supports it (set loopTiltDeg to 45 and
-    // watch). But measured over a 20-run ensemble, 45/18 laps 0.13 times per 25 s against 1.45 for
-    // 18/18: the steep ring costs the car everything it has. So the defaults are the flattest that
-    // still reads as two rings, and the real 2+2 shape is the next thing to make survivable.
-    loopTiltDeg: 18,             // ESTIMATE: the rear "loops". A wall-of-death ring, not a loop-the-
+    // TILT vs FIDELITY, measured (all mean laps per 25 s over a 20-run ensemble, hubHalf 16). The instruction sheet has the two rear lobes standing up as rings
+    // and the two front ones low and wide, and the layout renders that correctly at 48/16 (open
+    //   index.html#cfg=%7B%22loopTiltDeg%22%3A48%2C%22sweepTiltDeg%22%3A16%7D
+    // and look). Loop tilt against laps, everything else at the shipped defaults:
+    //     30 -> 1.20    36 -> 1.00    40 -> 0.85 (and 0 % off-track)    44 -> 0.50    48 -> 0.05
+    // There is a CLIFF between 44 and 48: that is where the ring's apex passes what the launch can
+    // clear, and cars crest it at ~30 cm/s and roll back down. What sets the cliff is the vehicle
+    // model's parasitic loss, not the geometry -- see the measurements in 44-wheel-model.js.
+    // 40 is shipped: it is the steepest tilt that still laps, it is the only setting measured with
+    // NO off-track excursions at all, and it reads unmistakably as 2 rings + 2 sweeps (ring apex
+    // 22 cm against sweep apex 10 cm). Drop to 30 for ~40 % more laps and a flatter-looking set.
+    loopTiltDeg: 40,             // ESTIMATE: the rear "loops". A wall-of-death ring, not a loop-the-
                                  // loop: at 300 cm/s and R=16 the car pulls 5.7 g against 1 g, so it
                                  // rides the outer wall. Above ~65 deg a slowing car falls out - which
                                  // is exactly how the real toy fails, so keep it near the edge.
-    sweepTiltDeg: 18,            // ESTIMATE: the front "sweeps". Gives a ~10.5 cm apex, matching the
+    sweepTiltDeg: 16,            // ESTIMATE: the front "sweeps". Gives a ~10.5 cm apex, matching the
                                  // 10-16 cm scaled off Stewart's eBay photos.
-    straightLen: 3.0,            // ESTIMATE: the short A-H connector between the junction turn and
+    straightLen: 1.0,            // ESTIMATE: the short A-H connector between the junction turn and
                                  // the arc. Raising it shrinks the derived junction radius.
     rollBlendCm: 36.0,           // cm of ARC (each end) that shares the roll-in with the ramp. A rigid
                                  // car can only follow ~ suspTravel/(trackCm * wheelbase) of surface
@@ -128,7 +147,21 @@
     suspMaxForceMult: 10.0,       // per-wheel suspension force cap, in multiples of the car's STATIC per-wheel
                                  // load. Rapier/Bullet divide by dot(contactNormal, -rayDir); once a car rolls,
                                  // that term explodes and an uncapped wheel launches the car vertically.
-    frictionSlip: 0.10,          // Rapier wheel friction slip ~ tyre grip coefficient. Hard plastic wheels on a
+    // ---- our wheel model (vehicleMode 'wheels') ----------------------------------
+    wheelStaticComp: 0.12,       // cm of suspension compression under the car's own static weight.
+                                 // Sets the spring rate: k = m*g / (4 * wheelStaticComp), so every
+                                 // casting sits at the same ride height whatever it weighs.
+    wheelDampRatio: 0.5,         // fraction of critical damping on that spring
+    wheelGrip: 0.35,             // lateral friction coefficient at the contact patch. This is the
+                                 // ONLY lateral loss in the model, and it is exactly mu*N*slip.
+    wheelLatRelax: 0.35,         // fraction of the lateral contact velocity cancelled per step.
+                                 // 1.0 is a one-step constraint and is too stiff to apply as an
+                                 // explicit force: it pumps the roll mode until the car flips.
+    wheelRollInfluence: 0.15,    // where the lateral force acts: 0 = at the c.o.m. height (no roll
+                                 // couple at all), 1 = at the contact patch (full couple, unstable).
+                                 // Same trick, and roughly the same value, as Bullet's rollInfluence.
+
+    frictionSlip: 0.10,          // Rapier wheel friction slip (vehicleMode 'raycast' only) ~ tyre grip coefficient. Hard plastic wheels on a
                                  // plastic track are SLIPPERY, and this number also caps the vehicle controller's
                                  // lateral scrub: at 0.35 the wheels held the car on the lobe radius and burned
                                  // 1.4 g of forward speed doing it (measured).
@@ -143,6 +176,8 @@
     angDamping: 1.5,
 
     // ---- events ------------------------------------------------------------------
+    lineUpStagger: 0.7,          // s between the five cars being fed into their nips. Dropping them
+                                 // together bogs the motor from 11,388 to 1,687 rpm and nobody moves.
     crashSpeed: 60,              // cm/s closing speed that counts as a crash
     stallSpeed: 2.0,             // cm/s
     stallTime: 0.6,              // s

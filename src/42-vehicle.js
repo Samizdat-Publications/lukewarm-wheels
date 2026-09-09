@@ -18,11 +18,19 @@
         R.RigidBodyDesc.dynamic().setTranslation(0, 50, 0).setCcdEnabled(true)
           .setLinearDamping(cfg.linDamping).setAngularDamping(cfg.angDamping).setCanSleep(false)
       );
-      const raycast = cfg.vehicleMode !== 'sled';
+      // Three vehicle models. 'wheels' is ours (see HW.wheelModel below) and is the default:
+      // Rapier's own raycast controller dissipates 0.2 g of specific energy on a curve with all
+      // four wheels down and no wall contact, and 0.5 g while riding a wall, and NOTHING exposed
+      // by it changes that (frictionSlip, sideFriction, suspension force cap, damping all measured
+      // -- see tools/attribute.mjs). 'sled' has the right energy budget (0.045 g) but a sliding box
+      // tips at 2.4 g and the lobe pulls 5.9. 'raycast' is kept for comparison.
+      const mode = cfg.vehicleMode === 'sled' ? 'sled' : cfg.vehicleMode === 'raycast' ? 'raycast' : 'wheels';
+      const raycast = mode === 'raycast';
+      const ownWheels = mode === 'wheels';
       const rr = Math.min(cfg.carRound, hy * 0.4);
       const colDesc = R.ColliderDesc.roundCuboid(hx - rr, hy - rr, hz - rr, rr) // rounded corners: castings are, and it stops snagging
         .setMassProperties(m, { x: 0, y: -cfg.comDrop, z: 0 }, { x: Ixx, y: Iyy, z: Izz }, { x: 0, y: 0, z: 0, w: 1 })
-        .setFriction(raycast ? cfg.carFriction : entry.crr * cfg.crrScale).setRestitution(cfg.carRestitution)
+        .setFriction(mode === 'sled' ? entry.crr * cfg.crrScale : cfg.carFriction).setRestitution(cfg.carRestitution)
         .setActiveEvents(R.ActiveEvents.COLLISION_EVENTS);
       const collider = world.createCollider(colDesc, body);
 
@@ -31,7 +39,7 @@
       // Wheel hard point height (chassis-local). At static compression the hard point sits
       // wheelR + (rest - comp) above the floor, and we want the chassis floor 0.15 cm clear.
       const CLEAR = cfg.carClearance;
-      const staticComp = U.G / (4 * cfg.suspStiffness);
+      const staticComp = cfg.vehicleMode === 'raycast' ? U.G / (4 * cfg.suspStiffness) : cfg.wheelStaticComp;
       const connY = (wheelR + cfg.suspRest - staticComp) - (hy + CLEAR);
       if (raycast) {
         controller = world.createVehicleController(body);
@@ -51,8 +59,16 @@
         });
       }
 
+      // Hard points for our own wheel model, chassis-local. Same layout as the raycast one:
+      // index 0..3 = front-left, front-right, rear-left, rear-right; front is -Z.
+      const hardPts = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => ({
+        x: sx * entry.trackCm / 2, y: connY, z: sz * entry.wheelbaseCm / 2,
+      }));
+      const wheels = hardPts.map(() => ({ contact: false, comp: 0, load: 0 }));
+
       const car = {
         id: nextId++, entry, body, collider, controller, colliderHandle: collider.handle,
+        mode, hardPts, wheels,
         halfLen: hz, halfW: hx, halfH: hy, wheelR,
         path: null, s: 0, lateral: 0, frame: null, speed: 0, fwdSpeed: 0,
         laps: 0, stalled: false, stallTimer: 0, crashed: false, offTrack: false, inBooster: null,
@@ -122,6 +138,7 @@
             body.addForce({ x: -v.x / sp * F, y: -v.y / sp * F, z: -v.z / sp * F }, true);
           }
           if (controller) controller.updateVehicle(dt);
+          else if (ownWheels) HW.wheelModel.step(car, world, cfg, dt);
         },
         // called after world.step: bookkeeping
         postStep(dt = 0) {
@@ -135,8 +152,10 @@
           }
         },
         wheelState(i) {
-          if (!controller) return null;
-          return { rot: controller.wheelRotation(i) || 0, len: controller.wheelSuspensionLength(i), contact: controller.wheelIsInContact(i) };
+          if (controller) return { rot: controller.wheelRotation(i) || 0, len: controller.wheelSuspensionLength(i), contact: controller.wheelIsInContact(i) };
+          if (!ownWheels) return null;
+          const w = wheels[i];
+          return { rot: 0, len: cfg.suspRest - w.comp, contact: w.contact, load: w.load };
         },
         telemetry() {
           return { id: car.id, name: entry.name, speed: car.speed, fwdSpeed: car.fwdSpeed, scaleKmh: U.cmsToScaleKmh(car.speed),

@@ -3,7 +3,7 @@
   const V = HW.V;
 
   const sim = {
-    world: null, track: null, mesh: null, elec: null, boost: null, cars: [], eventQueue: null,
+    world: null, track: null, mesh: null, elec: null, boost: null, cars: [], eventQueue: null, pending: null,
     time: 0, stepCount: 0, crashes: 0, telemetry: null, ready: false, carsByCollider: new Map(),
     trackColliders: [],
 
@@ -44,7 +44,13 @@
       // normal is the EDGE direction (near-horizontal), fires a several-hundred-cm/s impulse, and leaves
       // no manifold behind. That ghost-collision kick was the thing throwing cars off the lobes.
       const tmFlags = R.TriMeshFlags.FIX_INTERNAL_EDGES | R.TriMeshFlags.MERGE_DUPLICATE_VERTICES;
-      add(R.ColliderDesc.trimesh(mesh.floor.positions, mesh.floor.indices, tmFlags).setFriction(floorFriction).setRestitution(0.05), 'floor');
+      // Use the SLAB, not the bare ribbon. A trimesh is a surface: once a car's centre gets past a
+      // zero-thickness floor the contact normal flips and the solver pushes it out the underside --
+      // measured, cars that went briefly airborne at the lobe entry came down and fell straight
+      // through (h 1.34 -> 0.64 -> 0.01 -> -1.94 in four samples). mesh.floorVisual is the same
+      // ribbon closed into a floorThick-deep prism, so a car has to penetrate 0.4 cm to get through.
+      const floorMesh = cfg.floorSolid ? mesh.floorVisual : mesh.floor;
+      add(R.ColliderDesc.trimesh(floorMesh.positions, floorMesh.indices, tmFlags).setFriction(floorFriction).setRestitution(0.05), 'floor');
       // walls are solid boxes (a thin two-sided trimesh wedges a cuboid pressed into it: contacts on both faces fight)
       const wr = Math.min(cfg.wallRound, cfg.wallThick / 2 - 0.02);
       for (const b of mesh.wallBoxes) add(R.ColliderDesc.roundCuboid(b.half.x - wr, b.half.y - wr, b.half.z - wr, wr).setTranslation(b.center.x, b.center.y, b.center.z).setRotation(b.quat).setFriction(cfg.wallFriction).setRestitution(cfg.wallRestitution), b.tapered ? 'taper' : 'wall');
@@ -58,6 +64,7 @@
 
     step(dt) {
       if (!sim.ready) return;
+      sim.releaseDue();
       const cars = sim.cars;
       for (const c of cars) c.preStep(dt);
       const omegaW = sim.elec.omegaWheel;
@@ -96,17 +103,29 @@
     },
 
     reset() {
+      sim.pending = null;
       for (const c of sim.cars) { c.lift(); c.laps = 0; c.crashCount = 0; c.stalled = false; }
       sim.elec.reset(); sim.time = 0; sim.stepCount = 0; sim.crashes = 0;
       sim.snapshot(); HW.bus.emit('reset', sim);
     },
 
-    // Put the five cars into five booster nips (SPEC s5.8). Staggered slightly so they do not
-    // all hit the crossing in the same instant.
+    // Put the five cars into five booster nips (SPEC s5.8), one at a time.
+    // All five at once does not work and never did: five nips loaded together bog the motor from
+    // 11,388 rpm to 1,687 (selftest check 8), so every launch is feeble and nobody reaches the
+    // crossing. The real toy is switched on first and cars are fed in one by one, and the flywheel
+    // recovers between them -- so the cars are queued here and released `lineUpStagger` apart.
     lineUpFive() {
       const gates = sim.track.lineUp;
-      sim.cars.forEach((car, i) => { car.spawnAtGate(gates[i % gates.length], (i % 2) * 0.8); });
+      for (const c of sim.cars) c.lift();
+      sim.pending = sim.cars.map((car, i) => ({
+        car, gate: gates[i % gates.length], at: sim.time + i * HW.config.lineUpStagger,
+      }));
       HW.bus.emit('lineup', sim);
+    },
+    releaseDue() {
+      const q = sim.pending;
+      if (!q || !q.length) return;
+      while (q.length && q[0].at <= sim.time) { const p = q.shift(); p.car.spawnAtGate(p.gate); }
     },
     placeCar(car, path, s, lateral = 0) { car.placeAt(path, s, lateral); HW.bus.emit('placed', { car }); },
     nudgeStalled() { for (const c of sim.cars) if (!c.lifted && (c.stalled || c.speed < HW.config.stallSpeed)) c.nudge(); },

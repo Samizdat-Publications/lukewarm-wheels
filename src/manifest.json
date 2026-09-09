@@ -9,6 +9,7 @@
     "src/40-electrical.js",
     "src/41-booster.js",
     "src/42-vehicle.js",
+    "src/44-wheel-model.js",
     "src/43-sim.js",
     "src/50-render-scene.js",
     "src/51-render-cars.js",

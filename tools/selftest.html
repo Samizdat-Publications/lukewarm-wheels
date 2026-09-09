@@ -193,23 +193,35 @@ HW.main.paused = true;
       window.__selftestLaunchSteps = used;
     } catch (e) { record(6, 'lone-car launch', 'FAIL', 'threw: ' + e.message); }
 
-    // ---- 7. lone-car lap (known open physics bug T18a: WARN, do not fail) -------
+    // ---- 7. lone-car lap -- ENSEMBLE, not one run -------------------------------
+    // A single run says nothing here: tools/chaos.mjs shows a 0.02 mm change of start position
+    // swinging laps from 0 to 1. This check therefore runs every casting and passes if the FLEET
+    // laps, reporting the spread. It still WARNs rather than fails: "a lone car circulates
+    // indefinitely" (docs/REFERENCES.md) is the open behaviour target, not yet met.
     try {
-      const used = window.__selftestLaunchSteps || 0;
-      let lifted = false, off = false;
-      const more = await stepFor(sim, Math.max(0, Math.round(1 / H) * 15 - used), () => {
-        if (car.s > maxS) maxS = car.s;
-        if (car.lifted) { lifted = true; return false; }
-        if (car.offTrack) off = true;
-        if (car.laps >= 1) return false;
-      });
-      const secs = (used + more) * H;
-      if (car.laps >= 1) record(7, 'lone-car lap', 'PASS', 'lap ' + car.laps + ' after ' + f(secs, 2) + ' s on circuit ' + car.path.name);
-      else record(7, 'lone-car lap', 'WARN',
-        'no lap in ' + f(secs, 2) + ' s — max s ' + f(maxS, 1) + ' of ' + f(car.path.length, 1) + ' cm, '
-        + (lifted ? 'car was LIFTED (fell off the table)' : off ? 'car went OFF TRACK but stayed on the table' : 'still on track')
-        + '. Known open bug T18a (lobe stability), owned by another agent.');
-    } catch (e) { record(7, 'lone-car lap', 'FAIL', 'threw: ' + e.message); }
+      const perCar = [];
+      for (let ci = 0; ci < sim.cars.length; ci++) {
+        const c = sim.cars[ci];
+        sim.reset(); sim.setSwitch(true);
+        await stepFor(sim, Math.round(1 / H));
+        c.spawnAtGate('N-out', ci * 0.09);
+        let lifted = false, off = false, top = 0;
+        await stepFor(sim, Math.round(1 / H) * 12, () => {
+          if (c.s > top) top = c.s;
+          if (c.lifted) { lifted = true; return false; }
+          if (c.offTrack) off = true;
+        });
+        perCar.push({ n: c.entry.name, laps: c.laps, maxS: top, lifted, off });
+      }
+      const lapped = perCar.filter((r) => r.laps >= 1).length;
+      const best = Math.max(...perCar.map((r) => r.laps));
+      const gone = perCar.filter((r) => r.lifted || r.off).length;
+      const detail = perCar.map((r) => r.n + ' ' + r.laps + (r.lifted ? ' LIFTED' : r.off ? ' OFF' : '')).join(' | ')
+        + '  (' + lapped + '/' + perCar.length + ' lapped, best ' + best + ', ' + gone + ' left the track)';
+      if (lapped >= 2) record(7, 'lone-car lap (fleet)', 'PASS', detail);
+      else record(7, 'lone-car lap (fleet)', 'WARN', detail
+        + '  -- open: the real toy circulates indefinitely, see HANDOFF "Next moves"');
+    } catch (e) { record(7, 'lone-car lap (fleet)', 'FAIL', 'threw: ' + e.message); }
 
     // ---- 8. five cars: crashes, no NaN -----------------------------------------
     try {

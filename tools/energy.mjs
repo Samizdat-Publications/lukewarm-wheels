@@ -3,6 +3,7 @@
 // reservoir, not a loss). This is the energy budget: the nips are the only input, so a car must
 // coast from one to the next and the only question is which stretch is eating it.
 // Usage: node tools/energy.mjs '{"cfg":{...},"bin":10,"secs":8,"carIdx":0}'
+import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -11,9 +12,10 @@ const RAPIER = (await import(pathToFileURL(path.join(HERE, 'vendor', 'rapier.mjs
 await RAPIER.init();
 globalThis.window = globalThis; globalThis.RAPIER = RAPIER;
 const require = createRequire(import.meta.url);
-for (const f of ['00-namespace', '10-config', '20-catalog', '30-track-layout', '31-track-mesh',
-                 '40-electrical', '41-booster', '42-vehicle', '43-sim'])
-  require(path.join(path.dirname(HERE), 'src', f + '.js'));
+const ROOTDIR = path.dirname(HERE);
+// Load the physics half of the app in manifest order, so a new src file is picked up here too.
+const MANIFEST = JSON.parse(readFileSync(path.join(ROOTDIR, 'src', 'manifest.json'), 'utf8'));
+for (const f of MANIFEST.scripts) if (!/(5[0-9]|60|90)-/.test(f)) require(path.join(ROOTDIR, f));
 const HW = globalThis.HW; HW.log = () => {};
 const A = process.argv[2] ? JSON.parse(process.argv[2]) : {};
 HW.config.reset(); for (const k in (A.cfg || {})) HW.config[k] = A.cfg[k];

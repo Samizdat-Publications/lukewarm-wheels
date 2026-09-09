@@ -10,54 +10,82 @@ Blender/Gemini/ElevenLabs pipeline, questions for Stewart, risks. Read it after 
 
 ## Where we are
 
-**It runs, it renders, and a lone car laps.** `node tools/serve.mjs` -> http://localhost:8765/
-`node tools/build.mjs` -> `dist/index.html` (158 KB, CSP-safe, verified in real Chrome).
-`tools/selftest.html` -> **8/8 PASS** in a real browser (was 7/8).
+**It runs, it renders, a lone car laps, and the set now has the real 2 rings + 2 sweeps shape.**
+`node tools/serve.mjs` -> http://localhost:8765/ ; `node tools/build.mjs` -> `dist/index.html`
+(170 KB, CSP-safe); `tools/selftest.html` -> **8/8 PASS** in real Chrome.
 
-Lone car, measured over a 20-run ensemble (5 castings x 4 start offsets, 25 s each):
-**mean 1.45 laps, best 5, 5 % leave the track.** At the start of this session it was
-0 laps and 50-80 % off. A single good run in real Chrome does 5 laps in 12 s.
+Shipped defaults: **loop tilt 40 deg, sweep tilt 16 deg, hubHalf 16, lobeRadius 16, laneOffset 2.5,
+straightLen 1.0, 480 Hz.** Footprint 116 cm, ring apex 22.6 cm, sweep apex 9.7 cm.
+Screenshot: `docs/screenshots/T18-shipped-40-16.png`.
 
-**Not yet met:** the behaviour target from `docs/REFERENCES.md` is that a lone car
-circulates *indefinitely*. Ours still stalls after 1-5 laps. And `lineUpFive` still ends
-with 4 of 5 cars stalled and only 1 crash (Stewart's original bug report). Both are the
-same problem: not enough energy survives a lap.
+Measured (20-run ensemble, `node tools/ens.mjs`): **mean 0.85 laps per 25 s, best 4, 0 % off-track.**
+Selftest check 7 runs the whole fleet: **4 of 5 cars lap, best 5 laps, none leaves the track.**
+Five-car pile-up: **3 crashes** (was 0-1).
 
----
+**Not yet met:** `docs/REFERENCES.md` says a lone car circulates *indefinitely*. Ours still stalls
+after 1-5 laps, and the five-car run ends with cars stalled. See "The blocker" below.
 
-## THE BIG CHANGE THIS SESSION: the lobes are tilted circles
+## The loop tilt, and why it stops at 40
 
-The V2791 instruction sheet's **CONTENTS page** (`docs/V2791-half1.png`, zoom it with
-`tools/imgzoom.html`) lists **4 x one moulded ~270 degree arc** and **4 x one adjustable
-"TRACK SUPPORT" ladder**. So all four lobes are the SAME PART, and the only difference
-between the two upright rings and the two low sweeps is which rung the arc is clipped to.
+The instruction sheet has the two rear lobes standing up as rings. The layout renders that
+correctly at any tilt -- open
+`index.html#cfg=%7B%22loopTiltDeg%22%3A48%2C%22sweepTiltDeg%22%3A16%7D` from a cold load and look.
+Loop tilt against mean laps per 25 s, everything else at the shipped defaults:
 
-`src/30-track-layout.js` now builds each lobe as a **flat circle tilted about the
-horizontal chord through its two ends** -- a wall-of-death ring, not a loop-the-loop. See
-`docs/SPEC.md` s5.2/s5.4 for the full derivation. Consequences worth knowing:
+| tilt | 30 | 36 | **40** | 44 | 48 |
+|---|---|---|---|---|---|
+| mean laps | 1.20 | 1.00 | **0.85** | 0.50 | 0.05 |
+| off-track | 15 % | 10 % | **0 %** | 10 % | 0 % |
 
-- A tilted circle projects to an **ellipse** in plan, so a steep lobe has a SMALL plan
-  footprint and a shallow one a large one. That is why the real set fits in ~110 cm, and
-  why the old "4 identical banked 270 deg lobes at a fixed 45 deg splay" could never be
-  tuned into correctness (one geometry was being asked to be both a ring and a sweep).
-- Everything except `lobeRadius`, `straightLen` and the tilt is DERIVED (junction radius,
-  hub->chord gap, chord height, plan splay), so the geometry cannot drift out of closure.
-  Selftest check 2 verifies closure and tangency to 2e-3 cm.
-- The plan splay is `beta = atan(1/cos(tilt))`, NOT a constant 45 degrees. `splayDeg`,
-  `junctionRadius`, `lobeLift` and `lobeBlend` are gone from the config.
+There is a **cliff between 44 and 48**: that is where the ring apex passes what the launch can
+clear. At 48 the car crests at ~30 cm/s and rolls back down into the nip, gets relaunched, and
+oscillates until it dies. 40 is shipped because it is the steepest tilt that still laps, it is the
+only setting measured with no off-track excursions at all, and it reads unmistakably as 2+2.
 
-**To see the real 2+2 shape**, open with a config hash (this works from a cold load):
-`http://localhost:8765/index.html#cfg=%7B%22loopTiltDeg%22%3A48%2C%22sweepTiltDeg%22%3A16%7D`
-Two upright rings on their posts plus two wide low sweeps, footprint 102 cm, ring apex
-25.5 cm. It looks right and it matches the sheet's TO PLAY drawing.
+Two things bought that headroom and both are also more faithful:
+- **`hubHalf` 13 -> 16** (the hub is ~32 cm across, which is what Stewart's photos scale to). Worth
+  0.4 of a lap on its own: the junction turn moves outward, so the car does its cornering further
+  from the nip.
+- **`straightLen` 3 -> 1.** At high tilt the derived junction radius collapses (14.2 cm at 48 deg,
+  an 11 g corner at 400 cm/s) because the short connector eats the lateral budget. Shortening it
+  puts the radius back to 20.5.
 
-**But it does not run.** Measured: 48/16 gets 0.13 laps per 25 s against 1.45 for 18/18.
-The steep ring costs the car everything it has. So the shipped defaults are 18/18 --
-the flattest thing that still reads as the set -- and **making the real 2+2 shape
-survivable is the next job.** The knobs are `loopTiltDeg` / `sweepTiltDeg` in the tuning
-drawer.
+## THE BLOCKER: the vehicle model, not the geometry
 
----
+`tools/attribute.mjs` splits the per-step energy loss by what was true that step. On a flat 16 cm
+lobe, fleet-averaged over 20 runs, with Rapier's `DynamicRayCastVehicleController`:
+
+| when | drag | share |
+|---|---|---|
+| chassis riding a wall | **0.53 g** | 52-64 % |
+| all four wheels down, NO wall contact | **0.21 g** | 29-43 % |
+| on an essentially straight track (R = 260) | **0.076 g** | -- |
+
+Rolling resistance is only 0.022 g, so most of that is parasitic. **And none of it responds to
+anything**: measured, unchanged within noise, across `frictionSlip` 0.005-1.0, `sideFriction`
+0-0.8, `suspMaxForceMult` 1.5-40, suspension damping 0.5-40, suspension stiffness 800-20000,
+`crrScale` 0, `wallFriction` 0.005-0.3, `carFriction`, `floorFriction`, restitution 0-0.95,
+`laneWidth` 3.175-4.0, `wallInset`, `wallSegLen`, `wallRound`, and `physicsHz` 240-1920.
+A loss insensitive to every coefficient is not friction.
+
+For scale: `vehicleMode: 'sled'` (a plain box sliding on the floor) loses **0.045 g** total, which
+is the physically right answer. That is a 5-10x difference, and it is exactly the margin the 48 deg
+ring needs.
+
+**So the next real task is a vehicle model we control.** `src/44-wheel-model.js` is a start
+(`vehicleMode: 'wheels'`): four explicit raycast wheels, a spring/damper along the contact normal,
+and a lateral force capped at `wheelGrip * N` so the only energy it removes is mu*N*slip. It is
+NOT finished -- 100 % of cars still leave the track. Two bugs are already fixed in it (a damping
+term that spanned two steps and fired cars 10 cm into the air; a one-step lateral constraint that
+pumped the roll mode) and the remaining failure is understood: the car goes briefly airborne at the
+lobe entry, all four rays then miss because the suspension only has `wheelStaticComp` of droop, and
+it comes down through the track. `sled` fails differently -- a sliding box tips at 2.4 g and the
+lobe pulls 5.9.
+
+Also landed while chasing this: **`floorSolid`** makes the floor collider the closed
+`floorThick`-deep slab instead of the bare top ribbon. A zero-thickness trimesh lets a car that
+gets briefly airborne come down *through* the track (measured: h 1.34 -> 0.64 -> 0.01 -> -1.94 in
+four samples). Worth 13 points of off-track rate on a flat lobe.
 
 ## METHODOLOGY — read this before you measure anything
 
@@ -150,23 +178,24 @@ If it is missing: `node tools/fetch-rapier.mjs`.
 
 ## Next moves, in order
 
-1. **Close the energy budget so a lone car circulates indefinitely.** The current shortfall
-   is small and specific: run `node tools/energy.mjs` and look at the two junction turns
-   (s 26-50 and s 185-209). They cost 0.5-0.6 g each while the lobes cost 0.27 g. The car
-   enters the second one at ~350-400 cm/s because two nips fire 17 cm apart in the hub, and
-   at that speed a 21 cm junction radius is 4-6 g. Ideas not yet tried: a genuinely banked
-   junction turn built into the ramp (bank about the tangent, not the lobe's plane tilt);
-   making the second hub nip back off when the car is already fast; a larger `hubHalf` with
-   the nip further out so the car has a straight run-out.
-2. **Then raise `loopTiltDeg` back to ~48** and make the real 2+2 shape survive. This is the
-   fidelity milestone: it is what the set actually looks like.
-3. **Then `lineUpFive`** -- Stewart's actual bug report. The motor bogs 11,388 -> 1,687 rpm
-   under five nips, so all five launches are feeble. Spin the motor up first (already done)
-   and stagger the drops; keep "all five in the nips, then switch on" as a deliberate
-   tired-battery demo.
-4. Rebuild `dist/index.html`, publish as an Artifact (car emoji favicon), send Stewart the
-   link. That is the YouTube-parity milestone.
+1. **Finish `src/44-wheel-model.js`** (or something like it). This is the one thing standing between
+   the sim and everything else: a lone car that circulates indefinitely, the five-car pile-up, and
+   the photo-faithful 48 deg ring all fall out of it. The remaining bug is stated above. Give the
+   suspension real droop (raise `wheelStaticComp` AND `suspRest` together so the rays keep finding
+   the ground), and work out what lifts the car at the ramp -> lobe joint in the first place.
+   Judge it with `node tools/ens.mjs` and `node tools/attribute.mjs`, never one run.
+2. **Then raise `loopTiltDeg` to ~48** and re-run the tilt table above. That is the fidelity
+   milestone: it is what the set actually looks like.
+3. **Then the five-car pile-up.** `lineUpFive` now feeds cars in `lineUpStagger` apart (0.7 s)
+   instead of dropping all five at once, which took crashes from 0-1 to 3; the UI button also
+   switches the motor on first. But cars still stall rather than circulating.
+4. Publish `dist/index.html` as an Artifact (car emoji favicon) and send Stewart the link.
 5. Then `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
+
+**Residual, low priority:** `tools/audit.mjs` reports 48 exposed wall end caps at reach -0.69,
+i.e. 0.69 cm outside the lane edge, at the hub gates. They do not respond to `wallSegLen` or
+`wallRampLen` and no car has been observed hitting one, but a car leaving a nip does drift ~0.6 cm,
+so they are worth a look if unexplained losses show up near the gates.
 
 ## Known UX gap Stewart hit (still open)
 He switched the booster on with all five cars lined up and nothing moved. Required:
@@ -253,13 +282,13 @@ synchronously like this when measuring; never trust the live view in the pane.
 ## Assumptions to surface to Stewart (all ESTIMATE unless RESEARCH.md says MEASURED)
 | what | value | note |
 |---|---|---|
-| hub half-length | 13.0 cm (26 across) | photos scale to 30-32 across; worth revisiting |
+| hub half-length | 16.0 cm (32 across) | matches the photo scaling, and worth 0.4 laps |
 | lane offset | 2.5 cm | was 3.0; 2.5 buys a 21 cm junction radius instead of 14 |
 | foam wheel radius | 2.09 cm (derived) | photos suggest smaller than the old 2.59; this agrees |
 | lobe radius | 16.0 cm | scaled off the sheet against the 3.81 cm track width |
-| lobe tilt | 18 / 18 deg | the real set is ~48 / ~16; see the tilt-vs-fidelity note above |
-| footprint | 113 cm (102 at 48/16) | photos scale to 105-110 |
-| ring apex | 10.7 cm (25.5 at 48/16) | photos scale the SWEEP apex to 10-16 cm |
+| lobe tilt | 40 / 16 deg | the real set is ~48 / ~16; 48 is blocked, see the tilt table |
+| footprint | 116 cm | photos scale to 105-110 |
+| ring apex | 22.6 cm, sweep 9.7 cm | photos scale the SWEEP apex to 10-16 cm |
 | lobe wall height | 3.4 cm | must exceed the tallest casting (2.3) |
 | motor | 280-class, gear 6.5:1 | a 130 cannot drive four foam nips from 4 D cells |
 | foam nip | ~5.4 N normal | `foamK` 1.2e6 dyne/cm at 0.45 cm squeeze |
