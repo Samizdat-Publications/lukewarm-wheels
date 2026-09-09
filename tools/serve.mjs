@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,6 +21,18 @@ const TYPES = {
 
 createServer(async (req, res) => {
   const url = decodeURIComponent(req.url.split('?')[0]);
+  // POST /__shot?name=foo.png with a data: URL body -> writes docs/screenshots/foo.png.
+  // Lets a page save its own canvas from the browser tools, which cannot write files.
+  if (req.method === 'POST' && url === '/__shot') {
+    const name = (new URL(req.url, 'http://x').searchParams.get('name') || 'shot.png').replace(/[^\w.-]/g, '_');
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    const b64 = body.slice(body.indexOf(',') + 1);
+    await mkdir(join(ROOT, 'docs', 'screenshots'), { recursive: true });
+    await writeFile(join(ROOT, 'docs', 'screenshots', name), Buffer.from(b64, 'base64'));
+    res.writeHead(200, { 'content-type': 'text/plain' }).end('ok ' + name);
+    return;
+  }
   const file = normalize(join(ROOT, url === '/' ? '/index.html' : url));
   if (!file.startsWith(ROOT)) { res.writeHead(403).end('forbidden'); return; }
   try {
