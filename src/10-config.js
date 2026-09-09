@@ -4,8 +4,10 @@
 (function (HW) {
   const DEFAULTS = {
     // ---- simulation ---------------------------------------------------------
-    physicsHz: 240,
-    maxSubsteps: 8,
+    physicsHz: 480,              // a car at 400 cm/s moves 0.83 cm per step here, against 0.36 cm of
+                                 // free play each side of a 3.175 cm lane; at 240 Hz it is 1.7 cm and
+                                 // the solver spends every step recovering penetration.
+    maxSubsteps: 24,             // must cover physicsHz / worst frame rate (480 / 25 fps)
     lengthUnit: 1,               // Rapier world units per metre, used to normalize the solver tolerances
                                  // (prediction distance, allowed linear error). "We are in cm so it should
                                  // be 100" is WRONG here: 100 gives an allowed linear error of 0.5 cm in a
@@ -37,7 +39,7 @@
                                  // after the crossing spears any car that drifted >0.44 cm off the lane centre.
     carRound: 0.15,              // cm: rounding radius of car chassis colliders
     hubHalf: 13.0,               // ESTIMATE: hub arm length from centre (~26 cm across)
-    laneOffset: 3.0,             // ESTIMATE: lane centreline distance from arm axis inside the hub
+    laneOffset: 2.5,             // ESTIMATE: lane centreline distance from arm axis inside the hub
     boosterR: 8.5,               // ESTIMATE: foam wheel axis distance from hub centre
     foamGap: 2.0,                // free gap wheel-surface to far wall; cars are 2.2-2.6 wide
 
@@ -53,7 +55,12 @@
                                  // Bend-radius floor is ~12 cm (a 7 cm car needs w + L^2/8R < lane).
     loopArms: 'NE',              // which arms are steeply tilted rings. The sheet has the two rings
                                  // ADJACENT, so each circuit gets one ring and one shallow sweep.
-    loopTiltDeg: 45,             // ESTIMATE: the rear "loops". A wall-of-death ring, not a loop-the-
+    // TILT vs FIDELITY. The instruction sheet clearly has the two rear lobes standing up as rings
+    // and the two front ones low and wide, and the layout supports it (set loopTiltDeg to 45 and
+    // watch). But measured over a 20-run ensemble, 45/18 laps 0.13 times per 25 s against 1.45 for
+    // 18/18: the steep ring costs the car everything it has. So the defaults are the flattest that
+    // still reads as two rings, and the real 2+2 shape is the next thing to make survivable.
+    loopTiltDeg: 18,             // ESTIMATE: the rear "loops". A wall-of-death ring, not a loop-the-
                                  // loop: at 300 cm/s and R=16 the car pulls 5.7 g against 1 g, so it
                                  // rides the outer wall. Above ~65 deg a slowing car falls out - which
                                  // is exactly how the real toy fails, so keep it near the edge.
@@ -61,7 +68,7 @@
                                  // 10-16 cm scaled off Stewart's eBay photos.
     straightLen: 3.0,            // ESTIMATE: the short A-H connector between the junction turn and
                                  // the arc. Raising it shrinks the derived junction radius.
-    rollBlendCm: 14.0,           // cm of ARC (each end) that shares the roll-in with the ramp. A rigid
+    rollBlendCm: 36.0,           // cm of ARC (each end) that shares the roll-in with the ramp. A rigid
                                  // car can only follow ~ suspTravel/(trackCm * wheelbase) of surface
                                  // warp -- about 2.6 deg/cm -- so the tilt needs ~17 cm per 45 deg and
                                  // the ramp alone is not long enough. The centreline still lies exactly
@@ -83,6 +90,13 @@
                                  // is compliant and the far wall reacts the squeeze, so the car should
                                  // SETTLE against the wall, not be accelerated into it. Terminal lateral
                                  // speed in the nip is roughly push/(mass*boostLatDamp).
+    boostYawDamp: 0,             // 1/s: yaw damping in the nip, same reasoning. The foam grips the
+                                 // whole side of the casting, so a car cannot turn inside the nip.
+                                 // It must leave straight: the crossing square is 8.8 cm with no
+                                 // exit walks the car through the crossing gap. OFF by default: it
+                                 // works (cars keep 40 % more speed at s=270) but the extra speed
+                                 // then pushes them over the lobe wall -- 87 % leave the track vs 7 %.
+                                 // Turn it on together with a taller lobeWallHeight, not alone.
 
     // ---- drive train (SI in, converted on read) -------------------------------
     cells: 4,
@@ -111,7 +125,7 @@
     suspCompression: 10.0,
     suspRelaxation: 12.0,
     suspTravel: 0.45,            // cm (must stay below suspRest or Rapier NaNs)
-    suspMaxForceMult: 3.0,       // per-wheel suspension force cap, in multiples of the car's STATIC per-wheel
+    suspMaxForceMult: 10.0,       // per-wheel suspension force cap, in multiples of the car's STATIC per-wheel
                                  // load. Rapier/Bullet divide by dot(contactNormal, -rayDir); once a car rolls,
                                  // that term explodes and an uncapped wheel launches the car vertically.
     frictionSlip: 0.10,          // Rapier wheel friction slip ~ tyre grip coefficient. Hard plastic wheels on a
@@ -126,7 +140,7 @@
     carRestitution: 0.15,
     wallRestitution: 0.1,
     linDamping: 0.02,
-    angDamping: 0.5,
+    angDamping: 1.5,
 
     // ---- events ------------------------------------------------------------------
     crashSpeed: 60,              // cm/s closing speed that counts as a crash

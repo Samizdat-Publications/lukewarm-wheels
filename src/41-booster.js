@@ -63,6 +63,17 @@
                 const c0 = car.body.worldCom();
                 car.body.addForceAtPoint(Fp, { x: c0.x + u.x * cfg.boostPushY, y: c0.y + u.y * cfg.boostPushY, z: c0.z + u.z * cfg.boostPushY }, true);
               }
+              // Yaw damping. The foam grips the whole side of the casting and the far wall pushes
+              // straight back, so the pair also resists the car TURNING in the nip. Without this the
+              // car leaves crooked, and the `#` crossing square (8.8 cm with no walls on any side,
+              // which is what the real moulding has) then lets it wander out of the lane.
+              if (cfg.boostYawDamp > 0) {
+                const w = car.body.angvel();
+                const wUp = w.x * u.x + w.y * u.y + w.z * u.z;
+                const Iyy = car.entry.massG / 12 * (car.entry.widthCm ** 2 + car.entry.lengthCm ** 2);
+                const T = -cfg.boostYawDamp * Iyy * wUp;
+                car.body.addTorque({ x: u.x * T, y: u.y * T, z: u.z * T }, true);
+              }
               tau += F * z.wheelRadius;
               car.inBooster = z.name; z.engaged = car.id; z.lastF = F;
               break;

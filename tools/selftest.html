@@ -55,7 +55,7 @@ HW.main.paused = true;
 
 <script>
 (function (HW) {
-  const V = HW.V, U = HW.units, H = 1 / 240;
+  const V = HW.V, U = HW.units, H = 1 / HW.config.physicsHz;
   const out = document.getElementById('out');
   const results = [];
   let passed = 0, failed = 0, warned = 0;
@@ -104,18 +104,32 @@ HW.main.paused = true;
         gaps.map((g) => g.name + ' gap ' + f(g.gap, 4) + ' cm (len ' + f(g.len, 1) + ')').join(', ') + '  limit 0.05');
     } catch (e) { record(1, 'circuits close', 'FAIL', 'threw: ' + e.message); }
 
-    // ---- 2. derived curve radius matches the closed form ------------------------
+    // ---- 2. every lobe is a closed, tangent-continuous tilted circle -----------
+    // The lobe solve (30-track-layout.js lobeGeom) derives the junction radius and the hub->chord
+    // gap from lobeRadius + straightLen + tilt, so the two closure equations must hold exactly and
+    // the three segments must meet in position AND heading.
     try {
-      const d = cfg.derived();
-      const b = U.degToRad(cfg.splayDeg);
-      // SPEC s5.2/s5.4 closure: R = (L + rt*(1-cos b) + S*sin b) / cos b
-      const expect = (cfg.laneOffset + cfg.junctionRadius * (1 - Math.cos(b)) + cfg.straightLen * Math.sin(b)) / Math.cos(b);
-      const arcs = track.circuits.flatMap((p) => p.segments.filter((s) => s.kind === 'arc' && /-lobe$/.test(s.meta.name)));
-      const arcErr = Math.max(...arcs.map((a) => Math.abs(a.radius - expect)));
-      const err = Math.max(Math.abs(d.curveRadius - expect), Math.abs(track.curveRadius - expect), arcErr);
-      ok(2, 'curve radius formula', err < 1e-9,
-        'R=' + f(d.curveRadius, 6) + ' closed form ' + f(expect, 6) + ', ' + arcs.length + ' lobe arcs agree, max err ' + err.toExponential(2));
-    } catch (e) { record(2, 'curve radius formula', 'FAIL', 'threw: ' + e.message); }
+      const K = Math.SQRT1_2, rows = [], errs = [];
+      for (const arm of ['N', 'E', 'S', 'W']) {
+        const g = HW.track.lobeGeom(arm, cfg);
+        // closure: gap = rt sin b + S cos b ;  K*R - L = rt (1-cos b) + S sin b
+        errs.push(Math.abs(g.gap - (g.rt * Math.sin(g.beta) + g.S * Math.cos(g.beta))));
+        errs.push(Math.abs((K * g.R - cfg.laneOffset) - (g.rt * (1 - Math.cos(g.beta)) + g.S * Math.sin(g.beta))));
+        // beta must be the plan angle of a tilted circle's end tangent
+        errs.push(Math.abs(Math.tan(g.beta) - 1 / g.ct));
+        const segs = track.lobes[arm].segs;
+        errs.push(V.dist(segs[0].pointAt(1), segs[1].pointAt(0)));
+        errs.push(V.dist(segs[1].pointAt(1), segs[2].pointAt(0)));
+        // heading continuity at both joints
+        const dir = (sg, u) => { const e = 1e-4, a2 = sg.pointAt(Math.min(1, u + e)), b2 = sg.pointAt(Math.max(0, u - e));
+          const d2 = V.sub(a2, b2), l = V.len(d2) || 1; return { x: d2.x / l, y: d2.y / l, z: d2.z / l }; };
+        errs.push(1 - V.dot(dir(segs[0], 1), dir(segs[1], 0)));
+        errs.push(1 - V.dot(dir(segs[1], 1), dir(segs[2], 0)));
+        rows.push(arm + ' tilt ' + f(U.radToDeg(g.tilt), 0) + ' rt ' + f(g.rt, 1) + ' gap ' + f(g.gap, 1) + ' apex ' + f(g.apex, 1));
+      }
+      const err = Math.max(...errs);
+      ok(2, 'lobe closure + tangency', err < 2e-3, rows.join(' | ') + '  max err ' + err.toExponential(2) + ' limit 2e-3');
+    } catch (e) { record(2, 'lobe closure + tangency', 'FAIL', 'threw: ' + e.message); }
 
     // ---- 3. booster zones sit on their lane ------------------------------------
     try {
@@ -166,7 +180,7 @@ HW.main.paused = true;
       car = sim.cars[0];
       car.spawnAtGate('N-out');
       let peak = 0, entered = false, exitSpeed = 0;
-      const used = await stepFor(sim, 240 * 3, () => {
+      const used = await stepFor(sim, Math.round(1 / H) * 3, () => {
         if (car.s > maxS) maxS = car.s;
         if (car.speed > peak) peak = car.speed;
         if (car.inBooster) entered = true;
@@ -183,7 +197,7 @@ HW.main.paused = true;
     try {
       const used = window.__selftestLaunchSteps || 0;
       let lifted = false, off = false;
-      const more = await stepFor(sim, Math.max(0, 240 * 15 - used), () => {
+      const more = await stepFor(sim, Math.max(0, Math.round(1 / H) * 15 - used), () => {
         if (car.s > maxS) maxS = car.s;
         if (car.lifted) { lifted = true; return false; }
         if (car.offTrack) off = true;
@@ -205,7 +219,7 @@ HW.main.paused = true;
       const rpmFree = sim.elec.telemetry().rpmMotor;
       sim.lineUpFive();
       let rpmBog = Infinity, peak = 0;
-      await stepFor(sim, 240 * 15, () => {
+      await stepFor(sim, Math.round(1 / H) * 15, () => {
         const r = sim.elec.telemetry().rpmMotor;
         if (r < rpmBog) rpmBog = r;
         for (const c of sim.cars) if (!c.lifted && c.speed > peak) peak = c.speed;

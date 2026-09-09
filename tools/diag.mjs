@@ -43,7 +43,7 @@ for (let i = 0; i < n; i++) {
       's' + car.s.toFixed(1).padStart(6), 'v' + car.speed.toFixed(0).padStart(4), 'dv' + dv.toFixed(0).padStart(5),
       'lat' + (car.lateral || 0).toFixed(2).padStart(6), 'h' + (car.height || 0).toFixed(2).padStart(6),
       'd' + (car.dist || 0).toFixed(2).padStart(5), 'y' + car.pos.y.toFixed(2).padStart(6),
-      'wc' + wc, (f && f.seg.meta.name) || '-', big ? '  <<JOLT' : '');
+      'wc' + wc, (car.inBooster || '     ').padEnd(6), 'vfoam' + (s.elec.omegaWheel * s.track.foamWheelRadius).toFixed(0).padStart(4), (f && f.seg.meta.name) || '-', big ? '  <<JOLT' : '');
   }
   if (big) {
     // Report the MANIFOLD, not just the pair: the normal says which face hit and the impulse says

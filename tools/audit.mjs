@@ -43,14 +43,16 @@ for (const B of boxes) {
       if (pr.dist > 6) continue;
       const reach = cfg.laneWidth / 2 - Math.abs(pr.lateral);   // >0 means the cap is inside the lane
       const along = Math.abs(V.dot(B.ez, pr.frame.t));          // 1 = end face square across the lane
-      if (reach > -0.15 && along > 0.5 && (!worst || reach > worst.reach))
+      if (reach > -1.6 && along > 0.5 && (!worst || reach > worst.reach))
         worst = { circuit: c.name, s: pr.s, lateral: pr.lateral, reach, along, h: pr.height };
     }
     if (worst) caps.push({ face, kind: B.b.flare ? 'flare' : 'wall', ...worst });
   }
 }
 caps.sort((a, b) => b.reach - a.reach);
-console.log('EXPOSED WALL END CAPS facing a lane:', caps.length, '(reach > 0 = the cap stands inside the lane)');
+console.log('EXPOSED WALL END CAPS facing a lane:', caps.length,
+  '(reach = laneWidth/2 - |lateral|; > 0 stands IN the lane. A car leaving a nip drifts ~0.6 cm',
+  'and yaws, so anything above about -1.0 is still reachable and worth looking at.)');
 for (const c of caps.slice(0, 12)) console.log('  ' + c.kind.padEnd(5), c.circuit, 's' + c.s.toFixed(1).padStart(6),
   'lat' + c.lateral.toFixed(2).padStart(6), 'reach' + c.reach.toFixed(2).padStart(6), 'along' + c.along.toFixed(2),
   'at(' + c.face.x.toFixed(1) + ',' + c.face.y.toFixed(1) + ',' + c.face.z.toFixed(1) + ')');

@@ -61,44 +61,77 @@ lanes at z = -L (westbound) and z = +L (eastbound), where L = `laneOffset`.
 Crossing points at (+-L, +-L). Inside the crossing square (half-size
 `crossHalf`) there are **no walls**: cars cross each other's lanes freely.
 
-### 5.2 Curves ("tilted loops")
-Four 270-degree right-hand curves, one per quadrant, each linking the outbound
-lane of one arm to the inbound lane of the next arm clockwise:
+### 5.2 Lobes: four identical TILTED CIRCLES (re-derived 2026-09-08)
+The V2791 instruction sheet's CONTENTS page (`docs/V2791-half1.png`) lists
+**4 x one moulded ~270 degree arc** and **4 x one adjustable "TRACK SUPPORT"
+ladder**. All four lobes are therefore the SAME PART; the only thing that
+differs between the two rear lobes (upright rings in every photo) and the two
+front ones (wide low teardrops) is which rung of the ladder the arc is clipped
+to. The model follows the part:
 
-S-out (west lane, heading S) -> SW curve -> W-in (south lane, heading E)
--> through hub -> E-out (south lane, heading E) -> SE curve -> S-in (east lane, heading N)
--> through hub -> N-out (east lane, heading N) -> NE curve -> E-in (north lane, heading W)
--> through hub -> W-out (north lane, heading W) -> NW curve -> N-in (west lane, heading S)
--> through hub -> S-out.
+> A lobe is a **flat circle of radius `lobeRadius`, tilted out of the
+> horizontal by `tilt` about the horizontal chord through its two ends.**
 
-**One continuous circuit** through all four curves and all four crossing
-points. Each curve is banked (up to `bankMaxDeg`) and rises to `curveLift` cm
-at its midpoint (the "tilt"), returning to floor level at each end.
+It is a wall-of-death ring, **not** a loop-the-loop: the surface normal is the
+(constant) plane normal, and the car is held on the circle by the outer wall
+against v^2/R -- about 5.7 g at R = 16 cm and 300 cm/s, against 1 g of gravity.
+A tilted circle projects to an **ellipse** in plan (semi-axes R across the arm,
+R cos(tilt) along it), which is why a steep lobe has a small plan footprint and
+a shallow one a large one, and why the whole set fits in roughly 110 cm.
 
-Geometry closes exactly when `curveRadius = hubHalf + straightLen - laneOffset`
-(derived in 5.4). Defaults: hubHalf 14.5, straightLen 20, laneOffset 2.75 ->
-curveRadius 31.75; footprint about 2*(laneOffset + 2*curveRadius) = 133 cm
-square. RESEARCH.md may revise these; only `src/10-config.js` changes.
+Two circuits, NS and EW, crossing at four points. Each circuit gets ONE steep
+lobe and ONE shallow one (`loopArms` = 'NE'), adjacent rather than opposite,
+which is how the instruction sheet has it.
+
+Each lobe is three segments:
+- **out-ramp** -- junction turn of `beta` at radius `rt`, then a straight of
+  `straightLen`, carrying the height from 0 to `y0` and rolling the surface
+  from flat to the lobe's plane normal;
+- **arc** -- the 270 degree tilted circle, exactly planar;
+- **in-ramp** -- the mirror, falling back to flat at the hub gate.
+
+The ramps are the flexible orange track: all of the height and roll change
+lives there (plus `rollBlendCm` of the arc at each end), so the arc itself is
+planar and the car never meets a twist while cornering. The roll rate is
+bounded by what a rigid four-wheel car can follow -- `suspTravel / (trackCm *
+wheelbaseCm)`, about 2.6 deg/cm; `tools/audit.mjs` checks it.
 
 ### 5.3 Lane cross-section
-Inner width `laneWidth` 5.1 cm, wall height `wallHeight` 1.2 cm, wall
-thickness 0.3 cm, floor thickness 0.3 cm. Floor and walls are **separate
-colliders** (floor friction is low for sled mode; walls use `wallFriction`).
+Inner width `laneWidth` 3.175 cm (MEASURED, 1.25 in), hub wall height
+`wallHeight` 0.9 cm, lobe wall height `lobeWallHeight` 3.4 cm (must exceed the
+tallest casting), wall thickness 0.3 cm, floor thickness 0.4 cm. Floor and
+walls are **separate colliders**: the floor is one trimesh per circuit (with
+`FIX_INTERNAL_EDGES`), the walls are chains of solid rounded boxes.
 
-### 5.4 Lane path construction (src/30-track-layout.js)
-A lane path is a list of segments; each yields `sample(s)` by arc length ->
-`{p, t, n, up, bank, kind, seg}` where t = tangent, n = right-hand normal
-(horizontal), up = banked up vector. Segment kinds: `straight(p0, p1)` and
-`arc(center, r, a0, sweep, lift, bankMax)`. The circuit is built once from
-config as ONE closed path with named milestones (`S-out`, `SW-curve`, `W-in`,
-...) plus metadata: crossing points, booster zones (arm, lane, centre s,
-along-lane half extent, wheel-side sign), and the four "start gates".
+Every wall box is built from two points on the **inner face line**, and that
+line moves outward by `wallFlareLen * tan(wallFlareDeg)` over `wallFlareLen` at
+each end of a run. Consecutive boxes therefore share a face by construction and
+no square end cap is ever exposed to the lane. A run shorter than
+`2 * wallFlareLen` is recessed along its whole length; a run shorter than
+`wallMinRun` is deleted. This is not cosmetic: an exposed cap stops a car dead
+from 300 cm/s, and finding them one at a time cost most of two sessions.
 
-Derivation of the closure: the outbound west lane of the S arm is at x = -L
-and ends at z = hubHalf + straightLen = D. A right-hand 270-degree arc of
-radius R centred at (-L - R, D) ends at (-L - R, D - R) heading +X. The W
-arm's inbound south lane is at z = +L and starts at x = -D. Equate:
-D - R = L and -L - R = -D  =>  R = D - L.
+### 5.4 Lobe solve (src/30-track-layout.js `lobeGeom`)
+Everything except `lobeRadius`, `straightLen` and the tilt is DERIVED, so the
+geometry cannot drift out of closure.
+
+For a tilted circle the plan tangent at the arc's ends is `cos(tilt)*d + r`, so
+the junction turn must deliver `beta = atan(1 / cos(tilt))` -- 45 degrees only
+when the lobe is flat. With `K = cos 45`, the two closure equations are
+
+    gap      = rt*sin(beta) + S*cos(beta)          (along the arm)
+    K*R - L  = rt*(1-cos(beta)) + S*sin(beta)      (across it)
+
+which give `rt` and `gap` from `R`, `S` and `L = laneOffset`. The arc's climb
+angle at its ends is `sigma = atan(sin(tilt) / hypot(cos(tilt), 1))`, and the
+ramp's height profile `y = y0 * t^2` must arrive at that slope, so
+`y0 = rampLen * tan(sigma) / 2`. Apex height is `y0 + R*(1+K)*sin(tilt)`.
+
+Defaults R = 16, S = 3, L = 2.5, tilt 18/18 give rt 21.4, gap 17.5, apex 10.7,
+footprint 113 cm. At the photo-faithful 48/16 the same solve gives footprint
+102 cm with a 25.5 cm ring -- see the tilt-vs-fidelity note in `10-config.js`.
+`tools/geom.mjs` prints all of it; selftest check 2 verifies closure and
+tangency to 2e-3 cm.
 
 ### 5.5 Booster contact model (src/41-booster.js)
 The foam wheel is **not** a collider. For each car whose chassis centre lies
