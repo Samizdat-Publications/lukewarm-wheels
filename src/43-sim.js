@@ -47,7 +47,7 @@
       add(R.ColliderDesc.trimesh(mesh.floor.positions, mesh.floor.indices, tmFlags).setFriction(floorFriction).setRestitution(0.05), 'floor');
       // walls are solid boxes (a thin two-sided trimesh wedges a cuboid pressed into it: contacts on both faces fight)
       const wr = Math.min(cfg.wallRound, cfg.wallThick / 2 - 0.02);
-      for (const b of mesh.wallBoxes) add(R.ColliderDesc.roundCuboid(b.half.x - wr, b.half.y - wr, b.half.z - wr, wr).setTranslation(b.center.x, b.center.y, b.center.z).setRotation(b.quat).setFriction(cfg.wallFriction).setRestitution(cfg.wallRestitution), b.flare ? 'flare' : 'wall');
+      for (const b of mesh.wallBoxes) add(R.ColliderDesc.roundCuboid(b.half.x - wr, b.half.y - wr, b.half.z - wr, wr).setTranslation(b.center.x, b.center.y, b.center.z).setRotation(b.quat).setFriction(cfg.wallFriction).setRestitution(cfg.wallRestitution), b.tapered ? 'taper' : 'wall');
       for (const p of mesh.hub.plates) add(R.ColliderDesc.cuboid(p.half.x, p.half.y, p.half.z).setTranslation(p.center.x, p.center.y, p.center.z).setFriction(floorFriction), 'plate');
       // a big catch floor 30 cm below so cars that fly off do not fall forever
       add(R.ColliderDesc.cuboid(300, 1, 300).setTranslation(0, -31, 0).setFriction(0.6), 'ground');

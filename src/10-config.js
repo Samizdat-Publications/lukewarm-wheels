@@ -28,10 +28,10 @@
     wallRound: 0.1,              // cm: rounding radius of wall box colliders
     wallRampLen: 7.0,            // cm over which the wall height changes between the shallow hub lane and the
                                  // deep curve channel. A hard step leaves an end cap in the lane that spears cars.
-    wallMinRun: 5.0,             // cm: wall runs shorter than this are dropped entirely. Two openings that
+    wallMinRun: 0.9,             // cm: wall runs shorter than this are deleted outright. Two openings that
                                  // nearly meet (the foam wheel slot and the crossing gap are 0.66 cm apart)
-                                 // otherwise leave a stub too short to flare, i.e. a square end cap standing
-                                 // in the lane. Must exceed 2 * wallFlareLen or the stub cannot be flared.
+                                 // leave a sliver whose square end cap stands in the lane and stops a car
+                                 // dead. Runs between this and 2*wallFlareLen are kept but RECESSED.
     wallFlareLen: 2.2,           // cm: flared lane mouth at each end of a wall run (crossing square, foam
     wallFlareDeg: 22,            // deg: wheel slot). Without it the square end cap of the wall that RESTARTS
                                  // after the crossing spears any car that drifted >0.44 cm off the lane centre.

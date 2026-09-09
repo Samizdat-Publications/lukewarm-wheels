@@ -21,44 +21,52 @@ for (const f of ['00-namespace', '10-config', '20-catalog', '30-track-layout', '
 const HW = globalThis.HW;
 HW.log = () => {};
 
-const H = 1 / 240;
+// NB: the step size must follow HW.config.physicsHz. Hard-coding 1/240 while the world's own
+// timestep tracked the config made every physicsHz experiment silently run at the wrong speed.
 export function run(cfg = {}, opts = {}) {
   HW.config.reset();
   for (const k in cfg) HW.config[k] = cfg[k];
   HW.sim.create();
+  const H = 1 / HW.config.physicsHz;
   const s = HW.sim, car = s.cars[opts.carIdx || 0];
   s.reset(); s.setSwitch(true);
-  for (let i = 0; i < 120; i++) s.step(H);
-  car.spawnAtGate(opts.gate || 'N-out');
-  const secs = opts.secs || 15, n = Math.round(240 * secs), trace = [];
+  for (let i = 0; i < Math.round(0.5 / H); i++) s.step(H);
+  car.spawnAtGate(opts.gate || 'N-out', opts.back || 0);
+  const secs = opts.secs || 15, n = Math.round(secs / H), trace = [];
   let vmax = 0, yMax = 0, off = false, maxRoll = 0; const lapTs = [];
+  // v at fixed s is the only stable signal: maxS/endS are thresholds on whether a nip happens to
+  // catch the car, so they flip between wildly different values for a 1% config change.
+  const probeS = opts.probeS || [], probe = {}; let lastS = car.s;
   for (let i = 0; i < n; i++) {
     s.step(H);
-    if (car.lifted) { off = 'lifted@' + (i / 240).toFixed(2); break; }
+    for (const ps of probeS) if (probe[ps] === undefined && lastS < ps && car.s >= ps && car.s - lastS < 20) probe[ps] = +car.speed.toFixed(0);
+    lastS = car.s;
+    if (car.lifted) { off = 'lifted@' + (i * H).toFixed(2); break; }
     vmax = Math.max(vmax, car.speed); yMax = Math.max(yMax, car.pos.y);
     const up = HW.math.applyQuat(car.quat, { x: 0, y: 1, z: 0 });
     const lu = car.frame ? car.frame.up : { x: 0, y: 1, z: 0 };
     const roll = Math.acos(Math.max(-1, Math.min(1, up.x * lu.x + up.y * lu.y + up.z * lu.z))) * 180 / Math.PI;
     maxRoll = Math.max(maxRoll, roll);
-    while (lapTs.length < car.laps) lapTs.push(+(i / 240).toFixed(2));
-    if (car.offTrack && !off) off = 'offtrack@' + (i / 240).toFixed(2);
-    if (opts.trace && i % opts.trace === 0) trace.push([(i / 240).toFixed(2), 's' + car.s.toFixed(0), 'v' + car.speed.toFixed(0),
+    while (lapTs.length < car.laps) lapTs.push(+(i * H).toFixed(2));
+    if (car.offTrack && !off) off = 'offtrack@' + (i * H).toFixed(2);
+    if (opts.trace && i % opts.trace === 0) trace.push([(i * H).toFixed(2), 's' + car.s.toFixed(0), 'v' + car.speed.toFixed(0),
       'lat' + car.lateral.toFixed(2), 'y' + car.pos.y.toFixed(1), 'r' + roll.toFixed(0), 'L' + car.laps,
       car.inBooster || '', (car.frame && car.frame.seg.meta.name) || ''].join(' '));
   }
-  return { vmax: +vmax.toFixed(0), yMax: +yMax.toFixed(2), laps: car.laps, lapTs, off,
+  return { vmax: +vmax.toFixed(0), yMax: +yMax.toFixed(2), laps: car.laps, lapTs, off, probe,
     maxRoll: +maxRoll.toFixed(0), endV: +car.speed.toFixed(0), endS: +car.s.toFixed(0), stalled: car.stalled, trace };
 }
 
 export function five(cfg = {}, secs = 15) {
   HW.config.reset(); for (const k in cfg) HW.config[k] = cfg[k];
   HW.sim.create();
+  const H = 1 / HW.config.physicsHz;
   const s = HW.sim;
   s.reset(); s.setSwitch(true);
-  for (let i = 0; i < 120; i++) s.step(H);
+  for (let i = 0; i < Math.round(0.5 / H); i++) s.step(H);
   s.lineUpFive();
   let fell = 0, minY = 99;
-  for (let i = 0; i < Math.round(240 * secs); i++) {
+  for (let i = 0; i < Math.round(secs / H); i++) {
     s.step(H);
     for (const c of s.cars) if (!c.lifted) minY = Math.min(minY, c.pos.y);
   }

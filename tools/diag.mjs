@@ -23,23 +23,23 @@ if (A.noWalls) {
   HW.trackMesh.build = (t, c) => { const m = orig(t, c); m.wallBoxes = []; return m; };
 }
 HW.sim.create();
-const s = HW.sim, car = s.cars[A.carIdx || 0], H = 1 / 240;
+const s = HW.sim, car = s.cars[A.carIdx || 0], H = 1 / HW.config.physicsHz;
 s.reset(); s.setSwitch(true);
-for (let i = 0; i < 240; i++) s.step(H);
+for (let i = 0; i < Math.round(1 / H); i++) s.step(H);
 car.spawnAtGate(A.gate || 'N-out');
-const every = A.every || 6, jolt = A.jolt || 25, n = Math.round(240 * (A.secs || 3));
+const every = A.every || 6, jolt = A.jolt || 25, n = Math.round((A.secs || 3) / H);
 let prevV = 0;
 const kindOf = (h) => { const c = s.world.getCollider(h); return (c && c.userData && c.userData.kind) || '?'; };
 for (let i = 0; i < n; i++) {
   s.step(H);
-  if (car.lifted) { console.log('LIFTED at t=' + (i / 240).toFixed(2)); break; }
+  if (car.lifted) { console.log('LIFTED at t=' + (i * H).toFixed(2)); break; }
   const wc = [0, 1, 2, 3].map((k) => (car.wheelState(k).contact ? 1 : 0)).join('');
   const dv = car.speed - prevV; prevV = car.speed;
   const big = Math.abs(dv) > jolt;
   if (i % every === 0 || big) {
     const f = car.frame;
     console.log(
-      (i / 240).toFixed(3).padStart(6),
+      (i * H).toFixed(3).padStart(6),
       's' + car.s.toFixed(1).padStart(6), 'v' + car.speed.toFixed(0).padStart(4), 'dv' + dv.toFixed(0).padStart(5),
       'lat' + (car.lateral || 0).toFixed(2).padStart(6), 'h' + (car.height || 0).toFixed(2).padStart(6),
       'd' + (car.dist || 0).toFixed(2).padStart(5), 'y' + car.pos.y.toFixed(2).padStart(6),

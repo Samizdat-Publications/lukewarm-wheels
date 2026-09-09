@@ -69,12 +69,13 @@
       leftWall[i] = !blocked(wallPoint(i, -1));
       rightWall[i] = !blocked(wallPoint(i, 1));
     }
-    // Drop wall runs too short to be flared. Where two openings nearly meet -- the foam wheel slot
-    // ends at z = -5.55 and the crossing gap starts at z = -4.89 -- the sample test leaves a 6 mm
-    // ISLAND of wall between them, and a run that short gets no lead-in at either end: it is a stub
-    // with two square end caps standing in the lane. Measured: a car leaving the inbound nip at
-    // 156 cm/s hits that cap head-on (contact normal 0.98 along the lane, J192) and stops dead.
-    // A real moulding has a continuous wall or a clean opening, never a 6 mm spike.
+    // Drop slivers of wall. Where two openings nearly meet -- the foam wheel slot ends at z = -5.55
+    // and the crossing gap starts at z = -4.89 -- the sample test leaves a 6 mm ISLAND of wall
+    // between them, too short to carry a lead-in at either end: a spike with two square end caps
+    // standing in the lane. Measured: a car leaving the inbound nip at 156 cm/s hit that cap
+    // head-on (contact normal 0.98 along the lane, J192) and stopped dead.
+    // Only true slivers are deleted; runs up to 2*wallFlareLen are kept but RECESSED (see emitRun),
+    // because deleting them all left the hub arm with 25 cm of open side and nothing to lean on.
     const dropShortRuns = (present) => {
       let i = 0;
       while (i < M) {
@@ -114,97 +115,93 @@
     }
 
     // ---- walls: inner face, top, outer face for each run (visual + solid box colliders) ----
+    // A wall run STOPS at the crossing square and at the foam wheel slot, and it used to restart
+    // with a square end cap ~0.44 cm outboard of the car's side. A car that drifts across the gap
+    // hits that cap head-on at 300 cm/s and is destroyed. The first attempt bolted a separate
+    // angled "flare" box onto each end of a run; that just moved the problem, because the flare's
+    // own end face met the normal boxes at 22 deg and a car hit THAT (measured: J799 head-on,
+    // -125 cm/s in one step, contact normal 0.93 along the lane).
+    // Now there is ONE primitive: every box is built from the two ends of its stretch of the
+    // INNER FACE LINE, and that line simply moves outward over `wallFlareLen` at each end of the
+    // run. Consecutive boxes therefore share a face by construction and no cap is ever exposed to
+    // the lane; a run shorter than 2*wallFlareLen is recessed along its whole length, which is what
+    // happens to the 1.5-2.2 cm islands the wheel slot and the two crossings leave in a hub arm.
     const wb = out.walls;
-    function emitBoxes(side, run) {
-      // run = list of frame indices with a wall; chop into boxes of ~wallSegLen along the path
-      const sgn = side === 'L' ? -1 : 1, segLen = cfg.wallSegLen;
-      let i0 = 0;
-      while (i0 < run.length - 1) {
-        let i1 = i0; let len = 0;
-        while (i1 < run.length - 1 && len < segLen) { len += V.dist(frames[run[i1]].p, frames[run[i1 + 1]].p); i1++; }
-        const fa = frames[run[i0]], fb = frames[run[i1]];
-        const wh = whAt(run[(i0 + i1) >> 1]);
-        const mid = V.lerp(fa.p, fb.p, 0.5);
-        const t = V.norm(V.sub(fb.p, fa.p));
-        let up = V.norm(V.lerp(fa.up, fb.up, 0.5));
-        const right = V.norm(V.cross(t, up)); up = V.norm(V.cross(right, t));
-        // inner face recessed by wallInset so chord-box end steps on the inside of bends cannot snag a car
-        const center = V.addScaled(V.addScaled(mid, right, sgn * (w2 + wt / 2 + cfg.wallInset)), up, wh / 2);
-        out.wallBoxes.push({ center, quat: HW.math.quatFromBasis(right, up, V.scale(t, -1)), half: { x: wt / 2, y: wh / 2, z: len / 2 + 0.05 } });
-        i0 = i1;
+    const setback = cfg.wallFlareLen * Math.tan(HW.units.degToRad(cfg.wallFlareDeg));
+    // runs of consecutive present samples, per side
+    function runsOf(present) {
+      const runs = []; let cur = null;
+      for (let i = 0; i < M; i++) {
+        if (present[i]) { if (!cur) { cur = []; runs.push(cur); } cur.push(i); } else cur = null;
       }
+      return runs.filter((r) => r.length > 1);
     }
-    // Flared lane mouth. A wall run STOPS at the crossing square and at the foam-wheel slot, and it
-    // restarts with a square end cap ~0.44 cm outboard of the car's side. A car that drifts across the
-    // gap (it leaves every nip with 30-40 cm/s of lateral velocity) hits that cap head-on at 300 cm/s and
-    // is destroyed. The real mouldings flare the lane mouth open; so do we: one extra box at each end of
-    // every run, angled `wallFlareDeg` outward over `wallFlareLen`, flush with the wall at the joint.
-    function emitFlare(side, runIdxs, atStart) {
-      const sgn = side === 'L' ? -1 : 1, len = cfg.wallFlareLen;
-      if (len <= 0 || runIdxs.length < 3) return runIdxs;
-      // walk `len` cm into the run from the chosen end
-      let a = atStart ? 0 : runIdxs.length - 1, b = a, acc = 0;
-      const stepDir = atStart ? 1 : -1;
-      while (acc < len && b + stepDir >= 0 && b + stepDir < runIdxs.length) {
-        acc += V.dist(frames[runIdxs[b]].p, frames[runIdxs[b + stepDir]].p); b += stepDir;
+    // extra[i] = how far outward this sample's inner face is pushed (0 mid-run, `setback` at an end)
+    function extraFor(runs) {
+      const extra = new Float64Array(M);
+      for (const run of runs) {
+        const cum = [0];
+        for (let k = 1; k < run.length; k++) cum.push(cum[k - 1] + V.dist(frames[run[k - 1]].p, frames[run[k]].p));
+        const total = cum[cum.length - 1];
+        for (let k = 0; k < run.length; k++) {
+          const dEnd = Math.min(cum[k], total - cum[k]);
+          extra[run[k]] = cfg.wallFlareLen > 0 ? setback * (1 - Math.min(1, dEnd / cfg.wallFlareLen)) : 0;
+        }
       }
-      if (acc < len * 0.6) return runIdxs;
-      const fEnd = frames[runIdxs[a]], fIn = frames[runIdxs[b]];
-      const setback = len * Math.tan(HW.units.degToRad(cfg.wallFlareDeg));
-      const wh = whAt(runIdxs[b]);
-      // inner-face line: set back OUTWARD at the gap end, flush at the inner end
-      const pFar = V.addScaled(fEnd.p, fEnd.right, sgn * (w2 + cfg.wallInset + setback));
-      const pNear = V.addScaled(fIn.p, fIn.right, sgn * (w2 + cfg.wallInset));
-      const axis = V.norm(V.sub(pNear, pFar));
-      const u = V.norm(V.lerp(fEnd.up, fIn.up, 0.5));
-      const rf = V.norm(V.cross(axis, u));
-      const mid = V.lerp(pFar, pNear, 0.5);
-      const c = V.addScaled(V.addScaled(mid, rf, sgn * wt / 2), u, wh / 2);
-      out.wallBoxes.push({ center: c, quat: HW.math.quatFromBasis(rf, u, V.scale(axis, -1)),
-        half: { x: wt / 2, y: wh / 2, z: V.dist(pFar, pNear) / 2 }, flare: true });
-      // the normal boxes must not fill the stretch we just set back
-      return atStart ? runIdxs.slice(b) : runIdxs.slice(0, b + 1);
+      return extra;
     }
 
-    // A wall run gets a set-back LEAD-IN at each end: the last `wallFlareLen` of wall is angled
-    // outward so the exposed end cap sits ~0.9 cm clear of the lane, instead of square across it.
-    // The flare lives INSIDE the run (never out in the crossing square, which belongs to the lane
-    // that crosses here), so it cannot block the other circuit.
-    function emitRun(side, run) {
-      let r = emitFlare(side, run, true);
-      r = emitFlare(side, r, false);
-      if (r.length > 1) emitBoxes(side, r);
+    function emitBoxes(side, run, extra) {
+      const sgn = side === 'L' ? -1 : 1, segLen = cfg.wallSegLen;
+      const facePt = (i) => V.addScaled(frames[i].p, frames[i].right, sgn * (w2 + wt / 2 + cfg.wallInset + extra[i]));
+      let i0 = 0;
+      while (i0 < run.length - 1) {
+        let i1 = i0, len = 0;
+        while (i1 < run.length - 1 && len < segLen) { len += V.dist(frames[run[i1]].p, frames[run[i1 + 1]].p); i1++; }
+        const pa = facePt(run[i0]), pb = facePt(run[i1]);
+        const d = V.dist(pa, pb);
+        if (d < 1e-4) { i0 = i1; continue; }
+        const wh = whAt(run[(i0 + i1) >> 1]);
+        const mid = V.lerp(pa, pb, 0.5);
+        const t = V.norm(V.sub(pb, pa));
+        let up = V.norm(V.lerp(frames[run[i0]].up, frames[run[i1]].up, 0.5));
+        const right = V.norm(V.cross(t, up)); up = V.norm(V.cross(right, t));
+        out.wallBoxes.push({ center: V.addScaled(mid, up, wh / 2), quat: HW.math.quatFromBasis(right, up, V.scale(t, -1)),
+          half: { x: wt / 2, y: wh / 2, z: d / 2 + 0.05 }, tapered: extra[run[i0]] > 1e-6 || extra[run[i1]] > 1e-6 });
+        i0 = i1;
+      }
     }
 
     function wallStrip(side, present) {
       const sgn = side === 'L' ? -1 : 1;
-      let prev = null, run = [];
-      for (let i = 0; i < M; i++) {
-        if (!present[i]) { prev = null; if (run.length > 1) emitRun(side, run); run = []; continue; }
-        run.push(i);
-        const f = frames[i];
-        const wh = whAt(i);
-        const inner = V.addScaled(f.p, f.right, sgn * w2);
-        const outer = V.addScaled(f.p, f.right, sgn * (w2 + wt));
-        const u = SS[Math.min(i, N - 1)] / 10;
-        const cur = {
-          ib: wb.vert(inner, u, 0), it: wb.vert(V.addScaled(inner, f.up, wh), u, 1),
-          ot: wb.vert(V.addScaled(outer, f.up, wh), u, 1), ob: wb.vert(outer, u, 0),
-        };
-        if (prev) {
-          if (side === 'L') { // inner face normal points +right (into the lane)
-            wb.quad(prev.ib, prev.it, cur.it, cur.ib);
-            wb.quad(prev.it, prev.ot, cur.ot, cur.it);
-            wb.quad(prev.ot, prev.ob, cur.ob, cur.ot);
-          } else {
-            wb.quad(prev.it, prev.ib, cur.ib, cur.it);
-            wb.quad(prev.ot, prev.it, cur.it, cur.ot);
-            wb.quad(prev.ob, prev.ot, cur.ot, cur.ob);
+      const runs = runsOf(present), extra = extraFor(runs);
+      for (const run of runs) {
+        let prev = null;
+        for (const i of run) {
+          const f = frames[i];
+          const wh = whAt(i);
+          const inner = V.addScaled(f.p, f.right, sgn * (w2 + extra[i]));
+          const outer = V.addScaled(f.p, f.right, sgn * (w2 + wt + extra[i]));
+          const u = SS[Math.min(i, N - 1)] / 10;
+          const cur = {
+            ib: wb.vert(inner, u, 0), it: wb.vert(V.addScaled(inner, f.up, wh), u, 1),
+            ot: wb.vert(V.addScaled(outer, f.up, wh), u, 1), ob: wb.vert(outer, u, 0),
+          };
+          if (prev) {
+            if (side === 'L') { // inner face normal points +right (into the lane)
+              wb.quad(prev.ib, prev.it, cur.it, cur.ib);
+              wb.quad(prev.it, prev.ot, cur.ot, cur.it);
+              wb.quad(prev.ot, prev.ob, cur.ob, cur.ot);
+            } else {
+              wb.quad(prev.it, prev.ib, cur.ib, cur.it);
+              wb.quad(prev.ot, prev.it, cur.it, cur.ot);
+              wb.quad(prev.ob, prev.ot, cur.ot, cur.ob);
+            }
           }
+          prev = cur;
         }
-        prev = cur;
+        emitBoxes(side, run, extra);
       }
-      if (run.length > 1) emitRun(side, run);
     }
     wallStrip('L', leftWall);
     wallStrip('R', rightWall);
