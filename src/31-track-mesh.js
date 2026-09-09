@@ -23,12 +23,15 @@
     // is a deep moulded channel: at 20.5 cm radius / 300 cm/s the lobe pulls ~4.5 g and the 15 cm junction
     // bend up to ~11 g, so the car rides the OUTER wall and a wall shorter than the casting simply lets
     // the top corner swing over it. The hub arms keep the shallow `wallHeight` lane channel.
-    // Keyed on the segment KIND, not on `lift > 0`: with lobeLift = 0 the old test silently dropped the
-    // lobe walls to wallHeight, so every "flat arc" experiment failed for the wrong reason.
+    // Keyed on the segment's own `deepWall` flag, not on `lift > 0` (with lobeLift = 0 the old test
+    // silently dropped the lobe walls to wallHeight, so every "flat arc" experiment failed for the
+    // wrong reason) and not on `kind === 'arc'` either: the junction turn now lives inside the ramp
+    // segment, and at a derived radius of ~14 cm it pulls ~6.6 g at 300 cm/s, so it needs the deep
+    // channel just as much as the ring does.
     // The change of height is RAMPED over wallRampLen: a hard step leaves the taller wall's end cap
     // sticking up in the lane, and a car that is a few mm off-centre (or briefly airborne) hits that cap
     // head-on at 250 cm/s and is destroyed. Real mouldings taper; so do these.
-    const whTarget = (i) => { const sg = segAt(i); return sg && sg.kind === 'arc' ? cfg.lobeWallHeight : cfg.wallHeight; };
+    const whTarget = (i) => { const sg = segAt(i); return sg && sg.deepWall ? cfg.lobeWallHeight : cfg.wallHeight; };
     const frames = [];
     for (let i = 0; i < N; i++) frames.push(path.sample(SS[i]));
     frames.push(path.sample(path.length - 1e-4)); // closing sample (== first)
@@ -66,6 +69,23 @@
       leftWall[i] = !blocked(wallPoint(i, -1));
       rightWall[i] = !blocked(wallPoint(i, 1));
     }
+    // Drop wall runs too short to be flared. Where two openings nearly meet -- the foam wheel slot
+    // ends at z = -5.55 and the crossing gap starts at z = -4.89 -- the sample test leaves a 6 mm
+    // ISLAND of wall between them, and a run that short gets no lead-in at either end: it is a stub
+    // with two square end caps standing in the lane. Measured: a car leaving the inbound nip at
+    // 156 cm/s hits that cap head-on (contact normal 0.98 along the lane, J192) and stops dead.
+    // A real moulding has a continuous wall or a clean opening, never a 6 mm spike.
+    const dropShortRuns = (present) => {
+      let i = 0;
+      while (i < M) {
+        if (!present[i]) { i++; continue; }
+        let j = i, len = 0;
+        while (j < M - 1 && present[j + 1]) { len += V.dist(frames[j].p, frames[j + 1].p); j++; }
+        if (len < cfg.wallMinRun) for (let k = i; k <= j; k++) present[k] = false;
+        i = j + 1;
+      }
+    };
+    dropShortRuns(leftWall); dropShortRuns(rightWall);
 
     // ---- floor top ribbon ----
     const fl = out.floor, fv = out.floorVisual;

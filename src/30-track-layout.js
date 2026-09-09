@@ -1,13 +1,36 @@
 // 30-track-layout.js — lane geometry of the Criss Cross Crash set (SPEC s5).
-// Two independent closed circuits (NS and EW) cross in the hub at four points.
-// Each arm carries one outbound lane (right of the outward heading, +laneOffset)
-// and one inbound lane (left, -laneOffset). Each arm has a lobe: a short RIGHT
-// junction turn of splayDeg, a straight, a big LEFT arc of (180 + 2*splay) degrees
-// tilted up onto a track support at its apex, a straight, and a RIGHT junction
-// turn back into the inbound lane.
+//
+// ARCHITECTURE (re-derived 2026-09-08 from the V2791 instruction sheet, docs/V2791-half1.png
+// CONTENTS page). The set ships FOUR IDENTICAL large curved track pieces -- each a single
+// moulded ~270 deg arc of a circle -- and FOUR IDENTICAL adjustable "TRACK SUPPORT" ladders.
+// So the four lobes are the SAME PART; what differs between the two rear lobes (which read as
+// upright rings in the photos) and the two front lobes (wide flat teardrops) is only which rung
+// of the ladder the arc is clipped to.
+//
+// Each lobe is therefore a FLAT CIRCLE TILTED OUT OF THE HORIZONTAL by `tilt`, hinged about the
+// horizontal chord joining its two ends. It is a wall-of-death ring, NOT a loop-the-loop: the
+// track surface normal is the (constant) plane normal, and the car is held on the circle by the
+// outer wall against v^2/R, which at R=16 cm and 300 cm/s is ~5.7 g against 1 g of gravity.
+// A tilted circle projects to an ELLIPSE in plan (semi-axes R across the arm, R*cos(tilt) along
+// it), which is exactly why the steep rear lobes have a small plan footprint and the shallow
+// front ones a large one, and why the whole set fits in ~110 cm.
+//
+// Two independent closed circuits (NS and EW) cross in the hub at four points. Each arm carries
+// one outbound lane (right of the outward heading, +laneOffset) and one inbound lane (-laneOffset).
+// Each circuit gets ONE steep lobe and ONE shallow one (arms N,E are rings; S,W are sweeps), which
+// is how the instruction sheet has it: the two rings are adjacent, not opposite.
+//
+// Lobe = out-ramp (junction turn + straight, rising and rolling from flat to `tilt`),
+//        tilted arc (270 deg, constant surface normal),
+//        in-ramp (mirror, falling back to flat at the hub).
+// The ramps are the flexible orange track: all of the height and roll change lives there, so the
+// arc itself is exactly planar and the car never meets a twist while cornering.
 (function (HW) {
   const V = HW.V, M = HW.math;
   const SAMPLE_DS = 0.25; // cm between path samples
+  const K = Math.SQRT1_2; // cos 45 deg = sin 135 deg
+  const HALF_SWEEP = 0.75 * Math.PI; // 135 deg; the arc spans +135 -> -135 through 0
+  const RAMP_POW = 2;     // height profile exponent of a ramp: y = y0 * t^RAMP_POW
 
   const ARMS = {
     N: { d: V.make(0, 0, -1) }, E: { d: V.make(1, 0, 0) },
@@ -19,71 +42,126 @@
   // ---- segment primitives: each has length estimate, pointAt(u), upAt(u) -----
   function straightSeg(p0, p1, meta) {
     const len = V.dist(p0, p1);
-    return { kind: 'straight', meta, length: len, p0, p1, pointAt: (u) => V.lerp(p0, p1, u), upAt: () => V.UP };
+    return { kind: 'straight', meta, length: len, p0, p1, deepWall: false, pointAt: (u) => V.lerp(p0, p1, u), upAt: () => V.UP };
   }
 
-  // Horizontal arc from p0 with heading h, radius R, sweep (rad), turning dir ('left'|'right').
-  // Optional apex lift (cm) with blend fraction and armD (outward arm direction = tilt axis).
-  function arcSeg(p0, h, R, sweep, dir, meta, lift = 0, blend = 0.12, armD = null, bankDeg = 0) {
-    const left = dir === 'left';
-    const c = V.addScaled(p0, left ? V.leftOf(h) : V.rightOf(h), R);
-    const e0 = left ? V.rightOf(h) : V.leftOf(h); // centre -> start
-    const sgn = left ? -1 : 1;                   // rotY(+) is clockwise = right turn
-    const half = sweep / 2;
-    const denom = 1 - Math.cos(half);
-    let phi = 0, upPlane = V.UP;
-    if (lift > 0 && armD) {
-      const horizRun = R * (1 - Math.cos(half)); // arc ends to apex, horizontal
-      phi = Math.atan2(lift, Math.max(1e-6, horizRun)); // plane tilt angle
-      upPlane = V.norm(V.make(-armD.x * Math.sin(phi), Math.cos(phi), -armD.z * Math.sin(phi)));
+  // Per-arm lobe geometry, solved from the physical constants.
+  //   R      = lobeRadius, the moulded arc's radius (one part, four times)
+  //   tilt   = plane tilt of that lobe (which rung of the track support)
+  //   beta   = plan angle between the arm axis and the arc's end tangent. For a tilted circle the
+  //            plan tangent at the ends is (cos(tilt)*d + r), so beta = atan(1/cos(tilt)) -- 45 deg
+  //            only when the lobe is flat. The junction turn must deliver exactly this heading.
+  //   sigma  = climb angle of the arc at its ends; the ramps must arrive at this slope.
+  // Given straightLen S, the junction radius and the hub->chord gap follow from closure:
+  //   gap        = rt*sin(beta) + S*cos(beta)          (along the arm)
+  //   K*R - L    = rt*(1-cos(beta)) + S*sin(beta)      (across it)
+  function lobeGeom(arm, cfg) {
+    const tilt = HW.units.degToRad(String(cfg.loopArms || 'NE').toUpperCase().includes(arm) ? cfg.loopTiltDeg : cfg.sweepTiltDeg);
+    const ct = Math.cos(tilt), st = Math.sin(tilt);
+    const R = cfg.lobeRadius, S = cfg.straightLen, L = cfg.laneOffset;
+    const beta = Math.atan2(1, ct);
+    const sb = Math.sin(beta), cb = Math.cos(beta);
+    const rt = (K * R - L - S * sb) / (1 - cb);
+    const gap = rt * sb + S * cb;
+    const rampLen = rt * beta + S;                       // plan distance, hub gate -> arc end
+    const tanSigma = st / Math.hypot(ct, 1);             // dy/d(plan) at the arc end
+    // Height profile of a ramp is y0 * t^RAMP_POW with t = plan fraction, so y'(1) = POW*y0/rampLen
+    // must equal tan(sigma). POW 2 keeps the ramp flat where the car is fastest (leaving the nip)
+    // and puts the curvature near the arc joint where it has already slowed.
+    const y0 = rampLen * tanSigma / RAMP_POW;            // height of the arc's chord above the hub
+    const apex = y0 + R * (1 + K) * st;
+    const rampArc = Math.hypot(rampLen, y0 * 0.72); // ~3D length of the ramp (y=y0*t^2 average slope)
+    return { tilt, ct, st, R, S, beta, rt, gap, rampLen, rampArc, tanSigma, y0, apex, sigma: Math.atan(tanSigma) };
+  }
+
+  // Ramp: junction turn of `beta` at radius rt, then a straight of length S, carrying the height
+  // from 0 to g.y0 and the surface roll from flat to the lobe's plane normal. `dirSign` +1 builds
+  // it outbound from the hub gate; -1 builds the inbound mirror (traversed hub-ward, so u runs
+  // from the arc end back to the gate).
+  function rampSeg(g, gate, d, r, meta, outbound, rollFrac) {
+    const nPlane = V.norm(V.make(-d.x * g.st, g.ct, -d.z * g.st)); // lobe plane normal
+    const turnLen = g.rt * g.beta;
+    const side = outbound ? 1 : -1;   // outbound turns toward +r; inbound arrives from -r
+    const rr = V.scale(r, side);
+    // plan position at plan-distance p measured from the gate
+    function planAt(p) {
+      if (p <= turnLen) {
+        const th = p / g.rt;
+        return V.addScaled(V.addScaled(gate, d, g.rt * Math.sin(th)), rr, g.rt * (1 - Math.cos(th)));
+      }
+      const th = g.beta, s = p - turnLen;
+      const base = V.addScaled(V.addScaled(gate, d, g.rt * Math.sin(th)), rr, g.rt * (1 - Math.cos(th)));
+      const h = V.addScaled(V.scale(d, Math.cos(th)), rr, Math.sin(th));
+      return V.addScaled(base, h, s);
     }
-    const ease = (u) => M.smoothstep(0, blend, u) * M.smoothstep(0, blend, 1 - u);
-    const profile = (u) => { const th = u * sweep; return (Math.cos(th - half) - Math.cos(half)) / denom; };
-    // Banked channel (SPEC s5.2). The lane cross-section rolls about the tangent so the OUTER edge
-    // lifts: at 20.5 cm radius and 250-300 cm/s a lobe pulls 3-4.5 g, and without bank the whole of
-    // that has to come from the outer wall, whose friction then scrubs the car to a stop before the
-    // apex. Banking hands a large share to the wheels (N_wall = m(a cos b - g sin b)).
-    const bankMax = HW.units.degToRad(bankDeg) * (left ? 1 : -1);
     return {
-      kind: 'arc', meta, center: c, radius: R, sweep, dir, phi, upPlane, lift, bankMax,
-      length: R * sweep * (lift > 0 ? 1.03 : 1),
-      bankAt(u) { return bankMax === 0 ? 0 : bankMax * ease(u); },
+      kind: 'ramp', meta, deepWall: true, tilt: g.tilt, rampLen: g.rampLen, y0: g.y0, nPlane,
+      length: g.rampArc,
       pointAt(u) {
-        const th = u * sweep;
-        const p = V.addScaled(c, V.rotY(e0, sgn * th), R);
-        p.y = lift > 0 ? lift * profile(u) * ease(u) : 0;
+        const t = outbound ? u : 1 - u;
+        const p = planAt(t * g.rampLen);
+        p.y = g.y0 * Math.pow(t, RAMP_POW);
         return p;
       },
-      upAt(u) { return lift > 0 ? V.norm(V.lerp(V.UP, upPlane, ease(u))) : V.UP; },
+      upAt(u) {
+        const t = outbound ? u : 1 - u;
+        return V.norm(V.lerp(V.UP, nPlane, rollFrac(t * g.rampArc)));
+      },
     };
   }
 
-  // ---- build a lobe for one arm: out-turn, out-splay, big arc, in-splay, in-turn ------
-  function lobeSegments(arm, cfg, d) {
-    const A = ARMS[arm], H = cfg.hubHalf, L = cfg.laneOffset, S = cfg.straightLen, rt = cfg.junctionRadius;
-    const b = d.splay, R = d.curveRadius;
-    const hOut = V.norm(V.addScaled(V.scale(A.d, Math.cos(b)), A.r, Math.sin(b)));       // heading after the out-turn
-    const hInBack = V.norm(V.addScaled(V.scale(A.d, Math.cos(b)), A.r, -Math.sin(b)));   // from the in-turn outward (reverse of arrival heading)
+  // The lobe proper: a circle of radius R lying in a plane tilted by `tilt` about the horizontal
+  // chord through its two ends. psi runs +135 -> -135 deg (270 deg) through 0 at the far point.
+  //   xi(psi) = R*(cos psi + cos45)   is the in-plane distance from the chord, so xi = 0 at both ends
+  //   P       = chordMid + d*(xi*cos tilt) + r*(R sin psi) + up*(y0 + xi*sin tilt)
+  // The surface normal is the plane normal everywhere: no twist, no blend, nothing to tune.
+  function tiltArcSeg(g, chordMid, d, r, meta, bankDeg, rollFrac) {
+    const sweep = 2 * HALF_SWEEP;
+    const arcLen = g.R * 2 * HALF_SWEEP;
+    const nPlane = V.norm(V.make(-d.x * g.st, g.ct, -d.z * g.st));
+    const bankMax = HW.units.degToRad(bankDeg || 0);
+    const psiAt = (u) => HALF_SWEEP - sweep * u;
+    return {
+      kind: 'arc', meta, deepWall: true, radius: g.R, sweep, tilt: g.tilt, nPlane, apex: g.apex,
+      length: g.R * sweep,
+      bankAt: bankMax === 0 ? null : (u) => bankMax * M.smoothstep(0, 0.12, u) * M.smoothstep(0, 0.12, 1 - u),
+      pointAt(u) {
+        const psi = psiAt(u), xi = g.R * (Math.cos(psi) + K);
+        const p = V.addScaled(V.addScaled(chordMid, d, xi * g.ct), r, g.R * Math.sin(psi));
+        p.y = g.y0 + xi * g.st;
+        return p;
+      },
+      // The roll eases in over the ramp AND the first `rollBlendCm` of the arc, and out again at the
+      // far end: the centreline stays exactly on the tilted circle, but the ribbon twists into the
+      // plane the way a flexible connector does. Without this the whole tilt has to happen in the
+      // ~17 cm ramp, which warps the surface faster than the car's suspension travel can follow --
+      // the front wheels unload, the car rides one wheel into the wall and departs at s~34.
+      upAt(u) {
+        const f = Math.min(rollFrac(g.rampArc + u * arcLen), rollFrac(g.rampArc + (1 - u) * arcLen));
+        return f >= 0.999 ? nPlane : V.norm(V.lerp(V.UP, nPlane, f));
+      },
+    };
+  }
+
+  // ---- build a lobe for one arm: out-ramp, tilted arc, in-ramp ---------------
+  function lobeSegments(arm, cfg) {
+    const A = ARMS[arm], H = cfg.hubHalf, L = cfg.laneOffset;
+    const g = lobeGeom(arm, cfg);
     const aOut = V.addScaled(V.scale(A.d, H), A.r, L);
     const aIn = V.addScaled(V.scale(A.d, H), A.r, -L);
-    const outTurn = arcSeg(aOut, A.d, rt, b, 'right', { arm, name: arm + '-out-turn' }, 0, cfg.junctionBlend, null, cfg.junctionBankDeg);
-    const e1 = outTurn.pointAt(1);
-    const e2 = V.addScaled(e1, hOut, S);
-    const e1m = V.addScaled(V.addScaled(aIn, A.d, rt * Math.sin(b)), A.r, -rt * (1 - Math.cos(b))); // mirror of e1
-    const e2m = V.addScaled(e1m, hInBack, S);
-    const sweep = Math.PI + 2 * b;
-    const arc = arcSeg(e2, hOut, R, sweep, 'left', { arm, name: arm + '-lobe' }, cfg.lobeLift, cfg.lobeBlend, A.d, cfg.lobeBankDeg);
-    const hIn = V.scale(hInBack, -1);
-    const inTurn = arcSeg(e1m, hIn, rt, b, 'right', { arm, name: arm + '-in-turn' }, 0, cfg.junctionBlend, null, cfg.junctionBankDeg);
-    const c1 = V.dist(arc.pointAt(1), e2m), c2 = V.dist(inTurn.pointAt(1), aIn);
+    const chordMid = V.scale(A.d, H + g.gap);
+    // One roll schedule for the whole lobe, in path distance from the hub gate. The tilt cannot all
+    // be done inside the ramp: a rigid four-wheel car with `suspTravel` of travel across a `trackCm`
+    // wide axle can only follow about 2.6 deg/cm of surface warp, so 45 deg needs >= 17 cm and the
+    // ramp is barely that. `rollBlendCm` buys the rest from the first part of the arc.
+    const D = g.rampArc + cfg.rollBlendCm;
+    const rollFrac = (p) => M.smoothstep(0, 1, M.clamp(p / D, 0, 1));
+    const out = rampSeg(g, aOut, A.d, A.r, { arm, name: arm + '-out-ramp' }, true, rollFrac);
+    const arc = tiltArcSeg(g, chordMid, A.d, A.r, { arm, name: arm + '-lobe' }, cfg.lobeBankDeg, rollFrac);
+    const back = rampSeg(g, aIn, A.d, A.r, { arm, name: arm + '-in-ramp' }, false, rollFrac);
+    const c1 = V.dist(out.pointAt(1), arc.pointAt(0)), c2 = V.dist(arc.pointAt(1), back.pointAt(0));
     if (c1 > 0.05 || c2 > 0.05) console.warn('[track] lobe', arm, 'closure error', c1.toFixed(3), c2.toFixed(3));
-    return [
-      outTurn,
-      straightSeg(e1, e2, { arm, name: arm + '-out-splay' }),
-      arc,
-      straightSeg(e2m, e1m, { arm, name: arm + '-in-splay' }),
-      inTurn,
-    ];
+    return { segs: [out, arc, back], geom: g };
   }
   // Hub straight: inbound lane of arm X straight through the centre to the outbound lane of the opposite arm.
   function hubSegment(fromArm, cfg) {
@@ -170,11 +248,13 @@
   }
 
   HW.track = {
-    ARMS, OPPOSITE,
+    ARMS, OPPOSITE, lobeGeom,
     build(cfg = HW.config) {
       const d = cfg.derived();
-      const ns = buildPath('NS', [hubSegment('S', cfg), ...lobeSegments('N', cfg, d), hubSegment('N', cfg), ...lobeSegments('S', cfg, d)]);
-      const ew = buildPath('EW', [hubSegment('W', cfg), ...lobeSegments('E', cfg, d), hubSegment('E', cfg), ...lobeSegments('W', cfg, d)]);
+      const lobes = {};
+      for (const arm of ['N', 'E', 'S', 'W']) lobes[arm] = lobeSegments(arm, cfg);
+      const ns = buildPath('NS', [hubSegment('S', cfg), ...lobes.N.segs, hubSegment('N', cfg), ...lobes.S.segs]);
+      const ew = buildPath('EW', [hubSegment('W', cfg), ...lobes.E.segs, hubSegment('E', cfg), ...lobes.W.segs]);
       const circuits = [ns, ew];
       const circuitOfArm = { N: ns, S: ns, E: ew, W: ew };
       const L = cfg.laneOffset;
@@ -199,14 +279,25 @@
       let minX = 0, maxX = 0, minZ = 0, maxZ = 0, maxY = 0;
       for (const c of circuits) for (const p of c.samples.P) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); maxY = Math.max(maxY, p.y); }
       const track = {
-        circuits, circuitOfArm, boosters, wheels, crossings, gates, lineUp,
-        crossHalf: d.crossHalf, foamWheelRadius: d.foamWheelRadius, curveRadius: d.curveRadius,
+        circuits, circuitOfArm, boosters, wheels, crossings, gates, lineUp, lobes,
+        crossHalf: d.crossHalf, foamWheelRadius: d.foamWheelRadius, curveRadius: cfg.lobeRadius,
         bounds: { minX, maxX, minZ, maxZ, maxY }, cfg: Object.assign({}, cfg), derived: d,
         inCrossing: (p) => Math.abs(p.x) < d.crossHalf && Math.abs(p.z) < d.crossHalf,
         nearWheel: (p) => wheels.some((w) => V.distXZ(p, w.center) < d.foamWheelRadius + 0.6),
-        supports: circuits.flatMap((c) => c.segments.filter((sg) => sg.kind === 'arc' && sg.lift > 0).map((sg) => ({ p: sg.pointAt(0.5), arm: sg.meta.arm }))),
+        // the track support clips to the arc at its apex; the renderer drops a post from there
+        supports: ['N', 'E', 'S', 'W'].map((arm) => {
+          const sg = lobes[arm].segs[1];
+          return { p: sg.pointAt(0.5), arm, tiltDeg: HW.units.radToDeg(sg.tilt) };
+        }),
       };
-      HW.log('track built', { NS: ns.length.toFixed(1), EW: ew.length.toFixed(1), R: d.curveRadius.toFixed(2), wheelR: d.foamWheelRadius.toFixed(2), footprint: (maxX - minX).toFixed(0) });
+      HW.log('track built', {
+        NS: ns.length.toFixed(1), EW: ew.length.toFixed(1), R: cfg.lobeRadius,
+        footprint: (maxX - minX).toFixed(0) + ' x ' + (maxZ - minZ).toFixed(0), maxY: maxY.toFixed(1),
+        lobes: Object.fromEntries(['N', 'E', 'S', 'W'].map((a) => [a, {
+          tilt: HW.units.radToDeg(lobes[a].geom.tilt).toFixed(0), rt: lobes[a].geom.rt.toFixed(1),
+          gap: lobes[a].geom.gap.toFixed(1), apex: lobes[a].geom.apex.toFixed(1),
+        }])),
+      });
       return track;
     },
   };

@@ -28,6 +28,10 @@
     wallRound: 0.1,              // cm: rounding radius of wall box colliders
     wallRampLen: 7.0,            // cm over which the wall height changes between the shallow hub lane and the
                                  // deep curve channel. A hard step leaves an end cap in the lane that spears cars.
+    wallMinRun: 5.0,             // cm: wall runs shorter than this are dropped entirely. Two openings that
+                                 // nearly meet (the foam wheel slot and the crossing gap are 0.66 cm apart)
+                                 // otherwise leave a stub too short to flare, i.e. a square end cap standing
+                                 // in the lane. Must exceed 2 * wallFlareLen or the stub cannot be flared.
     wallFlareLen: 2.2,           // cm: flared lane mouth at each end of a wall run (crossing square, foam
     wallFlareDeg: 22,            // deg: wheel slot). Without it the square end cap of the wall that RESTARTS
                                  // after the crossing spears any car that drifted >0.44 cm off the lane centre.
@@ -36,20 +40,36 @@
     laneOffset: 3.0,             // ESTIMATE: lane centreline distance from arm axis inside the hub
     boosterR: 8.5,               // ESTIMATE: foam wheel axis distance from hub centre
     foamGap: 2.0,                // free gap wheel-surface to far wall; cars are 2.2-2.6 wide
-    splayDeg: 45,                // straights leave the hub at +-45 deg (instruction sheet)
-    straightLen: 5.87,           // ESTIMATE: pieces A-H (straight part). Traded against junctionRadius to keep
-                                 // the derived curveRadius at 20.46 and the footprint at 131 cm (T18a).
-    junctionRadius: 25.0,        // bend radius hub lane -> splayed straight. MUST be >= ~12: a 7 cm car
-                                 // needs width + L^2/(8R) < laneWidth or it wedges between the walls
-    lobeLift: 2.0,               // ESTIMATE: apex height on the track support. 9 cm (the original guess) costs
-                                 // 8800 cm2/s2 of specific energy per lobe and the car cannot make the apex.
-    lobeBlend: 0.5,              // fraction of arc used to ease lift/bank in and out (gentle: rigid cars twist)
-    lobeBankDeg: 15,             // banked channel on the 270 deg lobe (SPEC s5.2). Hands a large share of the
-                                 // 3-4.5 g cornering load to the wheels instead of the outer wall, whose
-                                 // friction otherwise scrubs the car to a stop before the apex.
-    junctionBankDeg: 0,         // same, for the short 45 deg junction turns (radius 15 -> up to ~11 g at 400 cm/s)
-    junctionBlend: 0.35,         // ease fraction for the junction turns (they are only ~12 cm long)
-    // curveRadius is DERIVED: (laneOffset + junctionRadius*(1-cos(splay)) + straightLen*sin(splay)) / cos(splay)
+
+    // ---- lobes: four identical tilted rings (see the header of 30-track-layout.js) -----------
+    // The instruction sheet's CONTENTS page lists 4 x one moulded ~270 deg arc and 4 x one
+    // adjustable TRACK SUPPORT ladder, so all four lobes are the SAME PART and only the tilt
+    // differs. A lobe is a flat circle tilted about the horizontal chord through its two ends;
+    // everything else (junction radius, hub->chord gap, chord height, plan splay) is DERIVED
+    // from lobeRadius + straightLen + the tilt, so the geometry cannot drift out of closure.
+    lobeRadius: 16.0,            // ESTIMATE: radius of the moulded arc. Scaled off the instruction
+                                 // sheet against the known 3.81 cm track width and cross-checked
+                                 // against the ~105-110 cm assembled footprint from Stewart's photos.
+                                 // Bend-radius floor is ~12 cm (a 7 cm car needs w + L^2/8R < lane).
+    loopArms: 'NE',              // which arms are steeply tilted rings. The sheet has the two rings
+                                 // ADJACENT, so each circuit gets one ring and one shallow sweep.
+    loopTiltDeg: 45,             // ESTIMATE: the rear "loops". A wall-of-death ring, not a loop-the-
+                                 // loop: at 300 cm/s and R=16 the car pulls 5.7 g against 1 g, so it
+                                 // rides the outer wall. Above ~65 deg a slowing car falls out - which
+                                 // is exactly how the real toy fails, so keep it near the edge.
+    sweepTiltDeg: 18,            // ESTIMATE: the front "sweeps". Gives a ~10.5 cm apex, matching the
+                                 // 10-16 cm scaled off Stewart's eBay photos.
+    straightLen: 3.0,            // ESTIMATE: the short A-H connector between the junction turn and
+                                 // the arc. Raising it shrinks the derived junction radius.
+    rollBlendCm: 14.0,           // cm of ARC (each end) that shares the roll-in with the ramp. A rigid
+                                 // car can only follow ~ suspTravel/(trackCm * wheelbase) of surface
+                                 // warp -- about 2.6 deg/cm -- so the tilt needs ~17 cm per 45 deg and
+                                 // the ramp alone is not long enough. The centreline still lies exactly
+                                 // on the tilted circle; only the ribbon twists, as a real connector does.
+    lobeBankDeg: 0,              // EXTRA channel bank rolled about the tangent, on top of the plane
+                                 // tilt. The tilt already leans the whole lobe; this is only for the
+                                 // moulded lip. Non-zero values twist a surface that is otherwise
+                                 // exactly planar, so leave it at 0 unless a sweep says otherwise.
 
     // ---- foam booster ---------------------------------------------------------
     foamK: 1.2e6,                // dyne/cm foam nip stiffness: ~5.4 N at 0.45 cm squeeze (ESTIMATE)
@@ -59,6 +79,10 @@
     boostPushFrac: 0.2,          // fraction of the nip normal force that shoves the car into the far wall
     boostPushY: 0.0,             // cm above the c.o.m. where the nip's sideways push acts. 0 = through the
                                  // c.o.m. = no roll couple. Anything below the c.o.m. spins the car up.
+    boostLatDamp: 120,           // 1/s: lateral velocity damping inside the nip, per gram of car. The foam
+                                 // is compliant and the far wall reacts the squeeze, so the car should
+                                 // SETTLE against the wall, not be accelerated into it. Terminal lateral
+                                 // speed in the nip is roughly push/(mass*boostLatDamp).
 
     // ---- drive train (SI in, converted on read) -------------------------------
     cells: 4,
@@ -122,11 +146,9 @@
   Object.defineProperty(config, 'derived', {
     enumerable: false,
     value: () => {
-      const b = HW.units.degToRad(config.splayDeg);
-      const curveRadius = (config.laneOffset + config.junctionRadius * (1 - Math.cos(b)) + config.straightLen * Math.sin(b)) / Math.cos(b);
       const foamWheelRadius = config.laneOffset + config.laneWidth / 2 - config.foamGap;
       const crossHalf = config.laneOffset + config.laneWidth / 2 + config.wallThick;
-      return { curveRadius, foamWheelRadius, crossHalf, splay: b };
+      return { curveRadius: config.lobeRadius, foamWheelRadius, crossHalf };
     },
   });
   HW.config = config;

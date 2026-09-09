@@ -5,15 +5,17 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
-const RAPIER_PATH = process.env.RAPIER_MJS ||
-  'C:/Users/stewa/AppData/Local/Temp/claude/C--Users-stewa-OneDrive-Documents-Claude-Projects-Hot-Wheels-Sim/6d3d5827-39c1-4fbd-85e3-a5112ba00c92/scratchpad/rapier.mjs';
+// Rapier is vendored at tools/vendor/rapier.mjs (gitignored). If it is missing, fetch the ESM
+// bundle once:  node tools/fetch-rapier.mjs
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const RAPIER_PATH = process.env.RAPIER_MJS || path.join(HERE, 'vendor', 'rapier.mjs');
 const RAPIER = (await import(pathToFileURL(RAPIER_PATH).href)).default;
 await RAPIER.init();
 
 globalThis.window = globalThis;
 globalThis.RAPIER = RAPIER;
 const require = createRequire(import.meta.url);
-const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const root = path.dirname(HERE);
 for (const f of ['00-namespace', '10-config', '20-catalog', '30-track-layout', '31-track-mesh',
                  '40-electrical', '41-booster', '42-vehicle', '43-sim']) require(path.join(root, 'src', f + '.js'));
 const HW = globalThis.HW;

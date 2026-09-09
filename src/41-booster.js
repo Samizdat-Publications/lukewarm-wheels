@@ -46,8 +46,17 @@
               // the whole side of the casting and the far wall pushes straight back, so the pair
               // is a near-zero couple. Applying it BELOW the c.o.m. (an earlier bug) spins the car
               // about its roll axis at hundreds of rad/s inside the nip and throws it off the track.
+              // Foam is COMPLIANT: relative lateral motion between the car and the nip is heavily
+              // damped by the foam deforming, and the far wall reacts the push almost exactly. Without
+              // that damping the push is an unopposed 2.5 g sideways for the whole time in the nip, the
+              // car leaves the zone with 40-60 cm/s of lateral velocity, slams the far wall, goes up on
+              // two wheels, and the vehicle controller's side friction then dumps most of the forward
+              // speed (measured: peak launch 400 -> 316 cm/s, coast 249 -> 35 cm; this was also the
+              // unexplained "400 cm/s cap" -- 400 is the launch speed with the slam removed).
               const r = car.frame.right, u = car.frame.up, push = -z.wheelSide * N * cfg.boostPushFrac;
-              const Fp = { x: r.x * push, y: r.y * push, z: r.z * push };
+              const vLat = v.x * r.x + v.y * r.y + v.z * r.z;
+              const damp = -cfg.boostLatDamp * car.entry.massG * vLat;
+              const Fp = { x: r.x * (push + damp), y: r.y * (push + damp), z: r.z * (push + damp) };
               if (cfg.boostPushY === 0) {
                 car.body.addForce(Fp, true);                       // addForce acts at the centre of mass
               } else {

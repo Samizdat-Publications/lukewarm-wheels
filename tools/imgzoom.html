@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><title>imgzoom</title>
+<style>html,body{margin:0;background:#fff}#v{position:relative;overflow:hidden}#v img{position:absolute;transform-origin:0 0;image-rendering:auto}</style>
+<div id="v"></div>
+<script>
+// ?src=docs/V2791-half0.png&x=300&y=100&w=1200&h=800&z=1.5
+const q = new URLSearchParams(location.search);
+const src = q.get('src'), x = +q.get('x')||0, y = +q.get('y')||0;
+const w = +q.get('w')||1200, h = +q.get('h')||800, z = +q.get('z')||1;
+const v = document.getElementById('v');
+v.style.width = (w*z)+'px'; v.style.height = (h*z)+'px';
+const im = new Image(); im.src = src;
+im.onload = () => { im.style.transform = `scale(${z}) translate(${-x}px,${-y}px)`; document.title='ok '+im.naturalWidth+'x'+im.naturalHeight; };
+v.appendChild(im);
+</script>
