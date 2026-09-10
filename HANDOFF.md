@@ -58,6 +58,76 @@ tangent, so a ramp that merely CLIMBS rotates up by its slope and read as 3.42 d
 a surface that is not twisting. It now measures `asin(right.y)`, the roll of the cross-section
 about the tangent. Real figure at the shipped defaults: 2.12 deg/cm against a 2.49 limit.
 
+## T22: THE PAIRED NIPS FIGHT EACH OTHER
+
+This is the most useful thing found overnight, and it reframes the whole energy problem.
+
+The four nips are not evenly spaced. Two sit in each hub **17 cm apart**, and then the car coasts
+**131 cm** around a whole lobe. Run `node tools/energy.mjs` and look at the bins marked NIP:
+
+```
+   0   S-in-hub-N-out     135 -> 325    -4.57 g   NIP     <- accelerating, as intended
+  10   S-in-hub-N-out     332 -> 320    +2.47 g   NIP     <- BRAKING, hard
+  20   S-in-hub-N-out       3 ->  33    -3.15 g   NIP
+```
+
+The first nip launches the car to ~332 cm/s. The second, 17 cm later, **brakes it at 2.47 g**,
+because the nip force is `Fmax * clamp((vFoam - vCar)/slipVel)` and by then the car is moving
+faster than the foam surface, which has sagged under the load of the launch that just happened.
+Both nips are driven off the same motor and gear train, so launching a car through one slows all
+four.
+
+**This is why every attempt to add launch energy backfires.** All measured over 20-run ensembles
+against a base of 0.75 mean laps:
+
+| lever | tried | result |
+|---|---|---|
+| nip squeeze | `foamGap` 1.7 / 1.5 | 0.35 / 0.45 |
+| nip friction | `foamMu` 1.0 | 0.45 |
+| nip stiffness | `foamK` 1.8e6 | 0.65 |
+| nip contact length | `boostExtra` 2.2 | 0.45 |
+| shorter coast | `boosterR` 11 / 13 | 0.50 / 0.30 |
+| faster foam | `gearRatio` 4.5 / 3.5 | 0.30 / 0.30 |
+| flywheel | `foamWheelMassG` 100 / 250 | 0.25 / 0.00 |
+| stronger motor | `motorR` 0.6 | 0.50 |
+| bank + stronger nip | `lobeBankDeg` 15-30 with `foamGap` 1.5-1.7 | 0.25 - 0.60 |
+| wider junction turn | `lobeRadius` 19 / 22 (rt 20.5 -> 25.9 / 31.3) | 0.30 / 0.00 |
+
+Every one of them RAISES the measured speeds at every probe point and LOWERS the laps. That
+pattern is the result: **more launch speed is not the problem to solve.** A faster car simply
+arrives at the second nip further above the foam surface and is braked harder.
+
+Two side notes worth keeping:
+- `gearRatio` 4.5 and 3.5 produce numerically IDENTICAL results, which re-confirms that the launch
+  is grip-limited and the drive train is not a lever on it.
+- A heavier flywheel is worse because it takes longer to spin up than `lineUpLead` allows, so the
+  first car is fed into a nip that has not reached speed.
+
+**The 400 cm/s cap is explained.** Session 3 concluded it was "the launch speed with the nip slam
+removed"; that was a guess and it was wrong. It is the MOTOR's torque limit. With `foamGap` 1.5 the
+nip needs ~0.167 N.m at the foam wheel, i.e. 0.026 N.m at the motor, against a stall torque of
+0.0129 N.m with this pack. The motor cannot hold the surface speed, so the car pins at ~400 no
+matter what else changes -- which is exactly why 400 kept recurring across unrelated configs.
+
+**So the remaining lever is DRAG, not launch.** The budget: 131 cm of coast at ~0.4 g eats
+2*0.4*981*131 = 103,000 of the 109,000 (330 cm/s) the launch delivers, so the car arrives at ~78
+cm/s. And the drag is not evenly spread -- `tools/energy.mjs` puts the junction turn at **0.58 g**
+against the lobe's **0.33 g**. The junction turn is a 20.5 cm radius taken at ~330 cm/s, which is
+5.4 g of cornering, all of it carried by the wall.
+
+Widening it the obvious way does NOT work either: its radius is capped by the lateral budget
+`K*R - L` in the lobe solve (SPEC s5.4), so the only way to widen it is a bigger `lobeRadius` --
+and that lengthens the whole lobe, so the car has further to coast than the gentler turn saves.
+`lobeRadius` 19 takes rt from 20.5 to 25.9 cm and the footprint from 116 to 134, and laps fall from
+0.75 to 0.30; at 22 the footprint is 152 cm and nothing laps at all.
+
+**So the honest position is that this layout is inherently marginal**, and the next real move is
+probably not another coefficient. Either the drag model is still too pessimistic somewhere it has
+not been isolated (the junction turn is the only stretch never measured on its own with a clean
+coast -- `tools/coast.mjs` starting at s=26 with `foamK: 0` would do it), or the geometry itself is
+wrong in a way that has not surfaced yet: the real set puts four nips on a ~300 cm circuit and
+reviewers say cars circulate indefinitely, so if ours cannot, one of those two is off.
+
 ## CORRECTION: the blocker is NOT the vehicle model
 
 The previous handoff said Rapier's raycast vehicle controller was dissipating the energy and that
