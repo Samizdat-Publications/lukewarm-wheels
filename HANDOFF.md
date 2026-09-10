@@ -3,6 +3,10 @@
 _Last updated: 2026-09-10 by Opus 5 (session 4). Update this block whenever you stop._
 
 ## Strategy
+`docs/progress/` is the dated build timeline — one image per milestone with what the sim could
+do at that point. Add a frame whenever something visibly changes; the capture recipe is in its
+README. Stewart wants this for an eventual GitHub page.
+
 `docs/ROADMAP.md` is the director's brief: build targets (artifact vs HD), phases 2-7, the
 Blender/Gemini/ElevenLabs pipeline, questions for Stewart, risks. Read it after this file.
 
@@ -24,7 +28,7 @@ imports being refused, or WebAssembly being disallowed) and replaces the "Loadin
 
 Shipped defaults: **loop tilt 40 deg, sweep tilt 16 deg, rampPow 4, hubHalf 16, lobeRadius 16,
 laneOffset 2.5, straightLen 1.0, 480 Hz, vehicleMode raycast.** Footprint 116 cm, ring apex
-20.1 cm, sweep apex 8.6 cm. Screenshot: `docs/screenshots/T20-shipped-40-16-pow4.png`.
+20.1 cm, sweep apex 8.6 cm. Screenshot: `docs/progress/09-2026-09-10-published.png`.
 The page now **opens running** (`cfg.autoStart`): booster on, then the five cars fed in
 `lineUpLead` after, `lineUpStagger` apart. An empty track with the motor off shows nothing about
 what the set does, and it was the exact state Stewart hit.

@@ -33,6 +33,14 @@ liveries, showroom, build tooling, research) goes to **Opus subagents**
 out, Stewart opens a new **Opus 5** session in this folder; that session reads
 `HANDOFF.md` and continues from the task board.
 
+## Progress archive (keep it up)
+`docs/progress/` is a dated, curated timeline of the build — one image per milestone, oldest
+first, with what the sim could actually DO at that point. It exists so the project can be shown
+as a story later (a GitHub page, a README). **Add a frame whenever something visibly changes**,
+and say what changed and what it could do; `docs/progress/README.md` has the capture recipe
+(WebGL needs a `gl.readPixels` in the same tick as the render, then `POST /__shot`). One image
+per real step — non-milestone working shots go in `docs/screenshots/`.
+
 ## Conventions
 - **Units: cgs.** Lengths in cm, mass in g, time in s, force in dyne, torque in
   dyne·cm. Gravity = 981 cm/s². Convert SI motor constants at the boundary.

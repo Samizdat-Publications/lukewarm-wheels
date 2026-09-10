@@ -1,0 +1,121 @@
+# Progress archive
+
+One image per milestone, oldest first, so the build can be shown as a story later — on a GitHub
+page, in a README, wherever. **Every session should add a frame when something visibly changes**
+(see "Adding a frame" at the bottom). Keep it to one image per real step; this is a timeline, not
+a screenshot dump. Working shots that are not milestones belong in `../screenshots/`.
+
+Each entry says what the picture shows and, where it is known, what the sim could actually *do* at
+that moment — because "it looks right" and "it works" came apart repeatedly on this project, and
+the pairing is the interesting part.
+
+---
+
+### 01 — First render
+`01-2026-09-08-first-render.png` · commit `99a8c89` (T11)
+
+The first time the thing looked like anything: hub, four lobes, track ribbons, lighting, camera
+presets. The geometry here is the **original wrong model** — four identical banked 270° curves,
+all the same shape, sitting nearly flat. Worth keeping precisely because it is wrong.
+
+*Could it run?* Cars launched and left the track almost immediately.
+
+### 02 — Gear train x-ray
+`02-2026-09-08-gear-train-xray.jpg` · commit `99a8c89` (T11)
+
+Motor pinion, idler and the four satellite gears driving the foam wheels, drawn in x-ray so the
+drivetrain is visible through the hub. The electrical model behind it — battery internal
+resistance, back-EMF, gear ratio, flywheel inertia — is real, not decorative.
+
+### 03 — The five castings
+`03-2026-09-08-five-castings.png` · commit `f0ac56f` (T12)
+
+The 1999 five-pack, built as meshes with liveries painted onto canvas textures: Porsche 959,
+Aeroflash, Ford GT-90, Chevy Stocker, Chevy 1500. 421 triangles each. Masses and dimensions are
+per-casting and feed the physics.
+
+### 04 — Control panel
+`04-2026-09-08-control-panel.png` · commit `8ce8251` (T13)
+
+Booster switch, car chips, live gauges (battery volts, motor amps, rpm, foam surface speed, car
+speed, scale km/h) and the tuning drawer bound straight to `HW.config`.
+
+### 05 — First crash
+`05-2026-09-08-first-crash.jpg` · commit `99a8c89` (T11)
+
+Two cars meeting at the `#` crossing, which is the entire point of the toy.
+
+### 06 — Four flat lobes
+`06-2026-09-08-four-flat-lobes.png` · commit `42a86ed` (T18)
+
+After the lobes were re-derived as **tilted circles** — but with both tilts at 18°, because that
+was the only setting that lapped at the time. Four near-identical teardrops. This is what the set
+looked like when it was working best and looking least like the real thing.
+
+*Could it run?* Lone car ~1.45 laps per 25 s over a 20-run ensemble, 5 % off-track.
+
+### 07 — The real 2 + 2 shape
+`07-2026-09-08-real-2plus2-shape.png` · commit `bab8e16` (T18)
+
+The same layout at loop tilt 48° / sweep 16° — **two upright rings on their posts and two wide low
+sweeps**, which is what the V2791 instruction sheet actually shows. Footprint 102 cm, ring apex
+25.5 cm. Reproduce it any time from a cold load:
+
+```
+index.html#cfg=%7B%22loopTiltDeg%22%3A48%2C%22sweepTiltDeg%22%3A16%7D
+```
+
+*Could it run?* Barely — 0.13 laps per 25 s. It looked right and did not work, which is the whole
+story of the middle of this project.
+
+### 08 — Rings at 40°
+`08-2026-09-09-rings-at-40deg.png` · commit `0ad5518` (T18)
+
+The compromise that shipped: 40° rings, which read unmistakably as 2 + 2 and still lap. Getting
+here needed `hubHalf` 13 → 16 (also more faithful — the photos scale the hub to ~32 cm across) and
+a much shorter connector straight, because at high tilt the derived junction radius collapses.
+
+*Could it run?* Selftest 8/8 in real Chrome; five-car pile-up producing crashes again.
+
+### 09 — Published
+`09-2026-09-10-published.png` · commit `3a6d290` (T19)
+
+Ring apex 20.1 cm, sweep 8.6 cm, footprint 116 cm, after `rampPow` removed a 2.4 g curvature step
+where the ramp leaves the flat hub. Published as a private Artifact, and it now **opens running** —
+booster on, cars fed in one at a time.
+
+*Could it run?* Lone car 0.75 mean laps (best 3), five-car pile-up 5–10 crashes with 4 of 5 cars
+lapping. Confirmed by Stewart in a real browser: "worked but only for a lap or so."
+
+---
+
+## Adding a frame
+
+WebGL canvases cannot be screenshotted from Node, and `toDataURL` returns an empty image once the
+compositor has run, so the picture has to be read out of the GL buffer in the same tick as the
+render. `tools/serve.mjs` accepts the result at `POST /__shot?name=…` and writes it here.
+
+With `node tools/serve.mjs` running, open the page and run this in the browser console (or through
+a browser tool's JS evaluation):
+
+```js
+const r = HW.render, gl = r.renderer.getContext();
+r.renderer.setSize(1280, 720, false);
+r.camera.aspect = 1280 / 720; r.camera.updateProjectionMatrix();
+r.setCamera('overview');
+r.renderer.render(r.scene, r.camera);
+const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(w * h * 4);
+gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+const ctx = cv.getContext('2d'), img = ctx.createImageData(w, h);
+for (let y = 0; y < h; y++) {                 // GL's origin is bottom-left
+  const s = (h - 1 - y) * w * 4;
+  img.data.set(px.subarray(s, s + w * 4), y * w * 4);
+}
+ctx.putImageData(img, 0, 0);
+await fetch('/__shot?name=10-YYYY-MM-DD-slug.png', { method: 'POST', body: cv.toDataURL('image/png') });
+```
+
+Then add an entry above: what changed, the commit, and what the sim could do at that point.
+`node tools/ens.mjs '{"secs":25,"backs":[0,0.07,0.19,0.4],"cases":{}}'` gives the "could it run"
+line — never quote a single run, which on this project is noise.

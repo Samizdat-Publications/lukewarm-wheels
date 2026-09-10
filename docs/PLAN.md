@@ -18,8 +18,8 @@ ids that must be `done` first. Update this file whenever status changes.
 | T09 | `src/43-sim.js` world, fixed-step loop, events, crash detection | fable | T05-T08 | done | |
 | T10 | `index.html` + `src/90-main.js` boot, minimal debug render so it runs | fable | T09, T02 | done | debug renderer + HUD in 90-main.js |
 | T11 | `src/50-render-scene.js` lights, floor, track material, hub body, gear train x-ray, camera presets | opus | T10 | done | 5 presets, x-ray gear train, pickLane, crash sparks; docs/agent-reports/T11.md |
-| T12 | `src/20-catalog.js` + `src/51-render-cars.js` five castings, liveries on canvas textures | opus | T03, T01 | done | wiki data confirmed via the Fandom **API** (docs/CATALOG-SOURCES.md); 421 tris/car; preview `tools/cars-preview.html`, shot `docs/screenshots/T12-cars.png`, report `docs/agent-reports/T12.md` |
-| T13 | `src/60-ui.js` panel, switch, gauges, car placement, tuning drawer | opus | T10 | done | see docs/agent-reports/T13.md; screenshots docs/screenshots/T13-ui.png, T13-tuning.png |
+| T12 | `src/20-catalog.js` + `src/51-render-cars.js` five castings, liveries on canvas textures | opus | T03, T01 | done | wiki data confirmed via the Fandom **API** (docs/CATALOG-SOURCES.md); 421 tris/car; preview `tools/cars-preview.html`, shot `docs/progress/03-2026-09-08-five-castings.png`, report `docs/agent-reports/T12.md` |
+| T13 | `src/60-ui.js` panel, switch, gauges, car placement, tuning drawer | opus | T10 | done | see docs/agent-reports/T13.md; screenshots docs/progress/04-2026-09-08-control-panel.png, T13-tuning.png |
 | T14 | `tools/build.mjs` -> `dist/index.html` single file, CSP-safe | opus | T10 | done | 62.8 KB, 13 inlined scripts, 0 console errors; docs/agent-reports/T14-T17.md. Re-run after any src change |
 | T15 | Showroom tab (turntable, close-ups, exploded view, collector cards) | opus | T12, T13 | todo | |
 | T16 | Motor whine audio (WebAudio, pitch from rpm), optional | opus | T13 | todo | |
