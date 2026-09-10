@@ -96,6 +96,10 @@
                                  // warp -- about 2.6 deg/cm -- so the tilt needs ~17 cm per 45 deg and
                                  // the ramp alone is not long enough. The centreline still lies exactly
                                  // on the tilted circle; only the ribbon twists, as a real connector does.
+    bankBlendCm: 30.0,           // cm of arc at each end over which the banked channel eases in from
+                                 // flat. Must be generous: the bank is a twist on top of the tilt
+                                 // roll, and the two together must stay under the ~2.5 deg/cm of
+                                 // surface warp a rigid four-wheel car can follow.
     lobeBankDeg: 0,              // EXTRA channel bank rolled about the tangent, on top of the plane
                                  // tilt. The tilt already leans the whole lobe; this is only for the
                                  // moulded lip. Non-zero values twist a surface that is otherwise

@@ -7,7 +7,12 @@
 // because their imports are CDN URLs that the Artifact CSP allows
 // (https://cdn.jsdelivr.net/npm/ — see docs/DEPENDENCIES.md).
 //
-//   node tools/build.mjs            -> dist/index.html
+//   node tools/build.mjs            -> dist/index.html  and  dist/artifact.html
+//
+// dist/artifact.html is the same page with the <!doctype>/<html>/<head>/<body> wrapper
+// stripped, because the Artifact host supplies its own skeleton and wraps whatever it is
+// given. Everything else -- <title>, <style>, the importmap, the module loader, all the
+// inlined scripts -- is kept in order.
 //
 // Exits 1 if a manifest file is missing, if the markers are absent, or if the result
 // still references a local script (`src="src/`).
@@ -20,6 +25,7 @@ const ROOT = normalize(join(dirname(fileURLToPath(import.meta.url)), '..'));
 const IN_HTML = join(ROOT, 'index.html');
 const MANIFEST = join(ROOT, 'src', 'manifest.json');
 const OUT_HTML = join(ROOT, 'dist', 'index.html');
+const OUT_ART = join(ROOT, 'dist', 'artifact.html');
 
 const START_RE = /<!--\s*HW:SCRIPTS\b[\s\S]*?-->/;
 const END_MARK = '<!-- /HW:SCRIPTS -->';
@@ -75,8 +81,26 @@ async function main() {
   await mkdir(dirname(OUT_HTML), { recursive: true });
   await writeFile(OUT_HTML, out, 'utf8');
 
+  // ---- artifact variant: same content, no document wrapper -------------------------
+  // The importmap has to come before the first module script; it stays where it is, which is
+  // still before the loader. Browsers accept an import map outside <head>.
+  let art = out
+    .replace(/^\s*<!doctype html>\s*/i, '')
+    .replace(/<html[^>]*>\s*/i, '')
+    .replace(/<\/html>\s*$/i, '')
+    .replace(/<head[^>]*>\s*/i, '')
+    .replace(/<\/head>\s*/i, '')
+    .replace(/<body[^>]*>\s*/i, '')
+    .replace(/<\/body>\s*/i, '')
+    .replace(/<meta\s+charset[^>]*>\s*/i, '')
+    .replace(/<meta\s+name="viewport"[^>]*>\s*/i, '');
+  if (/<(!doctype|html|head|body)/i.test(art)) return fail('artifact variant still has a document wrapper');
+  if (!/<script type="importmap">/.test(art)) return fail('artifact variant lost the importmap');
+  await writeFile(OUT_ART, art, 'utf8');
+
   const bytes = Buffer.byteLength(out, 'utf8');
   console.log('build: ' + list.length + ' scripts (' + kb(raw) + ' of JS) -> dist/index.html  ' + bytes + ' bytes (' + kb(bytes) + ')');
+  console.log('build: -> dist/artifact.html  ' + kb(Buffer.byteLength(art, 'utf8')) + ' (no document wrapper)');
   console.log('build: externals are CDN-only (importmap + module loader left untouched); CSP-safe.');
 }
 

@@ -94,7 +94,13 @@ for (const c of track.circuits) {
   const ds = 0.5;
   for (let s = 0; s < c.length; s += ds) {
     const a = c.sample(s), b = c.sample(s + ds);
-    const roll = HW.units.radToDeg(Math.acos(Math.max(-1, Math.min(1, V.dot(a.up, b.up))))) / ds;
+    // ROLL of the cross-section about the tangent, which is what warps the surface across the car's
+    // width. NOT the change in `up`: buildPath orthogonalises up against the tangent, so a ramp
+    // that merely CLIMBS rotates up by the slope angle and a naive acos(dot(up,up)) reads 3.4 deg/cm
+    // of "warp" on a surface that is not twisting at all.
+    const rollA = Math.asin(Math.max(-1, Math.min(1, a.right.y)));
+    const rollB = Math.asin(Math.max(-1, Math.min(1, b.right.y)));
+    const roll = HW.units.radToDeg(Math.abs(rollB - rollA)) / ds;
     const pitch = Math.abs(Math.asin(Math.max(-1, Math.min(1, b.t.y))) - Math.asin(Math.max(-1, Math.min(1, a.t.y)))) / ds;
     if (roll > worstRoll.r) worstRoll = { r: roll, s, seg: a.seg.meta.name };
     if (pitch > worstPitch.k) worstPitch = { k: pitch, s, seg: a.seg.meta.name };

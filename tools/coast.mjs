@@ -27,13 +27,15 @@ const f = path0.sample(car.s);
 const v0 = A.v0 || 300;
 car.body.setLinvel({ x: f.t.x * v0, y: f.t.y * v0, z: f.t.z * v0 }, true);
 const bin = A.bin || 10;
-let prev = null, acc = {};
+let prev = null, acc = {}, maxS = car.s, left = false, backwards = 0;
 for (let i = 0; i < Math.round((A.secs || 6) / H); i++) {
   s.step(H);
-  if (car.lifted || car.offTrack) { console.log('# left the track at s=' + car.s.toFixed(1)); break; }
+  if (car.lifted || car.offTrack) { left = true; break; }
+  if (car.s > maxS && car.s - maxS < 5) maxS = car.s;
   const E = 0.5 * car.speed * car.speed + G * car.pos.y;
   if (prev) {
     let ds = car.s - prev.s; if (ds < -path0.length / 2) ds += path0.length;
+    if (ds < 0 && ds > -5) backwards += -ds;
     if (ds > 0 && ds < 5) {
       const k = Math.floor(prev.s / bin) * bin;
       (acc[k] = acc[k] || { dE: 0, ds: 0, v: car.speed, seg: '' });
@@ -43,7 +45,11 @@ for (let i = 0; i < Math.round((A.secs || 6) / H); i++) {
   }
   prev = { s: car.s, E };
 }
-console.log('coast from ' + v0 + ' cm/s, motor off.   drag in g (gravity removed)');
+console.log('coast from ' + v0 + ' cm/s at s=' + (A.s0 ?? 5) + ', motor off.'
+  + '   REACHED s=' + maxS.toFixed(0) + ' of ' + path0.length.toFixed(0)
+  + (left ? '  (LEFT THE TRACK)' : '') + (backwards > 3 ? '  (rolled back ' + backwards.toFixed(0) + ' cm)' : '')
+  + '   final v=' + car.speed.toFixed(0));
+console.log('drag in g, gravity removed:');
 for (const k of Object.keys(acc).map(Number).sort((a, b) => a - b)) {
   const b = acc[k];
   if (b.ds < 1) continue;

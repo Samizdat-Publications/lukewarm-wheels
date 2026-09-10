@@ -118,16 +118,28 @@
   //   xi(psi) = R*(cos psi + cos45)   is the in-plane distance from the chord, so xi = 0 at both ends
   //   P       = chordMid + d*(xi*cos tilt) + r*(R sin psi) + up*(y0 + xi*sin tilt)
   // The surface normal is the plane normal everywhere: no twist, no blend, nothing to tune.
-  function tiltArcSeg(g, chordMid, d, r, meta, bankDeg, rollFrac) {
+  function tiltArcSeg(g, chordMid, d, r, meta, bankDeg, bankBlendCm, rollFrac) {
     const sweep = 2 * HALF_SWEEP;
     const arcLen = g.R * 2 * HALF_SWEEP;
     const nPlane = V.norm(V.make(-d.x * g.st, g.ct, -d.z * g.st));
     const bankMax = HW.units.degToRad(bankDeg || 0);
+    const bankBlend = M.clamp(bankBlendCm / arcLen, 0.05, 0.5);
     const psiAt = (u) => HALF_SWEEP - sweep * u;
     return {
       kind: 'arc', meta, deepWall: true, radius: g.R, sweep, tilt: g.tilt, nPlane, apex: g.apex,
       length: g.R * sweep,
-      bankAt: bankMax === 0 ? null : (u) => bankMax * M.smoothstep(0, 0.12, u) * M.smoothstep(0, 0.12, 1 - u),
+      // BANKED CHANNEL. The lobe is not a flat plane with a groove cut in it: the groove itself is
+      // banked, so the surface is a shallow CONE about the circle's axis and the wheels carry part
+      // of the corner instead of handing all of it to the outer wall. Positive bank raises the
+      // OUTER (right-hand) edge, which is the correct sense for this left-turning arc.
+      // It rides the SAME roll schedule as the tilt: the first attempt eased the bank over 12 % of
+      // the arc (9 cm), which is 3.3 deg/cm at 30 deg -- above the 2.5 deg/cm a rigid four-wheel car
+      // can follow, and on top of the tilt roll. That is why banking used to measure catastrophic.
+      // It must start from ZERO at each joint: the ramps carry no bank, so sharing the tilt's roll
+      // schedule left an 8.9 deg STEP in the surface at the ramp -> arc joint and cars stopped dead
+      // there (coast: reached s=172 unbanked, s=49 at any bank, then rolled back down).
+      bankAt: bankMax === 0 ? null : (u) => bankMax
+        * M.smoothstep(0, bankBlend, u) * M.smoothstep(0, bankBlend, 1 - u),
       pointAt(u) {
         const psi = psiAt(u), xi = g.R * (Math.cos(psi) + K);
         const p = V.addScaled(V.addScaled(chordMid, d, xi * g.ct), r, g.R * Math.sin(psi));
@@ -160,7 +172,7 @@
     const D = g.rampArc + cfg.rollBlendCm;
     const rollFrac = (p) => M.smoothstep(0, 1, M.clamp(p / D, 0, 1));
     const out = rampSeg(g, aOut, A.d, A.r, { arm, name: arm + '-out-ramp' }, true, rollFrac);
-    const arc = tiltArcSeg(g, chordMid, A.d, A.r, { arm, name: arm + '-lobe' }, cfg.lobeBankDeg, rollFrac);
+    const arc = tiltArcSeg(g, chordMid, A.d, A.r, { arm, name: arm + '-lobe' }, cfg.lobeBankDeg, cfg.bankBlendCm, rollFrac);
     const back = rampSeg(g, aIn, A.d, A.r, { arm, name: arm + '-in-ramp' }, false, rollFrac);
     const c1 = V.dist(out.pointAt(1), arc.pointAt(0)), c2 = V.dist(arc.pointAt(1), back.pointAt(0));
     if (c1 > 0.05 || c2 > 0.05) console.warn('[track] lobe', arm, 'closure error', c1.toFixed(3), c2.toFixed(3));
