@@ -199,6 +199,11 @@
     angDamping: 1.5,
 
     // ---- events ------------------------------------------------------------------
+    autoStart: true,             // switch the booster on and feed the cars in as soon as the page
+                                 // loads. An empty track with the motor off shows nothing about what
+                                 // the set does, and it is the state Stewart hit when he switched on
+                                 // with five cars already in the nips and nothing moved.
+    lineUpLead: 0.9,             // s of motor spin-up before the FIRST car is fed in
     lineUpStagger: 0.7,          // s between the five cars being fed into their nips. Dropping them
                                  // together bogs the motor from 11,388 to 1,687 rpm and nobody moves.
     crashSpeed: 60,              // cm/s closing speed that counts as a crash

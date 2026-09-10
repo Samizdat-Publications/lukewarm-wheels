@@ -1,6 +1,6 @@
 # HANDOFF — live project state
 
-_Last updated: 2026-09-09 by Opus 5 (session 4). Update this block whenever you stop._
+_Last updated: 2026-09-10 by Opus 5 (session 4). Update this block whenever you stop._
 
 ## Strategy
 `docs/ROADMAP.md` is the director's brief: build targets (artifact vs HD), phases 2-7, the
@@ -13,9 +13,21 @@ Blender/Gemini/ElevenLabs pipeline, questions for Stewart, risks. Read it after 
 `node tools/serve.mjs` -> http://localhost:8765/ ; `node tools/build.mjs` -> `dist/index.html`
 (175 KB, CSP-safe); `tools/selftest.html` -> **8/8 PASS** in real Chrome.
 
+**PUBLISHED:** https://claude.ai/code/artifact/7426bcb0-d860-471f-9500-bab46b71017d
+(private to Stewart; republish by building and passing `dist/artifact.html` to the Artifact tool
+with that URL). `node tools/build.mjs` now emits `dist/artifact.html` alongside `dist/index.html`:
+the same page with the `<!doctype>/<html>/<head>/<body>` wrapper stripped, because the Artifact
+host supplies its own skeleton. NOT verified live -- the browser tool cannot sign in to claude.ai,
+so the page was verified as an identical local build only. If it fails there it will say so rather
+than hang: a classic script watches for the two ways it can break under the host CSP (the jsdelivr
+imports being refused, or WebAssembly being disallowed) and replaces the "Loading" text.
+
 Shipped defaults: **loop tilt 40 deg, sweep tilt 16 deg, rampPow 4, hubHalf 16, lobeRadius 16,
 laneOffset 2.5, straightLen 1.0, 480 Hz, vehicleMode raycast.** Footprint 116 cm, ring apex
 20.1 cm, sweep apex 8.6 cm. Screenshot: `docs/screenshots/T20-shipped-40-16-pow4.png`.
+The page now **opens running** (`cfg.autoStart`): booster on, then the five cars fed in
+`lineUpLead` after, `lineUpStagger` apart. An empty track with the motor off shows nothing about
+what the set does, and it was the exact state Stewart hit.
 
 - Lone car, 20-run ensemble over 25 s: **mean 0.75 laps, best 3, 5 % off-track.**
 - Selftest fleet check: **2 of 5 cars lap in 20 s, best 3, none leaves the track.**
@@ -23,6 +35,28 @@ laneOffset 2.5, straightLen 1.0, 480 Hz, vehicleMode raycast.** Footprint 116 cm
 
 **Still not met:** `docs/REFERENCES.md` says a lone car circulates *indefinitely*. Ours does 1-3
 laps. And the loop tilt is 40 deg where the real set is ~48.
+
+## T21 (banked channel): also a negative result
+
+The plan was to bank the lobe's cross-section into a groove so the wheels carry the corner instead
+of the outer wall. It is implemented and correct now -- the bank eases from zero over `bankBlendCm`
+of arc at each end (the first attempt shared the tilt's roll schedule, which left an 8.9 deg STEP in
+the surface at the ramp -> arc joint; cars stopped dead there, coast s=172 -> s=49). And it does
+help a COASTING car: reach 172 -> 213 cm.
+
+It still makes laps worse: 0.75 -> 0.35 / 0.45 / 0.15 / 0.10 at bank 10 / 20 / 30 / 40 over a
+20-run ensemble. **The reason is speed.** A bank only carries the corner while
+`v^2/R > g(sin tilt + cos tilt * tan bank)`; at bank 30 that is v > 130 cm/s, and a car spends most
+of the lobe slower than that, sliding down the bank onto the INNER wall and scrubbing there. It
+buys a little at the top of the lobe and costs more at the bottom. `lobeBankDeg` stays 0.
+
+Also ruled out: **surface warp is not the binding constraint.** Raising `suspTravel`, which raises
+the warp a rigid car can follow from 2.49 to 3.87 deg/cm, makes laps worse (0.75 -> 0.30 at 0.7,
+0.50 at 1.0), as does moving `rollBlendCm` either way. And `tools/audit.mjs` was measuring warp
+wrong: it used the change in the frame's `up`, but `buildPath` orthogonalises up against the
+tangent, so a ramp that merely CLIMBS rotates up by its slope and read as 3.42 deg/cm of "warp" on
+a surface that is not twisting. It now measures `asin(right.y)`, the roll of the cross-section
+about the tangent. Real figure at the shipped defaults: 2.12 deg/cm against a 2.49 limit.
 
 ## CORRECTION: the blocker is NOT the vehicle model
 
@@ -202,28 +236,39 @@ If it is missing: `node tools/fetch-rapier.mjs`.
 
 ## Next moves, in order
 
-1. **Bank the lobe channel properly.** This is the one change that would let the ring stand up:
-   make the lobe CROSS-SECTION a banked groove so the wheels take the corner, instead of a flat
-   plane where the wall takes it. Do NOT do it with `lobeBankDeg` -- that rolls the cross-section
-   of an otherwise planar surface and measures much worse. The surface itself has to be banked.
-   Measure with `node tools/coast.mjs` (deterministic, far less noisy than laps) and confirm with
-   `node tools/ens.mjs`.
-2. **Then raise `loopTiltDeg` towards 48** and re-run the tilt table above.
-3. **Then indefinite lapping and the five-car pile-up**, which should follow from (1).
-4. Publish `dist/index.html` as an Artifact (car emoji favicon) and send Stewart the link.
-5. Then `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
+Three hypotheses have now been tested and killed, each with numbers: it is not Rapier's vehicle
+controller (our own model loses the same), it is not surface warp (more suspension travel makes it
+worse), and it is not the lack of a banked channel (banking helps a coasting car and hurts a
+lapping one). What is left is the plain arithmetic below, so start there rather than with a
+fourth hypothesis.
+
+1. **Do the lap arithmetic before changing anything.** The circuit is 300 cm with four nips, but
+   they are PAIRED: two in each hub 17 cm apart, then a ~131 cm coast around a whole lobe. A car
+   leaves a nip at ~330 cm/s (v^2 = 109,000) and the curves cost ~0.4 g, so over 131 cm it arrives
+   with v^2 = 109,000 - 2*0.4*981*131 = 6,000, i.e. **v = 78 cm/s**. It is caught, but with almost
+   nothing to spare, and that is why the result is a coin-flip rather than a car that circulates.
+   Both terms are attackable and neither has been tried properly:
+   - **shorten the coast**: the 131 cm is the whole lobe. `boosterR` moves the nips outward toward
+     the gates (tried once at tilt 30 and it was worse, but not since `rampPow`/`hubHalf` changed).
+   - **raise the launch**: it is grip-limited, so `foamK`, `foamMu`, `boostExtra` and `foamGap` are
+     the levers, NOT the drive train. `foamGap` 1.5 was measured to give +70 cm/s at s=60 but more
+     off-track excursions; it may be worth revisiting now that the geometry is calmer.
+2. **Only then raise `loopTiltDeg` towards 48** and re-run the tilt table above.
+3. **Then the five-car pile-up.** Already much better (10 crashes, 4 of 5 lapping) but cars still
+   stall rather than circulating; it should follow from (1).
+4. Then `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
 
 **Residual, low priority:** `tools/audit.mjs` reports 48 exposed wall end caps at reach -0.69,
 i.e. 0.69 cm outside the lane edge, at the hub gates. They do not respond to `wallSegLen` or
 `wallRampLen` and no car has been observed hitting one, but a car leaving a nip does drift ~0.6 cm.
 
-## Known UX gap Stewart hit (still open)
-He switched the booster on with all five cars lined up and nothing moved. Required:
-"Line up all five" auto-starts the motor and staggers the drops ~0.3 s apart; a toast
-"Turn the booster on first" when a car is dropped into a nip with the motor off; a "Launch"
-button that drops the selected car into the nearest outbound nip; a three-line "How to
-play" box at the top of the panel. The motor-first order is now the documented one, but
-the staggering and the UI affordances are not built.
+## Known UX gap Stewart hit (mostly closed)
+He switched the booster on with all five cars lined up and nothing moved -- five nips loaded at
+once bog the motor from 11,388 rpm to 1,687. DONE: the page opens running (`autoStart`); "Line up
+all five" switches the booster on first and then feeds cars in one at a time (`lineUpLead` of
+spin-up, then `lineUpStagger` apart); the hint line now leads with the correct order. STILL OPEN:
+a "Launch" button that drops the selected car into the nearest outbound nip, and a toast when a car
+is dropped into a nip with the motor off.
 
 ---
 

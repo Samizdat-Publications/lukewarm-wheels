@@ -22,7 +22,29 @@
 </script>
 </head>
 <body>
-<div id="loading">Loading physics and renderer…</div>
+<div id="loading">Loading physics and renderer&hellip;</div>
+
+<!-- If the module below never runs, say why. A page stuck on "Loading" tells the reader nothing,
+     and the two ways this can fail are both invisible from inside the module: the host's CSP
+     refusing the CDN (so the imports never resolve and no handler of ours ever runs), or WebAssembly
+     being disallowed. A classic script can watch for both from outside. -->
+<script>
+  window.__hwBootErr = null;
+  addEventListener('error', (e) => { if (!window.__hwBootErr) window.__hwBootErr = e.message || String(e.error || ''); }, true);
+  setTimeout(function () {
+    if (window.__hwLibsReady) return;
+    var el = document.getElementById('loading');
+    if (!el || el.classList.contains('done')) return;
+    var why = window.__hwBootErr ? ('
+
+' + window.__hwBootErr) : '';
+    el.style.cssText += ';padding:24px;text-align:center;line-height:1.6;white-space:pre-wrap;max-width:44em;margin:auto';
+    el.textContent = 'Could not load three.js or Rapier.
+
+This page pulls both from cdn.jsdelivr.net and compiles a WebAssembly '
+      + 'physics core. One of the two is blocked here.' + why;
+  }, 12000);
+</script>
 <canvas id="view"></canvas>
 <pre id="hud">booting…</pre>
 

@@ -117,8 +117,11 @@
     lineUpFive() {
       const gates = sim.track.lineUp;
       for (const c of sim.cars) c.lift();
+      // The lead-in matters: a car fed into a nip before the motor has spun up gets a feeble
+      // launch and stops a few centimetres later, which is exactly what Stewart saw.
+      const lead = HW.config.lineUpLead;
       sim.pending = sim.cars.map((car, i) => ({
-        car, gate: gates[i % gates.length], at: sim.time + i * HW.config.lineUpStagger,
+        car, gate: gates[i % gates.length], at: sim.time + lead + i * HW.config.lineUpStagger,
       }));
       HW.bus.emit('lineup', sim);
     },

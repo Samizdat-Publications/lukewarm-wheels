@@ -325,7 +325,7 @@ label.cb{display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 8px;
       if (ui.armed) h.textContent = 'Placement armed: click a lane in the 3D view to drop ' + ui.armed.entry.name + ' there (Esc cancels).';
       else if (s && !s.lifted) h.textContent = s.entry.name + ' selected — click its chip again to lift it off the track.';
       else if (s) h.textContent = s.entry.name + ' is lifted — click its chip to arm lane placement, or double-click for its gate.';
-      else h.textContent = 'Click a car to select it. Double-click drops it at its own booster gate.';
+      else h.textContent = 'Switch the booster on first, then Line up all five — cars are fed in one at a time. Click a car to select it; double-click drops it at its own gate.';
     },
 
     // ---- camera row (HW.render may be a stub) ------------------------------

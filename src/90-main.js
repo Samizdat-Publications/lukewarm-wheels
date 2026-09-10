@@ -99,6 +99,8 @@
       HW.main.last = performance.now();
       requestAnimationFrame(HW.main.frame);
       HW.bus.emit('booted', HW);
+      // Open running, not as an empty track (see cfg.autoStart).
+      if (cfg.autoStart) { HW.sim.setSwitch(true); HW.sim.lineUpFive(); }
     },
     frame(now) {
       const m = HW.main;
