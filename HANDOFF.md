@@ -98,6 +98,8 @@ against a base of 0.75 mean laps:
 | wider junction turn | `lobeRadius` 19 / 22 (rt 20.5 -> 25.9 / 31.3) | 0.30 / 0.00 |
 | tyre grip | `frictionSlip` 0.2 / 0.3 / 0.45 / 0.7 | 0.75 / 0.45 / 0.40 / 0.25 |
 | softer nip saturation | `slipVel` 60 / 120 / 250 / 500 | 0.40 / 0.25 / 0.05 / 0.00 |
+| tyre grip in OUR model | `vehicleMode: springs`, `wheelGrip` 0.8 / 1.5 | 0.00 / 0.00 |
+| no wall height steps | `whAt` per box from the taller end, not the midpoint | 0.43 (tried and reverted) |
 
 Every one of them RAISES the measured speeds at every probe point and LOWERS the laps. That
 pattern is the result: **more launch speed is not the problem to solve.** A faster car simply
@@ -247,8 +249,13 @@ change of start position swings v@60 from 78 to 210 cm/s and laps from 0 to 1. E
 conclusion in the old HANDOFF that rested on one run should be treated as unproven.
 
 - Judge configs on `node tools/ens.mjs` (5 castings x N start offsets; reports mean laps,
-  off-track %, median v at fixed s). n=15 still has about +-0.15 laps of noise; use n=20
-  for a close call.
+  off-track %, median v at fixed s).
+- **KNOW THE NOISE BAND BEFORE BELIEVING ANYTHING.** The shipped default config, measured seven
+  times across one night at n=20 to n=30, returned mean laps of
+  **0.43, 0.55, 0.60, 0.75, 0.75, 0.75, 0.90**. That is the same config each time. So a difference
+  of 0.2 laps means NOTHING even at n=30, and the only results worth acting on are the ones that
+  move it by half or double it. Several apparently promising leads this session were that band.
+  Re-measure the baseline inside every batch and compare within the batch, never across batches.
 - `endS` / `maxS` are thresholds on whether a nip happens to catch the car. Never use them.
 - Results are reproducible **within a process sequence** but not across differently ordered
   batches: Rapier's WASM heap state depends on how many worlds were created before. Put the
