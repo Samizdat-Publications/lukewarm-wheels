@@ -96,10 +96,20 @@ against a base of 0.75 mean laps:
 | stronger motor | `motorR` 0.6 | 0.50 |
 | bank + stronger nip | `lobeBankDeg` 15-30 with `foamGap` 1.5-1.7 | 0.25 - 0.60 |
 | wider junction turn | `lobeRadius` 19 / 22 (rt 20.5 -> 25.9 / 31.3) | 0.30 / 0.00 |
+| tyre grip | `frictionSlip` 0.2 / 0.3 / 0.45 / 0.7 | 0.75 / 0.45 / 0.40 / 0.25 |
+| softer nip saturation | `slipVel` 60 / 120 / 250 / 500 | 0.40 / 0.25 / 0.05 / 0.00 |
 
 Every one of them RAISES the measured speeds at every probe point and LOWERS the laps. That
 pattern is the result: **more launch speed is not the problem to solve.** A faster car simply
 arrives at the second nip further above the foam surface and is braked harder.
+
+`slipVel` deserves a note, because on paper it looked like the clean fix: it is the slip speed at
+which the foam's friction saturates, so widening it should soften the second nip's braking (a car
+52 cm/s over the foam would get 26 % of full braking instead of 100 %) while leaving the launch
+alone (a stopped car is 434 cm/s under the foam, still saturated). It does the opposite -- `v@60`
+falls 202 -> 184 -> 172 -> 157 -> 95 as it widens. The reason is that the motor SAGS during the
+launch, so the foam speed collapses toward the car's and `dv` is small for most of the launch too.
+A tight `slipVel` is what keeps the nip at full force while that happens. It is load-bearing at 30.
 
 And a WEAKER launch is worse too -- `foamGap` 2.2 / 2.3 -> 0.10 / 0.00, `foamMu` 0.5 / 0.35 ->
 0.35 / 0.00, `foamK` 0.7e6 / 0.5e6 -> 0.15 / 0.00. So the shipped nip sits at a genuine two-sided

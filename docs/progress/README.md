@@ -11,6 +11,16 @@ the pairing is the interesting part.
 
 ---
 
+### 00 — What we were building from
+`../V2791-instructions.png` (and `V2791-half0.png` / `V2791-half1.png` for the two halves at full
+resolution; zoom them with `tools/imgzoom.html`)
+
+Mattel's own instruction sheet for V2791. Not a render — the source. Its CONTENTS page is what
+settled the architecture: **4 x one moulded ~270 deg arc** and **4 x one adjustable TRACK SUPPORT**,
+which means all four lobes are the same part and only the tilt differs. The TO PLAY diagram shows
+the two rear lobes standing up as rings and the two front ones low and wide. Everything from
+frame 06 onward follows from reading that properly.
+
 ### 01 — First render
 `01-2026-09-08-first-render.png` · commit `99a8c89` (T11)
 
