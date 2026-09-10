@@ -97,6 +97,20 @@ Every one of them RAISES the measured speeds at every probe point and LOWERS the
 pattern is the result: **more launch speed is not the problem to solve.** A faster car simply
 arrives at the second nip further above the foam surface and is braked harder.
 
+And a WEAKER launch is worse too -- `foamGap` 2.2 / 2.3 -> 0.10 / 0.00, `foamMu` 0.5 / 0.35 ->
+0.35 / 0.00, `foamK` 0.7e6 / 0.5e6 -> 0.15 / 0.00. So the shipped nip sits at a genuine two-sided
+MAXIMUM, not on a slope. **Do not re-tune the nip**; there is nothing there.
+
+Why cornering is so expensive is now also measured. Attributing the junction turn alone
+(`node tools/attribute.mjs '{"from":26,"to":52}'`): 0.79 g while the chassis rides the wall and
+0.30 g with all four wheels down and no wall contact at all. Coulomb friction at `wallFriction`
+0.05 against 3.5 g of cornering predicts only 0.175 g, so the wall is losing 4.5x what sliding
+friction accounts for -- and it is insensitive to `wallFriction` across 0.005-0.3, so it is not
+sliding friction. The 0.30 g with no wall contact is the tyres: `frictionSlip` 0.10 caps each wheel
+at 0.1 g of lateral force against a 3.5 g demand, so **the car corners by skidding**, continuously,
+guided by the wall. That is probably right for a die-cast car in a plastic channel; what it means
+is that this layout asks the car to corner at 3.5 g and then charges it for doing so.
+
 Two side notes worth keeping:
 - `gearRatio` 4.5 and 3.5 produce numerically IDENTICAL results, which re-confirms that the launch
   is grip-limited and the drive train is not a lever on it.
