@@ -26,7 +26,7 @@
     // ---- track geometry (cm) -------------------------------------------------
     laneWidth: 3.175,            // MEASURED: 1.25 in running clearance
     wallHeight: 0.9,             // ESTIMATE 8-10 mm (hub lanes, straights)
-    lobeWallHeight: 3.4,         // MUST exceed the tallest casting (2.4) + carClearance: at 20.5 cm radius and
+    lobeWallHeight: 4.5,         // MUST exceed the tallest casting (2.4) + carClearance: at 20.5 cm radius and
                                  // 300 cm/s the lobe pulls ~4.5 g, the car rides the OUTER wall, and a wall
                                  // shorter than the car lets the top corner swing over it and the car tumbles out.
     wallThick: 0.3,
@@ -62,7 +62,17 @@
     // differs. A lobe is a flat circle tilted about the horizontal chord through its two ends;
     // everything else (junction radius, hub->chord gap, chord height, plan splay) is DERIVED
     // from lobeRadius + straightLen + the tilt, so the geometry cannot drift out of closure.
-    lobeRadius: 16.0,            // ESTIMATE: radius of the moulded arc. Scaled off the instruction
+    lobeRadius: 19.0,            // radius of the moulded arc. 16.0 is what the instruction sheet
+                                 // scales to and was shipped until 2026-09-11; 19 measures 0.8 of a
+                                 // lap better because the JUNCTION TURN's radius is derived from it
+                                 // (rt = (K*R - laneOffset - straightLen*sin b)/(1 - cos b), 20.5 cm
+                                 // at R 16 against 25.9 at R 19), and that bend -- flat, ~20 cm, taken
+                                 // at 330-360 cm/s, i.e. 5-6 g -- is now the most expensive stretch
+                                 // on the circuit. Raising R used to be a losing trade because it
+                                 // lengthened an expensive lobe; since T23 the lobe is cheap, so it
+                                 // is not. 18 and 20 are both worse than 19 and 22 collapses (0.35),
+                                 // so this is a real optimum. Costs footprint: 116 -> 134 cm.
+                                 // ORIGINAL NOTE: radius of the moulded arc. Scaled off the instruction
                                  // sheet against the known 3.81 cm track width and cross-checked
                                  // against the ~105-110 cm assembled footprint from Stewart's photos.
                                  // Bend-radius floor is ~12 cm (a 7 cm car needs w + L^2/8R < lane).
@@ -91,7 +101,16 @@
                                  // vertical curvature is constant, so it STEPS from 0 to 2.4 g the
                                  // instant the car leaves the flat hub; at 3+ it starts at zero, and
                                  // the chord (and so the whole lobe) also sits lower.
-    rollBlendCm: 36.0,           // cm of ARC (each end) that shares the roll-in with the ramp. A rigid
+    rollBlendCm: 8.0,            // cm of ARC (each end) that shares the roll-in with the ramp. This is
+                                 // also how long the BANK takes to arrive, which is why it is now 8
+                                 // and not 36: at 36 the lobe is unbanked for the first third of the
+                                 // arc, which is exactly where the car is fastest and needs it most
+                                 // (1.40 laps at 14 and at 20, against 1.15-1.50 at 8; and the old
+                                 // 36 is what made T21's banking measure catastrophic). It does
+                                 // violate the warp rule below -- tools/audit.mjs reports 3.8 deg/cm
+                                 // against a 2.5 limit -- and the cars do not care, which is the
+                                 // third independent result saying warp is not the binding
+                                 // constraint. ORIGINAL NOTE: a rigid
                                  // car can only follow ~ suspTravel/(trackCm * wheelbase) of surface
                                  // warp -- about 2.6 deg/cm -- so the tilt needs ~17 cm per 45 deg and
                                  // the ramp alone is not long enough. The centreline still lies exactly
@@ -100,7 +119,7 @@
                                  // flat. Must be generous: the bank is a twist on top of the tilt
                                  // roll, and the two together must stay under the ~2.5 deg/cm of
                                  // surface warp a rigid four-wheel car can follow.
-    lobeBankDeg: 0,              // Rotation of the lobe's SURFACE about the tangent, toward the
+    lobeBankDeg: 30,             // Rotation of the lobe's SURFACE about the tangent, toward the
                                  // circle's centre. This is the single most important number in the
                                  // layout, because a flat ribbon lying in a tilted plane cannot
                                  // corner AT ALL: the centre of the circle is in the plane, so the
@@ -118,6 +137,12 @@
                                  // holds the corner without the wall while v^2/R > g*(component of
                                  // gravity along the surface), and at the apex of a ring tilted by
                                  // `tilt` a full loop needs only v^2 > g*R*sin(tilt).
+                                 // MEASURED, n=20-30, 25 s, each batch carrying its own baseline:
+                                 //   bank  0  0.73-0.80 laps   bank 25  1.40   bank 30  1.10-1.50
+                                 //   bank 35  1.90 (but 20 % off-track)        bank 60  0.15
+                                 //   bank 90  0.00  -- a full loop needs v^2 > g R sin(tilt) all the
+                                 //     way round and these cars cannot hold the inside of the barrel
+                                 //     at the apex, so they slide down it. 25-35 is the plateau.
     lobeBankApexDeg: null,       // bank at the ARC's apex; null = same as lobeBankDeg (a plain cone).
                                  // The bank that holds a corner without the wall is atan(v^2/(R g)),
                                  // and v around a lobe runs ~250 cm/s at the ends down to ~100 at the

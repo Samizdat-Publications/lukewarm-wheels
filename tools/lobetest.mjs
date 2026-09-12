@@ -35,7 +35,7 @@ export function run(cfg = {}, opts = {}) {
   for (let i = 0; i < Math.round(0.5 / H); i++) s.step(H);
   car.spawnAtGate(opts.gate || 'N-out', opts.back || 0);
   const secs = opts.secs || 15, n = Math.round(secs / H), trace = [];
-  let vmax = 0, yMax = 0, off = false, maxRoll = 0; const lapTs = [];
+  let vmax = 0, yMax = 0, off = false, offS = null, maxRoll = 0; const lapTs = [];
   // v at fixed s is the only stable signal: maxS/endS are thresholds on whether a nip happens to
   // catch the car, so they flip between wildly different values for a 1% config change.
   const probeS = opts.probeS || [], probe = {}; let lastS = car.s;
@@ -43,19 +43,20 @@ export function run(cfg = {}, opts = {}) {
     s.step(H);
     for (const ps of probeS) if (probe[ps] === undefined && lastS < ps && car.s >= ps && car.s - lastS < 20) probe[ps] = +car.speed.toFixed(0);
     lastS = car.s;
-    if (car.lifted) { off = 'lifted@' + (i * H).toFixed(2); break; }
+    if (car.lifted) { off = 'lifted@' + (i * H).toFixed(2); if (offS === null) offS = Math.round(car.s); break; }
     vmax = Math.max(vmax, car.speed); yMax = Math.max(yMax, car.pos.y);
     const up = HW.math.applyQuat(car.quat, { x: 0, y: 1, z: 0 });
     const lu = car.frame ? car.frame.up : { x: 0, y: 1, z: 0 };
     const roll = Math.acos(Math.max(-1, Math.min(1, up.x * lu.x + up.y * lu.y + up.z * lu.z))) * 180 / Math.PI;
     maxRoll = Math.max(maxRoll, roll);
     while (lapTs.length < car.laps) lapTs.push(+(i * H).toFixed(2));
-    if (car.offTrack && !off) off = 'offtrack@' + (i * H).toFixed(2);
+    // WHERE a car leaves matters more than that it left: the departures cluster on one stretch.
+    if (car.offTrack && !off) { off = 'offtrack@' + (i * H).toFixed(2); offS = Math.round(car.s); }
     if (opts.trace && i % opts.trace === 0) trace.push([(i * H).toFixed(2), 's' + car.s.toFixed(0), 'v' + car.speed.toFixed(0),
       'lat' + car.lateral.toFixed(2), 'y' + car.pos.y.toFixed(1), 'r' + roll.toFixed(0), 'L' + car.laps,
       car.inBooster || '', (car.frame && car.frame.seg.meta.name) || ''].join(' '));
   }
-  return { vmax: +vmax.toFixed(0), yMax: +yMax.toFixed(2), laps: car.laps, lapTs, off, probe,
+  return { vmax: +vmax.toFixed(0), yMax: +yMax.toFixed(2), laps: car.laps, lapTs, off, offS, probe,
     maxRoll: +maxRoll.toFixed(0), endV: +car.speed.toFixed(0), endS: +car.s.toFixed(0), stalled: car.stalled, trace };
 }
 

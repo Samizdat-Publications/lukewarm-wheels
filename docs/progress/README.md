@@ -99,11 +99,32 @@ lapping. Confirmed by Stewart in a real browser: "worked but only for a lap or s
 
 ---
 
+### 10 — The lobes became loops
+`10-2026-09-11-banked-loops.png` · (T23)
+
+The first frame where the track can actually hold a car. Until now every lobe was a **flat ribbon
+lying in a tilted plane**, and such a surface supplies *zero* cornering force at any tilt: the
+centre of the circle is in the plane, so the direction the car must be pushed lies in the plane,
+and the surface normal is perpendicular to it. All 2.5-5.7 g went into the side wall, and the car
+was not driving round the lobe, it was being dragged round it on its side — wheels off the ground
+for 23-91 % of each lobe. Here the lobe surface is rolled toward the circle's centre, so it is a
+banked channel (30 deg) heading toward a real loop, and the **floor** takes the corner. You can see
+it: the ribbons roll over as they curve, where in frames 06-09 they were flat plates on edge. The
+lobes are also bigger (radius 16 -> 19 cm, footprint 116 -> 134), because the junction turn's radius
+is derived from the lobe's and that bend is now the most expensive stretch left.
+
+*Could it run?* A lone car: **1.87 mean laps per 25 s, best 11** across 30 runs, against 0.73 / best
+3 for the shipped flat-plane geometry in the same batch. Wheels-off through the north ring went
+23-47 % -> **0 %**, and its drag 0.23-0.76 g -> 0.10-0.33 g. Self-test 8/8, and its fleet check went
+from 2 of 5 cars lapping to **4 of 5**. Five cars at once still bog the motor and stall.
+
+
 ## Adding a frame
 
 WebGL canvases cannot be screenshotted from Node, and `toDataURL` returns an empty image once the
 compositor has run, so the picture has to be read out of the GL buffer in the same tick as the
-render. `tools/serve.mjs` accepts the result at `POST /__shot?name=…` and writes it here.
+render. `tools/serve.mjs` accepts the result at `POST /__shot?name=…` and writes it to
+`docs/screenshots/`; move it here if it is a milestone.
 
 With `node tools/serve.mjs` running, open the page and run this in the browser console (or through
 a browser tool's JS evaluation):

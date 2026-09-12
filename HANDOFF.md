@@ -1,6 +1,6 @@
 # HANDOFF — live project state
 
-_Last updated: 2026-09-10 by Opus 5 (session 4). Update this block whenever you stop._
+_Last updated: 2026-09-11 by Opus 5 (session 5). Update this block whenever you stop._
 
 ## Strategy
 `docs/progress/` is the dated build timeline — one image per milestone with what the sim could
@@ -39,6 +39,97 @@ what the set does, and it was the exact state Stewart hit.
 
 **Still not met:** `docs/REFERENCES.md` says a lone car circulates *indefinitely*. Ours does 1-3
 laps. And the loop tilt is 40 deg where the real set is ~48.
+
+## T23: THE LOBE WAS NOT A LOOP. THIS IS THE ONE THAT MATTERED.
+
+Read this before anything else in the file. It explains, and retires, most of what is below.
+
+A lobe was built as **a flat circle tilted about its chord** -- the architecture comment in
+`src/30-track-layout.js` said so outright: *"It is a wall-of-death ring, NOT a loop-the-loop: the
+track surface normal is the (constant) plane normal, and the car is held on the circle by the outer
+wall."* That single sentence cost three sessions, because it is geometrically impossible:
+
+> For a circle lying in a plane, the centre of the circle is IN the plane. The direction the car
+> must be pushed therefore lies in the plane. The surface normal is perpendicular to the plane.
+> Dot product zero. **A flat ribbon lying in a tilted plane supplies exactly zero cornering force,
+> at any tilt angle.**
+
+So 100 % of the 2.5-5.7 g was handed to the side wall, and the car was not driving round the lobe,
+it was being dragged round it on its side. Two measurements say so directly:
+
+- `tools/energy.mjs` reported the car with its **wheels off the ground 23-91 %** of each lobe, and
+  the drag per bin tracked that number almost exactly (0.07 g where all four wheels were down,
+  0.76-1.09 g where they were not).
+- the new `tools/wall.mjs` coasts a car through the junction turn with the motor off and **every**
+  dissipation term switched off -- tyre grip, rolling resistance, angular damping, linear damping,
+  suspension damping, wall friction, chassis friction -- and still measures **0.33 g**. There is
+  nothing left to turn off. A loss with nothing left to turn off is not friction; it is the cost of
+  shoving a box round a corner with a wall.
+
+That is why every friction sweep came back flat, why writing a whole replacement vehicle model
+(T20) reproduced the same loss, and why every launch-energy lever (T22) made laps worse: they were
+all downstream of a surface that cannot hold a car.
+
+**The fix.** Along the arc, `right` is exactly the OUTWARD radial of the circle (write the tangent
+and the plane normal in the plane's own basis and it falls out), so rolling the cross-section about
+the tangent by `lobeBankDeg` turns the surface normal that many degrees toward the circle's CENTRE.
+At 90 deg the lobe stops being a tilted racetrack and becomes a genuine **loop** -- the car rides
+the inside of the ring and the FLOOR supplies v^2/R. That is how the instruction sheet draws it:
+there is a car inverted at the apex of each rear ring (`docs/V2791-half0.png`, "TO PLAY").
+
+**`lobeBankDeg` already existed and had been measured as catastrophic (T21). It was not the idea
+that was wrong, it was the schedule.** Its blend eased the bank to ZERO at both joints, so the bank
+was absent exactly at the arc entry where the car is at launch speed and the cornering demand is
+highest, and full only near the apex where the car is slowest and a bank it cannot hold simply
+drops it onto the inner wall. Now one schedule serves the whole lobe, both ramps carry it in by the
+same construction as the arc (so every joint is continuous by construction, not by coincidence),
+and the arc can ease from `lobeBankDeg` at the ends to `lobeBankApexDeg` at the apex because the
+bank that holds a corner without the wall is atan(v^2/(R g)) and v runs ~250 cm/s at the ends
+against ~100 at the apex.
+
+What it bought, all n=20 unless stated, each batch containing its own baseline:
+
+| config | mean laps | best | off % |
+|---|---|---|---|
+| shipped, bank 0 | 0.73 - 0.80 | 3 | 5 - 7 |
+| bank 30 | 1.15 - 1.50 | 6 - 7 | 10 |
+| bank 35 | 1.90 | 7 | 20 |
+| bank 30, `lobeRadius` 19, `lobeWallHeight` 4.5 | **1.95** | **11** | 10 |
+
+and in the energy profile the N-lobe went from **23-47 % wheels-off and 0.23-0.76 g** to
+**0 % wheels-off and 0.10-0.33 g**. The car now drives round the ring.
+
+Bank 60 and 90 are worse than 30 (0.15 and 0.00 laps): a full loop needs v^2 > g R sin(tilt)
+everywhere and these cars are not fast enough to hold the inside of the barrel at the apex, so they
+slide down it. 25-35 deg is the plateau at these speeds.
+
+### Measured and rejected in T23 (do not re-try without new evidence)
+
+- **Banking the JUNCTION TURN** (`turnBankDeg`, either sign, blends 6-16 cm). The bend between the
+  hub gate and the lobe turns the OTHER way (`right` there points at the centre of the turn, not
+  away from it), so the camber has to reverse inside ~19 cm, and the twist costs more than the bank
+  saves. At `turnBlendCm` 6 it is fatal -- drag 5-14 g, cars stop at the gate. At a gentle 12-16 cm
+  blend it is merely useless: junction-turn drag 0.651 g at bank 0 against 0.638 / 0.659 / 0.679 /
+  0.929 at -10 / +10 / -20 / +20. Ensemble: 0.05 laps at turn 30, 0.00 at turn 45. The code is kept
+  (`turnBankDeg` defaults to 0) because the measurement is worth being able to repeat.
+- **`lobeRadius` 22** collapses (0.35 laps) even though 19 is the best value found. 18 and 20 are
+  both worse than 19, so it is a genuine optimum and not a slope.
+
+### What is left, and it is now a different problem
+
+With the bank in, the lobes are cheap and **the junction turns are the whole remaining drag**:
+0.61-0.67 g outbound, 0.74-1.01 g on the S-out ramp, 0.72 g on the S-in ramp, with the car up on
+two wheels 23-39 % of the time there. They are flat ~20 cm bends taken at 330-360 cm/s, i.e. 5-6 g,
+and banking them does not work (above). The lever that does work is their RADIUS, which is
+`rt = (K*R - L - S sin b)/(1 - cos b)` -- so `lobeRadius` up, `laneOffset` down, `straightLen` down.
+Raising `lobeRadius` used to be a losing trade because it lengthened an expensive lobe; now the
+lobe is cheap, and 16 -> 19 is worth about 0.8 of a lap.
+
+And the dominant failure mode has changed. At the shipped config **47 % of runs stall with zero
+laps** and only 7 % leave the track, so the next win is in whatever stops a car dead, not in
+off-track excursions. `tools/ens.mjs` now reports `stall%` and a tally of WHERE cars left.
+
+---
 
 ## T21 (banked channel): also a negative result
 
