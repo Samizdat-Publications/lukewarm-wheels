@@ -105,16 +105,25 @@ HW.main.paused = true;
     } catch (e) { record(1, 'circuits close', 'FAIL', 'threw: ' + e.message); }
 
     // ---- 2. every lobe is a closed, tangent-continuous tilted circle -----------
-    // The lobe solve (30-track-layout.js lobeGeom) derives the junction radius and the hub->chord
-    // gap from lobeRadius + straightLen + tilt, so the two closure equations must hold exactly and
-    // the three segments must meet in position AND heading.
+    // The lobe solve (30-track-layout.js lobeGeom) derives the junction turn's LENGTH and the
+    // hub->chord gap from lobeRadius + straightLen + tilt, so the two closure equations must hold
+    // exactly and the three segments must meet in position AND heading.
+    // The closure is written against the turn's mean heading cosines Cs, Ss rather than a radius,
+    // because the turn is not a circular arc once `turnEaseFrac` is non-zero. For a circular arc
+    // Cs = sin(beta)/beta and Ss = (1-cos beta)/beta, which recovers the old rt*sin(beta) and
+    // rt*(1-cos beta) exactly -- so this is the same test, not a weaker one.
     try {
       const K = Math.SQRT1_2, rows = [], errs = [];
       for (const arm of ['N', 'E', 'S', 'W']) {
         const g = HW.track.lobeGeom(arm, cfg);
-        // closure: gap = rt sin b + S cos b ;  K*R - L = rt (1-cos b) + S sin b
-        errs.push(Math.abs(g.gap - (g.rt * Math.sin(g.beta) + g.S * Math.cos(g.beta))));
-        errs.push(Math.abs((K * g.R - cfg.laneOffset) - (g.rt * (1 - Math.cos(g.beta)) + g.S * Math.sin(g.beta))));
+        // closure: gap = Lt*Cs + S cos b ;  K*R - L = Lt*Ss + S sin b
+        errs.push(Math.abs(g.gap - (g.turnLen * g.turn.Cs + g.S * Math.cos(g.beta))));
+        errs.push(Math.abs((K * g.R - cfg.laneOffset) - (g.turnLen * g.turn.Ss + g.S * Math.sin(g.beta))));
+        // and with no easement the turn must still BE a circular arc of radius rt
+        if (!g.turn.e0 && !g.turn.e1) {
+          errs.push(Math.abs(g.turn.Cs - Math.sin(g.beta) / g.beta));
+          errs.push(Math.abs(g.turn.Ss - (1 - Math.cos(g.beta)) / g.beta));
+        }
         // beta must be the plan angle of a tilted circle's end tangent
         errs.push(Math.abs(Math.tan(g.beta) - 1 / g.ct));
         const segs = track.lobes[arm].segs;
@@ -125,7 +134,8 @@ HW.main.paused = true;
           const d2 = V.sub(a2, b2), l = V.len(d2) || 1; return { x: d2.x / l, y: d2.y / l, z: d2.z / l }; };
         errs.push(1 - V.dot(dir(segs[0], 1), dir(segs[1], 0)));
         errs.push(1 - V.dot(dir(segs[1], 1), dir(segs[2], 0)));
-        rows.push(arm + ' tilt ' + f(U.radToDeg(g.tilt), 0) + ' rt ' + f(g.rt, 1) + ' gap ' + f(g.gap, 1) + ' apex ' + f(g.apex, 1));
+        rows.push(arm + ' tilt ' + f(U.radToDeg(g.tilt), 0) + ' rtMin ' + f(g.rt, 1) + ' turn ' + f(g.turnLen, 1)
+          + ' gap ' + f(g.gap, 1) + ' apex ' + f(g.apex, 1));
       }
       const err = Math.max(...errs);
       ok(2, 'lobe closure + tangency', err < 2e-3, rows.join(' | ') + '  max err ' + err.toExponential(2) + ' limit 2e-3');

@@ -145,6 +145,57 @@ off-track excursions. `tools/ens.mjs` now reports `stall%` and a tally of WHERE 
 
 ---
 
+## T24: the junction turn easement -- implemented, measured, REJECTED, and a lesson
+
+The junction turn was a constant-radius arc entered straight off the flat hub, so lateral
+acceleration STEPPED from 0 to ~3 g inside one 0.25 cm sample. That is the same defect `rampPow`
+fixed in the vertical plane, where removing a 2.4 g step took the five-car pile-up from 2-3 crashes
+to 10, and it had never been tried in plan view. It is now implemented and it does **nothing**.
+
+The mechanism is kept because it is correct and the code is strictly better for having it:
+SPEC s5.4's closure is generalised from "a circular arc of radius rt" to "a turn of length Lt with
+mean heading cosines Cs, Ss",
+
+    gap     = Lt*Cs + S*cos(beta)          K*R - L = Lt*Ss + S*sin(beta)
+
+which for a circular arc has Cs = sin(beta)/beta and Ss = (1-cos beta)/beta and recovers the old
+equations exactly. At `turnEaseFrac` 0 the geometry is bit-identical to before. Self-test check 2
+now verifies the general closure AND that with no easement the turn is still exactly a circle, so
+it is a stronger test than the one it replaced.
+
+`turnEaseFrac` / `turnEaseOutFrac` ramp the curvature in and out like a railway transition spiral.
+The two ends are separately settable because the trade differs: easing BOTH keeps the turn's length
+so the middle must be tighter (minimum radius 25.9 -> 22.2 -> 18.4 -> 14.5 at 0.15 / 0.30 / 0.45),
+while easing only the ENTRY just makes the turn longer and barely touches the radius
+(25.88 -> 25.47 at 0.35), paying in footprint instead (134 -> 144 cm, circuit 349 -> 369).
+
+**Why it is rejected.** `tools/wall.mjs` said first that the energy through the turn does not move:
+0.49-0.55 g across the whole sweep at SEM 0.02. Then the ensemble said the survival does not move
+either -- see the lesson below. The curvature step is real, and it is not what kills cars.
+
+### THE LESSON, and it is the most useful thing in this section
+
+The first n=60 sweep looked like a clean win and it was **start-offset luck**:
+
+| ease (entry only) | n=60, offset set A | n=60, offset set B |
+|---|---|---|
+| 0 | 1.37 mean laps, best 8 | 1.43 mean laps, best 15 |
+| 0.28 | 1.83, best 8 | -- |
+| **0.35** | **2.25, best 16** | **1.50, best 8** |
+| 0.42 | 1.58, best 8 | -- |
+
+Set A shows a smooth rise to a peak at 0.35 with the best run doubling, and it survived being
+"repeated". Set B, the same 60 runs from a DIFFERENT set of start offsets, shows nothing at all and
+flips the best run the other way. Pooled over all 120 runs it is 1.40 against 1.88 -- about 1.2
+standard errors, and under this project's own half-or-double rule, not a result.
+
+**Re-running a batch is not an independent sample.** `tools/ens.mjs` is deterministic, so the same
+`backs` array gives the same 60 runs and "it reproduced exactly" means only that the code is
+deterministic. **Vary the `backs` array, not just the batch.** Two n=60 samples on different
+offsets is the cheapest honest test, and it is what this was nearly shipped without.
+
+---
+
 ## T21 (banked channel): also a negative result
 
 The plan was to bank the lobe's cross-section into a groove so the wheels carry the corner instead
@@ -369,6 +420,10 @@ conclusion in the old HANDOFF that rested on one run should be treated as unprov
   move it by half or double it. Several apparently promising leads this session were that band.
   Re-measure the baseline inside every batch and compare within the batch, never across batches.
 - `endS` / `maxS` are thresholds on whether a nip happens to catch the car. Never use them.
+- **REPRODUCIBILITY IS NOT INDEPENDENCE.** `ens.mjs` is deterministic: the same `backs` array is
+  the same runs, so re-running a batch confirms nothing. A 1.6x "win" that survived being repeated
+  twice at n=60 vanished on a different set of start offsets (T24). Two n=60 samples on DIFFERENT
+  `backs` is the cheapest honest test of anything that looks good.
 - Results are reproducible **within a process sequence** but not across differently ordered
   batches: Rapier's WASM heap state depends on how many worlds were created before. Put the
   baseline in every batch and compare within the batch.
@@ -461,17 +516,28 @@ If it is missing: `node tools/fetch-rapier.mjs`.
 
 ## Next moves, in order
 
-1. **T24 -- the junction turn.** It is the last expensive stretch (0.5-0.6 g against the lobe's
-   0.10-0.33) and it is where 27 % of runs stop dead. It is a ~26 cm flat bend entered from a
-   straight, so the lateral acceleration STEPS from 0 to 5.4 g in one sample. That is exactly the
-   bug `rampPow` fixed in the vertical plane -- where removing a 2.4 g curvature step took the
-   five-car pile-up from 2-3 crashes to 10 -- and nobody has tried the same thing in plan view.
-   **Give the junction turn an easement** (curvature ramping in and out, a clothoid rather than an
-   arc), re-solving `rt` numerically so the closure in SPEC s5.4 still holds exactly. Banking it
-   does not work and the radius is nearly maxed (see T23's rejected list).
-2. **T25 -- the five-car jam.** With five cars they end up queued in that same junction turn, so (1)
-   should largely fix it. `recycleLookCm` already stops the recycler feeding the queue.
-3. Then `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
+1. **THE APEX, not the junction turn.** T24 killed the turn hypothesis, and tracing a failing run
+   shows the real mechanism directly. At `back` 0.46 the car launches at 230 cm/s, climbs the north
+   ring, and reaches **y = 23.7 cm at 21 cm/s against a 24.0 cm apex** -- it does not crest, rolls
+   back down (s runs 98 -> 95 -> 87 -> 64 -> 56), and ends stopped on the ramp. That is why the
+   failure tally puts 19-23 of 60 runs at "s20-s40" with zero laps: they are not failed launches,
+   they are cars that came BACK. The arithmetic is tight and unforgiving: a car arrives at the lobe
+   with v^2 ~ 52,900 and the climb alone costs 2*981*(24.0 - 1.2) = 44,700.
+   The apex is `y0 + R(1 + cos45)*sin(tilt)`, so the levers are `lobeRadius` and `loopTiltDeg`
+   (and `rampPow`, for the small `y0` part). Both were swept earlier at n=30 on ONE offset set and
+   showed no trend -- which after T24 means nothing either way. Re-run them properly: two n=60
+   samples on different `backs`, and expect to trade apex height against the junction-turn radius
+   that `lobeRadius` also sets.
+2. **The ramp -> arc joint in the VERTICAL plane.** Measured directly (scratch script, the same
+   method as `tools/geom.mjs`): the vertical curvature steps 0.0332 -> 0.0226 /cm across the joint,
+   i.e. **2.28 g -> 1.56 g at 260 cm/s, a 0.7 g step**. Real, but a quarter of the lateral step
+   T24 just showed to be harmless, so rank it accordingly. The fix, if wanted, is to give the
+   ramp's height profile two end conditions instead of one: y = a3 t^3 + a4 t^4 with y''(0) = 0,
+   y'(1) = tanSigma*rampLen and y''(1) matched to the arc, which gives a3 = P - Q/3,
+   a4 = (Q - 2P)/4 and y0 = P/2 - Q/12. It raises the chord (y0 3.74 -> 4.75 at ease 0.35) and so
+   the apex, which item 1 says is exactly the wrong direction -- so do item 1 first.
+3. **The five-car jam.** Already much better with auto-recycle; should follow from (1).
+4. Then `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
 
 **Residual, low priority:** `tools/audit.mjs` reports 48 exposed wall end caps at reach -0.69,
 i.e. 0.69 cm outside the lane edge, at the hub gates. They do not respond to `wallSegLen` or

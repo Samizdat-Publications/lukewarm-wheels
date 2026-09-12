@@ -107,12 +107,34 @@
                                  // minimum radius falls roughly as (1 - ease) and peak g rises by
                                  // the same factor. Closure is re-solved either way (SPEC s5.4
                                  // generalises from rt to the turn's length), so the geometry
-                                 // cannot drift. See docs/PLAN.md T24 for the measurements.
-    turnEaseOutFrac: null,       // easement at the turn's far end; null = same as turnEaseFrac.
+                                 // cannot drift.
+                                 // MEASURED AND REJECTED, 2026-09-12. Entry-only easing looked like
+                                 // a clean win on the first n=60 sample -- 1.37 -> 1.83 -> 2.25 ->
+                                 // 1.58 mean laps at ease 0 / 0.28 / 0.35 / 0.42, with the best run
+                                 // doubling 8 -> 16 -- and it is NOISE. A second n=60 sample on a
+                                 // DIFFERENT set of start offsets gives 1.43 against 1.50, and the
+                                 // best run flips the other way (15 against 8). Pooled over all 120
+                                 // runs it is 1.40 against 1.88, about 1.2 standard errors, and
+                                 // under this project's own rule (only act on half-or-double) that
+                                 // is not a result. It costs footprint 134 -> 144 cm and circuit
+                                 // 349 -> 369 cm, so 0 it is.
+                                 // tools/wall.mjs had already said the same thing about the energy:
+                                 // 0.49-0.55 g through the turn across the whole sweep, SEM 0.02.
+                                 // So the curvature STEP is real and it is not what kills cars.
+                                 // BEWARE: the two n=60 batches that "confirmed" 2.25 used the same
+                                 // 12 start offsets, so they were the same 60 runs re-run
+                                 // deterministically. Reproducibility is not independence. Vary the
+                                 // `backs` array, not just the batch.
+                                 // SYMMETRIC easing is worse again above 0.10 (1.80 at 0.20, 1.43 at
+                                 // 0.40) because it buys smoothness with a tighter middle.
+    turnEaseOutFrac: 0,          // easement at the turn's far end; null = same as turnEaseFrac.
                                  // The two ends are different problems: the entry meets the flat hub
                                  // at launch speed, the exit meets a 1 cm straight and then the
                                  // lobe's own curvature the other way round, with the car slower.
-                                 // Easing only the entry costs half the minimum-radius penalty.
+                                 // Easing only the entry costs half the minimum-radius penalty --
+                                 // in fact almost none of it: the turn just gets LONGER (minimum
+                                 // radius 25.88 -> 25.47 cm at ease 0.35). Easing the exit as well
+                                 // measures worse (1.77 against 3.13 at n=30).
     rampPow: 4.0,                // exponent of the ramp's height profile y = y0 * t^rampPow. At 2 the
                                  // vertical curvature is constant, so it STEPS from 0 to 2.4 g the
                                  // instant the car leaves the flat hub; at 3+ it starts at zero, and
