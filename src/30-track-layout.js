@@ -51,19 +51,58 @@
   //            plan tangent at the ends is (cos(tilt)*d + r), so beta = atan(1/cos(tilt)) -- 45 deg
   //            only when the lobe is flat. The junction turn must deliver exactly this heading.
   //   sigma  = climb angle of the arc at its ends; the ramps must arrive at this slope.
-  // Given straightLen S, the junction radius and the hub->chord gap follow from closure:
-  //   gap        = rt*sin(beta) + S*cos(beta)          (along the arm)
-  //   K*R - L    = rt*(1-cos(beta)) + S*sin(beta)      (across it)
+  // Given straightLen S, the junction turn's LENGTH and the hub->chord gap follow from closure:
+  //   gap        = Lt*Cs + S*cos(beta)                 (along the arm)
+  //   K*R - L    = Lt*Ss + S*sin(beta)                 (across it)
+  // where Cs, Ss are the mean cos/sin of the heading over the turn. For a plain circular arc of
+  // radius rt, Cs = sin(beta)/beta and Ss = (1-cos(beta))/beta and those reduce to the old
+  // rt*sin(beta) / rt*(1-cos(beta)); the general form is what lets the turn be EASED.
+  //
+  // THE EASEMENT (T24). The turn used to be a constant-radius arc entered straight from the hub,
+  // so the lateral acceleration STEPPED from 0 to ~3 g in one 0.25 cm sample. That is exactly the
+  // bug `rampPow` fixed in the vertical plane -- where removing a 2.4 g curvature step took the
+  // five-car pile-up from 2-3 crashes to 10 -- and it had never been tried in plan view, even
+  // though the junction turn is where 27 % of runs stop dead. `turnEaseFrac` ramps the CURVATURE
+  // in and out over that fraction of the turn at each end, like the transition spiral on a
+  // railway. It is not free: the same total turn in the same lateral budget means the middle must
+  // be tighter, so the minimum radius falls by 1/(1 - 2*ease)... the trade is jerk against peak g,
+  // and only the ensemble can say where it lands.
+  function turnShape(cfg, beta) {
+    // The two ends are separate, because they are not the same problem. The ENTRY meets the flat
+    // hub lane at launch speed and is where the step costs something; the EXIT meets a 1 cm
+    // straight and then the lobe's own curvature, the other way round, with the car already
+    // slower. Easing only the entry costs half the radius penalty of easing both.
+    let e0 = M.clamp(cfg.turnEaseFrac || 0, 0, 0.95);
+    let e1 = M.clamp(cfg.turnEaseOutFrac == null ? e0 : cfg.turnEaseOutFrac, 0, 0.95);
+    if (e0 + e1 > 0.98) { const k = 0.98 / (e0 + e1); e0 *= k; e1 *= k; }   // keep a flat top
+    const mean = 1 - (e0 + e1) / 2;
+    // curvature shape w(u), normalised so its mean is 1: a trapezoid, flat-topped
+    const w = (e0 <= 0 && e1 <= 0) ? () => 1
+      : (u) => (e0 > 0 && u < e0 ? u / e0 : e1 > 0 && u > 1 - e1 ? (1 - u) / e1 : 1) / mean;
+    const N = 720, du = 1 / N;
+    // W = running integral of w (so theta = beta*W), C/S = running integrals of cos/sin(theta)
+    const W = new Float64Array(N + 1), C = new Float64Array(N + 1), Sn = new Float64Array(N + 1);
+    for (let i = 1; i <= N; i++) {                       // trapezoid on w, then on cos/sin
+      W[i] = W[i - 1] + du * (w((i - 1) * du) + w(i * du)) / 2;
+      const t0 = beta * W[i - 1], t1 = beta * W[i];
+      C[i] = C[i - 1] + du * (Math.cos(t0) + Math.cos(t1)) / 2;
+      Sn[i] = Sn[i - 1] + du * (Math.sin(t0) + Math.sin(t1)) / 2;
+    }
+    return { e0, e1, N, C, Sn, Cs: C[N], Ss: Sn[N], wMax: 1 / mean };
+  }
+
   function lobeGeom(arm, cfg) {
     const tilt = HW.units.degToRad(String(cfg.loopArms || 'NE').toUpperCase().includes(arm) ? cfg.loopTiltDeg : cfg.sweepTiltDeg);
     const ct = Math.cos(tilt), st = Math.sin(tilt);
     const R = cfg.lobeRadius, S = cfg.straightLen, L = cfg.laneOffset;
     const beta = Math.atan2(1, ct);
     const sb = Math.sin(beta), cb = Math.cos(beta);
-    const rt = (K * R - L - S * sb) / (1 - cb);
-    const gap = rt * sb + S * cb;
+    const turn = turnShape(cfg, beta);
+    const turnLen = (K * R - L - S * sb) / turn.Ss;      // length of the junction turn along its own arc
+    const gap = turnLen * turn.Cs + S * cb;
+    const rt = turnLen / (beta * turn.wMax);             // MINIMUM radius of the turn (its tightest point)
     const RAMP_POW = cfg.rampPow;
-    const rampLen = rt * beta + S;                       // plan distance, hub gate -> arc end
+    const rampLen = turnLen + S;                         // plan distance, hub gate -> arc end
     const tanSigma = st / Math.hypot(ct, 1);             // dy/d(plan) at the arc end
     // Height profile of a ramp is y0 * t^rampPow with t = plan fraction, so y'(1) = pow*y0/rampLen
     // must equal tan(sigma). The exponent decides where the vertical curvature sits: at 2 it is
@@ -74,7 +113,7 @@
     const y0 = rampLen * tanSigma / RAMP_POW;            // height of the arc's chord above the hub
     const apex = y0 + R * (1 + K) * st;
     const rampArc = Math.hypot(rampLen, y0 * 0.72); // ~3D length of the ramp
-    return { tilt, ct, st, R, S, beta, rt, gap, rampLen, rampArc, tanSigma, y0, apex, pow: RAMP_POW, sigma: Math.atan(tanSigma) };
+    return { tilt, ct, st, R, S, beta, rt, turn, turnLen, gap, rampLen, rampArc, tanSigma, y0, apex, pow: RAMP_POW, sigma: Math.atan(tanSigma) };
   }
 
   // Ramp: junction turn of `beta` at radius rt, then a straight of length S, carrying the height
@@ -83,19 +122,25 @@
   // from the arc end back to the gate).
   function rampSeg(g, gate, d, r, meta, outbound, rollFrac, bankOf) {
     const nPlane = V.norm(V.make(-d.x * g.st, g.ct, -d.z * g.st)); // lobe plane normal
-    const turnLen = g.rt * g.beta;
+    const turnLen = g.turnLen, TS = g.turn;
     const side = outbound ? 1 : -1;   // outbound turns toward +r; inbound arrives from -r
     const rr = V.scale(r, side);
+    // The turn is integrated, not drawn: TS.C/TS.Sn are the running integrals of cos/sin of the
+    // heading against arc length, so the position at fraction u is turnLen*(C[u], Sn[u]) in the
+    // (d, rr) frame. With turnEaseFrac 0 that reproduces the circular arc exactly.
+    const at = (u) => {
+      const x = M.clamp(u, 0, 1) * TS.N, i = Math.min(TS.N - 1, Math.floor(x)), f = x - i;
+      return { c: TS.C[i] + (TS.C[i + 1] - TS.C[i]) * f, s: TS.Sn[i] + (TS.Sn[i + 1] - TS.Sn[i]) * f };
+    };
     // plan position at plan-distance p measured from the gate
     function planAt(p) {
       if (p <= turnLen) {
-        const th = p / g.rt;
-        return V.addScaled(V.addScaled(gate, d, g.rt * Math.sin(th)), rr, g.rt * (1 - Math.cos(th)));
+        const q = at(p / turnLen);
+        return V.addScaled(V.addScaled(gate, d, turnLen * q.c), rr, turnLen * q.s);
       }
-      const th = g.beta, s = p - turnLen;
-      const base = V.addScaled(V.addScaled(gate, d, g.rt * Math.sin(th)), rr, g.rt * (1 - Math.cos(th)));
-      const h = V.addScaled(V.scale(d, Math.cos(th)), rr, Math.sin(th));
-      return V.addScaled(base, h, s);
+      const base = V.addScaled(V.addScaled(gate, d, turnLen * TS.Cs), rr, turnLen * TS.Ss);
+      const h = V.addScaled(V.scale(d, Math.cos(g.beta)), rr, Math.sin(g.beta));
+      return V.addScaled(base, h, p - turnLen);
     }
     return {
       kind: 'ramp', meta, deepWall: true, tilt: g.tilt, rampLen: g.rampLen, y0: g.y0, nPlane,

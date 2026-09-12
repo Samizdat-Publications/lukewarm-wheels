@@ -97,6 +97,22 @@
                                  // 10-16 cm scaled off Stewart's eBay photos.
     straightLen: 1.0,            // ESTIMATE: the short A-H connector between the junction turn and
                                  // the arc. Raising it shrinks the derived junction radius.
+    turnEaseFrac: 0,             // fraction of the JUNCTION TURN at each end over which its curvature
+                                 // ramps in and out, instead of stepping. At 0 the turn is a plain
+                                 // circular arc entered straight off the flat hub, so lateral
+                                 // acceleration jumps from 0 to ~3 g inside one 0.25 cm sample --
+                                 // the same defect `rampPow` fixed in the vertical plane. It is a
+                                 // trade, not a free win: the same total turn inside the same
+                                 // lateral budget means the eased middle must be TIGHTER, so the
+                                 // minimum radius falls roughly as (1 - ease) and peak g rises by
+                                 // the same factor. Closure is re-solved either way (SPEC s5.4
+                                 // generalises from rt to the turn's length), so the geometry
+                                 // cannot drift. See docs/PLAN.md T24 for the measurements.
+    turnEaseOutFrac: null,       // easement at the turn's far end; null = same as turnEaseFrac.
+                                 // The two ends are different problems: the entry meets the flat hub
+                                 // at launch speed, the exit meets a 1 cm straight and then the
+                                 // lobe's own curvature the other way round, with the car slower.
+                                 // Easing only the entry costs half the minimum-radius penalty.
     rampPow: 4.0,                // exponent of the ramp's height profile y = y0 * t^rampPow. At 2 the
                                  // vertical curvature is constant, so it STEPS from 0 to 2.4 g the
                                  // instant the car leaves the flat hub; at 3+ it starts at zero, and
