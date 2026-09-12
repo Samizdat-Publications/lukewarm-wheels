@@ -73,6 +73,7 @@
       sim.world.step(sim.eventQueue);
       for (const c of cars) c.postStep(dt);
       sim.drainEvents();
+      sim.recycle(dt);
       sim.time += dt; sim.stepCount++;
       if (sim.stepCount % 12 === 0) { sim.snapshot(); HW.bus.emit('telemetry', sim.telemetry); }
     },
@@ -130,6 +131,49 @@
       if (!q || !q.length) return;
       while (q.length && q[0].at <= sim.time) { const p = q.shift(); p.car.spawnAtGate(p.gate); }
     },
+    // AUTO-RECYCLE. A real set gets played with: a car that stops, flips or goes over the side is
+    // picked up and dropped back into a booster. Without that the five-car game dies the moment the
+    // first crash leaves a car across the lane -- measured: 25 s of five cars ends with 4.3 of them
+    // stopped and nothing moving, no matter how well a LONE car laps. So a car that has been
+    // stalled, off the track or lifted for `recycleAfter` seconds is put back into a free outbound
+    // nip, one at a time (`recycleStagger`) so five of them never load the motor at once.
+    // This is a game affordance, not physics; `autoRecycle: false` turns it off and you get the
+    // unattended toy, which is what the self-test measures.
+    recycle(dt) {
+      const cfg = HW.config;
+      if (!cfg.autoRecycle || !dt) return;
+      sim.recycleWait = Math.max(0, (sim.recycleWait || 0) - dt);
+      const busy = {};
+      for (const c of sim.cars) if (!c.lifted && c.inBooster) busy[c.inBooster] = true;
+      for (const c of sim.cars) {
+        const bad = c.lifted || c.offTrack || (c.stalled && !c.inBooster);
+        c.deadTimer = bad ? (c.deadTimer || 0) + dt : 0;
+        if (c.deadTimer < cfg.recycleAfter || sim.recycleWait > 0) continue;
+        // Back into an outbound nip -- but NOT into one whose lane is already blocked. Cars stall
+        // in the junction turn just past the second nip, and dropping the next car into the same
+        // gate simply lengthens the queue: the five-car self-test used to end with all five stopped
+        // within 15 cm of each other there. Score each free gate by how clear the next
+        // `recycleLookCm` of ITS lane is and take the best.
+        const look = cfg.recycleLookCm;
+        const score = (g) => {
+          let worst = look;
+          for (const o of sim.cars) {
+            if (o === c || o.lifted || o.path !== g.path || o.speed > cfg.stallSpeed * 4) continue;
+            let d = o.s - g.s; if (d < 0) d += g.path.length;
+            if (d < worst) worst = d;
+          }
+          return worst;
+        };
+        const gates = Object.values(sim.track.gates).filter((g) => g.lane === 'out' && !busy[g.boosterName]);
+        if (!gates.length) continue;
+        const g = gates.sort((a, b) => score(b) - score(a))[0];
+        c.deadTimer = 0; sim.recycleWait = cfg.recycleStagger;
+        busy[g.boosterName] = true;
+        c.spawnAtGate(g.boosterName);
+        HW.bus.emit('recycled', { car: c, gate: g.boosterName });
+      }
+    },
+
     placeCar(car, path, s, lateral = 0) { car.placeAt(path, s, lateral); HW.bus.emit('placed', { car }); },
     nudgeStalled() { for (const c of sim.cars) if (!c.lifted && (c.stalled || c.speed < HW.config.stallSpeed)) c.nudge(); },
 

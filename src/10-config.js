@@ -173,25 +173,42 @@
                                  // is compliant and the far wall reacts the squeeze, so the car should
                                  // SETTLE against the wall, not be accelerated into it. Terminal lateral
                                  // speed in the nip is roughly push/(mass*boostLatDamp).
-    boostYawDamp: 0,             // 1/s: yaw damping in the nip, same reasoning. The foam grips the
+    boostYawDamp: 40,            // 1/s: yaw damping in the nip, same reasoning. The foam grips the
                                  // whole side of the casting, so a car cannot turn inside the nip.
                                  // It must leave straight: the crossing square is 8.8 cm with no
                                  // exit walks the car through the crossing gap. OFF by default: it
                                  // works (cars keep 40 % more speed at s=270) but the extra speed
                                  // then pushes them over the lobe wall -- 87 % leave the track vs 7 %.
-                                 // Turn it on together with a taller lobeWallHeight, not alone.
+                                 // RE-MEASURED 2026-09-11 and now ON: with a lobe that can actually
+                                 // hold a fast car (T23) the extra speed is kept instead of thrown
+                                 // away -- 2.30 mean laps against 1.87 with it off, n=30, and the
+                                 // stall rate drops 30 % -> 20 %, because most stalls were cars that
+                                 // left a nip crooked and died in the junction turn. This is the
+                                 // second result this session that was rejected for the right reason
+                                 // at the time and is simply wrong now.
 
     // ---- drive train (SI in, converted on read) -------------------------------
     cells: 4,
     cellV0Fresh: 1.60, cellV0Dead: 1.10,     // V open-circuit vs state of charge
-    cellRFresh: 0.22, cellRDead: 0.80,       // ohm per cell
+    cellRFresh: 0.10, cellRDead: 0.80,       // ohm per cell. 0.22 is a mid-life D cell; 0.10 is a
+                                             // fresh alkaline D, and the pack resistance is what
+                                             // decides whether FIVE loaded nips stall the motor.
     battCapacityAh: 10.0,                    // effective at ~1 A drain
     battHealth: 1.0,                         // multiplies cell resistance (1 fresh, 3 tired)
     battUsedFrac: 0.0,                       // initial state of discharge 0..1
     // Motor: 280-class brushed DC (a 130 cannot drive four foam nips from 4 D cells). ESTIMATE.
     motorKe: 4.5e-3,                         // V.s/rad  -> no-load ~13,500 rpm at 6.4 V
     motorKt: 4.2e-3,                         // N.m/A   (slightly below Ke: brush/iron losses)
-    motorR: 1.2,                             // ohm     -> stall ~3 A with the pack, ~140 g.cm
+    motorR: 0.6,                             // ohm. Was 1.2. Nothing measures the real motor, and
+                                             // the toy demonstrably drives four or five cars, while
+                                             // at 1.2 ohm five loaded nips bogged it from 11,388 to
+                                             // 5,687 rpm -- which drops the foam surface below the
+                                             // ~220 cm/s a car needs just to crest the ring, so the
+                                             // whole set stalls. Deliberate: 0.6 with a fresh pack
+                                             // takes the five-car game from 3.0 crashes and nothing
+                                             // moving to 13.8 crashes and cars still circulating,
+                                             // and costs the LONE car nothing measurable
+                                             // (2.07 laps against 2.30, inside the noise band).
     motorFric: 6.0e-4,                       // N.m coulomb friction (I0 ~ 0.15 A)
     motorB: 3.0e-8,                          // N.m.s viscous
     motorJ: 2.5e-7,                          // kg.m^2 rotor + pinion (ESTIMATE)
@@ -263,6 +280,17 @@
     lineUpStagger: 0.7,          // s between the five cars being fed into their nips. Dropping them
                                  // together bogs the motor from 11,388 to 1,687 rpm and nobody moves.
     crashSpeed: 60,              // cm/s closing speed that counts as a crash
+    // ---- auto-recycle (a game affordance, not physics) --------------------------
+    autoRecycle: true,           // put a car that has stopped, flipped or gone over the side back
+                                 // into a free outbound nip. Without it the five-car game ends at
+                                 // the first crash: 25 s of five cars finishes with 4.3 of them
+                                 // stopped and nothing moving, however well a LONE car laps. A real
+                                 // set gets played with; this is the hand that picks the car up.
+    recycleAfter: 1.8,           // s a car must be stalled / off / lifted before it is recycled
+    recycleLookCm: 60,           // cm of lane ahead of a nip that must be clear before a recycled
+                                 // car is dropped into it. Without this the recycle feeds the queue.
+    recycleStagger: 0.8,         // s between two recycles, so five of them never load the motor at
+                                 // once -- the same reason lineUpStagger exists.
     stallSpeed: 2.0,             // cm/s
     stallTime: 0.6,              // s
     nudgeImpulse: 4000,          // g.cm/s

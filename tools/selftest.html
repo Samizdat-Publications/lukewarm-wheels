@@ -198,6 +198,11 @@ HW.main.paused = true;
     // swinging laps from 0 to 1. This check therefore runs every casting and passes if the FLEET
     // laps, reporting the spread. It still WARNs rather than fails: "a lone car circulates
     // indefinitely" (docs/REFERENCES.md) is the open behaviour target, not yet met.
+    // autoRecycle is OFF for this check. It is a game affordance -- a car that stops is put back
+    // into a nip -- and leaving it on would silently inflate the one number in this suite that has
+    // been compared across every session of the project.
+    const recycleWas = HW.config.autoRecycle;
+    HW.config.autoRecycle = false;
     try {
       const SECS = 20;    // a lap takes ~2-3 s at speed, but a car spends a lot of it slow
       const perCar = [];
@@ -223,6 +228,7 @@ HW.main.paused = true;
       else record(7, 'lone-car lap (fleet)', 'WARN', detail
         + '  -- open: the real toy circulates indefinitely, see HANDOFF "Next moves"');
     } catch (e) { record(7, 'lone-car lap (fleet)', 'FAIL', 'threw: ' + e.message); }
+    HW.config.autoRecycle = recycleWas;
 
     // ---- 8. five cars: crashes, no NaN -----------------------------------------
     try {
@@ -241,7 +247,7 @@ HW.main.paused = true;
       const lifted = sim.cars.filter((c) => c.lifted);
       const stalled = sim.cars.filter((c) => !c.lifted && c.stalled);
       const cond = sim.crashes >= 1 && nan.length === 0;
-      record(8, 'five cars pile up', cond ? 'PASS' : 'FAIL',
+      record(8, 'five cars pile up' + (HW.config.autoRecycle ? ' (autoRecycle on)' : ''), cond ? 'PASS' : 'FAIL',
         sim.crashes + ' crashes in 15 s, ' + lifted.length + '/5 lifted (' + (lifted.map((c) => c.entry.name).join(', ') || 'none')
         + '), ' + stalled.length + ' stalled, ' + (nan.length ? 'NaN in: ' + nan.map((c) => c.entry.name).join(', ') : 'no NaN')
         + ', laps ' + sim.cars.map((c) => c.laps).join('/'));

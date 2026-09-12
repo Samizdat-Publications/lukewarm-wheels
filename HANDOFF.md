@@ -15,30 +15,44 @@ Blender/Gemini/ElevenLabs pipeline, questions for Stewart, risks. Read it after 
 ## Where we are
 
 `node tools/serve.mjs` -> http://localhost:8765/ ; `node tools/build.mjs` -> `dist/index.html`
-(175 KB, CSP-safe); `tools/selftest.html` -> **8/8 PASS** in real Chrome.
+(193 KB, CSP-safe) and `dist/artifact.html`; `tools/selftest.html` -> **8/8 PASS** in real Chrome.
 
 **PUBLISHED:** https://claude.ai/code/artifact/7426bcb0-d860-471f-9500-bab46b71017d
 (private to Stewart; republish by building and passing `dist/artifact.html` to the Artifact tool
-with that URL). `node tools/build.mjs` now emits `dist/artifact.html` alongside `dist/index.html`:
-the same page with the `<!doctype>/<html>/<head>/<body>` wrapper stripped, because the Artifact
-host supplies its own skeleton. NOT verified live -- the browser tool cannot sign in to claude.ai,
-so the page was verified as an identical local build only. If it fails there it will say so rather
-than hang: a classic script watches for the two ways it can break under the host CSP (the jsdelivr
-imports being refused, or WebAssembly being disallowed) and replaces the "Loading" text.
+with that URL).
 
-Shipped defaults: **loop tilt 40 deg, sweep tilt 16 deg, rampPow 4, hubHalf 16, lobeRadius 16,
-laneOffset 2.5, straightLen 1.0, 480 Hz, vehicleMode raycast.** Footprint 116 cm, ring apex
-20.1 cm, sweep apex 8.6 cm. Screenshot: `docs/progress/09-2026-09-10-published.png`.
-The page now **opens running** (`cfg.autoStart`): booster on, then the five cars fed in
-`lineUpLead` after, `lineUpStagger` apart. An empty track with the motor off shows nothing about
-what the set does, and it was the exact state Stewart hit.
+**Read `## T23` below before anything else.** The lobes were flat ribbons lying in tilted planes,
+which cannot corner at all, and that one assumption is what three sessions of coefficient work were
+fighting. Fixing it roughly tripled everything.
 
-- Lone car, 20-run ensemble over 25 s: **mean 0.75 laps, best 3, 5 % off-track.**
-- Selftest fleet check: **2 of 5 cars lap in 20 s, best 3, none leaves the track.**
-- Five-car pile-up: **10 crashes in 15 s**, 4 of 5 cars lapping (was 0-1 crashes two sessions ago).
+Shipped defaults: **lobeBankDeg 30, rollBlendCm 8, lobeRadius 19, lobeWallHeight 4.5, loop tilt 40,
+sweep tilt 16, rampPow 4, hubHalf 16, laneOffset 2.5, straightLen 1.0, 480 Hz, vehicleMode raycast,
+boostYawDamp 40, motorR 0.6, cellRFresh 0.10, autoRecycle on.**
+Footprint 134 cm, circuit 349 cm, ring apex 24.0 cm, sweep apex 10.3 cm, junction turn radius 25.9.
+Screenshot: `docs/progress/10-2026-09-11-banked-loops.png`.
 
-**Still not met:** `docs/REFERENCES.md` says a lone car circulates *indefinitely*. Ours does 1-3
-laps. And the loop tilt is 40 deg where the real set is ~48.
+| measurement | session 4 | now |
+|---|---|---|
+| lone car, mean laps / 25 s (n=30, same batch) | 0.80 | **2.07** |
+| lone car, best run | 4 laps | **11 laps** |
+| runs that stall with zero laps | 47 % | 27 % |
+| selftest fleet check, cars lapping in 20 s | 2 of 5, best 3 | **5 of 5, best 10, none off** |
+| selftest five-car pile-up, crashes / 15 s | 5 | 6 - 13 |
+| five cars / 30 s (`tools/pileup.mjs`) | 3.0 crashes, 6 laps, nothing still moving | **14.3 crashes, 15 laps, 0 lost off the table** |
+| north ring: wheels off the ground | 23 - 47 % | **0 %** |
+| north ring: drag | 0.23 - 0.76 g | **0.10 - 0.33 g** |
+
+**Two things are now game affordances rather than physics, both documented in `10-config.js`:**
+`autoRecycle` (a car stopped, flipped or off the side for `recycleAfter` seconds is put back into
+the clearest free outbound nip) and the stronger motor (`motorR` 0.6, `cellRFresh` 0.10). Without
+the first, the five-car game ends at the first crash whatever the physics does; without the second,
+five loaded nips bog the motor below the surface speed a car needs to crest the ring, so the whole
+set stalls. `tools/ens.mjs` forces `autoRecycle` off so its numbers stay comparable with every
+earlier session, and so does selftest check 7.
+
+**Still not met:** `docs/REFERENCES.md` says a lone car circulates *indefinitely*. The best runs now
+do 11 laps in 25 s, but the mean is 2.07 because 27 % of runs still stall -- almost all of them in
+the junction turn at s=20-40. That is T24 and it is the clearest next task in the project.
 
 ## T23: THE LOBE WAS NOT A LOOP. THIS IS THE ONE THAT MATTERED.
 
@@ -285,7 +299,14 @@ pays it too.
 - or simply less cornering load: a bigger `lobeRadius` helps measurably (coast 190 -> 220 cm at
   R 26) at the cost of footprint.
 
-## The loop tilt
+## The loop tilt (re-measured 2026-09-11 -- it barely matters now)
+
+With the banked lobe, tilt is nearly free: 40 -> **2.30**, 36 -> 1.40, 32 -> 1.50, 28 -> 2.20,
+24 -> 2.10 (n=30, `boostYawDamp` 40, same batch). All of that is inside the noise band, so **tilt is
+now a LOOKS decision, not a physics one**, and 40 stays because it reads unmistakably as two rings
+and two sweeps. The old table below is the flat-plane geometry and is kept only as history.
+
+### The old table (flat-plane lobes, superseded)
 
 The layout renders any tilt correctly -- open
 `index.html#cfg=%7B%22loopTiltDeg%22%3A48%2C%22sweepTiltDeg%22%3A16%7D` from a cold load and look.
@@ -364,6 +385,8 @@ conclusion in the old HANDOFF that rested on one run should be treated as unprov
 | `tools/coast.mjs` | how much drag, really? coasts a car with the motor off; deterministic. Set `foamK: 0` or the nip brakes it |
 | `tools/attribute.mjs` | splits the per-step loss by what was true that step: on a wall, wheels up, airborne, clean |
 | `tools/wheelprobe.mjs` | per-wheel compression and load, step by step (vehicleMode springs) |
+| `tools/wall.mjs` | WHY is a curve expensive? A deterministic coast over ONE named stretch for several configs at once, reporting drag, contact fraction, impulse and lateral RMS. The ensemble cannot resolve anything under half a lap; this can, because the motor is off and the start state is identical |
+| `tools/pileup.mjs` | is it FUN? five cars through `lineUpFive`, reporting crashes, laps, how many are still moving, and how far the motor bogged. A config that laps beautifully alone and bogs to a standstill with five is not the one to ship |
 | `tools/chaos.mjs` | how much of my result is noise? |
 | `tools/lobetest.mjs` | one run (`run()`, `five()`); the others build on it |
 | `tools/imgzoom.html` | pixel-zoom the instruction sheet / photos in the browser |
@@ -413,11 +436,17 @@ If it is missing: `node tools/fetch-rapier.mjs`.
 
 ## Things measured and REJECTED (do not re-try without new evidence)
 
-- **Banking the lobe channel on top of the plane tilt** (`lobeBankDeg` 10/20): 93 % off the
-  track at 20 deg. It twists a surface that is otherwise exactly planar. Leave it at 0.
-- **Nip yaw damping** (`boostYawDamp`): it works -- cars keep ~40 % more speed at s=270 --
-  but the extra speed then puts 87 % of them off the track (vs 7 %). Off by default. Only
-  turn it on together with whatever finally makes the lobe hold a fast car.
+- ~~**Banking the lobe channel on top of the plane tilt** (`lobeBankDeg` 10/20): 93 % off the
+  track at 20 deg. It twists a surface that is otherwise exactly planar. Leave it at 0.~~
+  **WRONG, and it was the whole blocker -- see T23.** The surface was not "otherwise exactly
+  planar" in any useful sense: a plane cannot corner. What was wrong was the SCHEDULE, which eased
+  the bank to zero at both joints. `lobeBankDeg` is now 30 and is the single biggest win in the
+  project's history.
+- ~~**Nip yaw damping** (`boostYawDamp`): it works -- cars keep ~40 % more speed at s=270 --
+  but the extra speed then puts 87 % of them off the track (vs 7 %). Off by default.~~ The last
+  sentence of that entry said *"only turn it on together with whatever finally makes the lobe hold
+  a fast car"*, and T23 is that thing. Re-measured 2026-09-11: **2.30 mean laps against 1.87** with
+  it off, stalls 30 % -> 20 %. It is ON at 40 now.
 - **Opening the whole `#` crossing square.** The real opening is only as wide as the lane
   that crosses (~3.8 cm), not the 8.8 cm square; widening it made cars wander out
   (off 7 % -> 40 %). The 1.2 cm wall island at the dead centre is the tip of the arm's
@@ -432,27 +461,17 @@ If it is missing: `node tools/fetch-rapier.mjs`.
 
 ## Next moves, in order
 
-Three hypotheses have now been tested and killed, each with numbers: it is not Rapier's vehicle
-controller (our own model loses the same), it is not surface warp (more suspension travel makes it
-worse), and it is not the lack of a banked channel (banking helps a coasting car and hurts a
-lapping one). What is left is the plain arithmetic below, so start there rather than with a
-fourth hypothesis.
-
-1. **Do the lap arithmetic before changing anything.** The circuit is 300 cm with four nips, but
-   they are PAIRED: two in each hub 17 cm apart, then a ~131 cm coast around a whole lobe. A car
-   leaves a nip at ~330 cm/s (v^2 = 109,000) and the curves cost ~0.4 g, so over 131 cm it arrives
-   with v^2 = 109,000 - 2*0.4*981*131 = 6,000, i.e. **v = 78 cm/s**. It is caught, but with almost
-   nothing to spare, and that is why the result is a coin-flip rather than a car that circulates.
-   Both terms are attackable and neither has been tried properly:
-   - **shorten the coast**: the 131 cm is the whole lobe. `boosterR` moves the nips outward toward
-     the gates (tried once at tilt 30 and it was worse, but not since `rampPow`/`hubHalf` changed).
-   - **raise the launch**: it is grip-limited, so `foamK`, `foamMu`, `boostExtra` and `foamGap` are
-     the levers, NOT the drive train. `foamGap` 1.5 was measured to give +70 cm/s at s=60 but more
-     off-track excursions; it may be worth revisiting now that the geometry is calmer.
-2. **Only then raise `loopTiltDeg` towards 48** and re-run the tilt table above.
-3. **Then the five-car pile-up.** Already much better (10 crashes, 4 of 5 lapping) but cars still
-   stall rather than circulating; it should follow from (1).
-4. Then `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
+1. **T24 -- the junction turn.** It is the last expensive stretch (0.5-0.6 g against the lobe's
+   0.10-0.33) and it is where 27 % of runs stop dead. It is a ~26 cm flat bend entered from a
+   straight, so the lateral acceleration STEPS from 0 to 5.4 g in one sample. That is exactly the
+   bug `rampPow` fixed in the vertical plane -- where removing a 2.4 g curvature step took the
+   five-car pile-up from 2-3 crashes to 10 -- and nobody has tried the same thing in plan view.
+   **Give the junction turn an easement** (curvature ramping in and out, a clothoid rather than an
+   arc), re-solving `rt` numerically so the closure in SPEC s5.4 still holds exactly. Banking it
+   does not work and the radius is nearly maxed (see T23's rejected list).
+2. **T25 -- the five-car jam.** With five cars they end up queued in that same junction turn, so (1)
+   should largely fix it. `recycleLookCm` already stops the recycler feeding the queue.
+3. Then `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
 
 **Residual, low priority:** `tools/audit.mjs` reports 48 exposed wall end caps at reach -0.69,
 i.e. 0.69 cm outside the lane edge, at the hub gates. They do not respond to `wallSegLen` or

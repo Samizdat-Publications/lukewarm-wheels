@@ -16,7 +16,9 @@ const med = (a) => { const b = a.filter((x) => x !== undefined).sort((x, y) => x
 console.log('n=' + cars.length * backs.length + ' runs/case, ' + secs + 's each');
 console.log('case'.padEnd(20) + ' laps(mean max)  off% stall% ' + probe.map((p) => ('v@' + p).padStart(6)).join('') + '   where runs failed');
 for (const [name, patch] of Object.entries(cases)) {
-  const cfg = Object.assign({}, A.base || {}, patch);
+  // autoRecycle is a GAME affordance (a car that stops is put back in a nip). It would silently
+  // inflate every number here, so this harness measures the physics with it off unless asked.
+  const cfg = Object.assign({ autoRecycle: false }, A.base || {}, patch);
   const laps = [], offs = [], offSs = [], dead = [], P = probe.map(() => []);
   for (const carIdx of cars) for (const back of backs) {
     const r = run(cfg, { secs, probeS: probe, back, carIdx });
