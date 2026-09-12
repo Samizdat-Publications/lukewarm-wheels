@@ -81,7 +81,7 @@
   // from 0 to g.y0 and the surface roll from flat to the lobe's plane normal. `dirSign` +1 builds
   // it outbound from the hub gate; -1 builds the inbound mirror (traversed hub-ward, so u runs
   // from the arc end back to the gate).
-  function rampSeg(g, gate, d, r, meta, outbound, rollFrac) {
+  function rampSeg(g, gate, d, r, meta, outbound, rollFrac, bankOf) {
     const nPlane = V.norm(V.make(-d.x * g.st, g.ct, -d.z * g.st)); // lobe plane normal
     const turnLen = g.rt * g.beta;
     const side = outbound ? 1 : -1;   // outbound turns toward +r; inbound arrives from -r
@@ -110,6 +110,12 @@
         const t = outbound ? u : 1 - u;
         return V.norm(V.lerp(V.UP, nPlane, rollFrac(t * g.rampArc)));
       },
+      // The ramp carries the BANK in as well, on exactly the same schedule as the tilt roll and by
+      // exactly the same construction as the arc, so the two segments share a surface frame at the
+      // joint by construction. Ramping the tilt while the arc arrived already banked left an 8.9 deg
+      // STEP in the surface at the joint, and a car crossing a step mid-corner at 300 cm/s stops
+      // dead (measured 2026-09-10: coast reached s=172 unbanked, s=49 banked).
+      bankAt: !bankOf ? null : (u) => bankOf((outbound ? u : 1 - u) * g.rampArc),
     };
   }
 
@@ -118,11 +124,10 @@
   //   xi(psi) = R*(cos psi + cos45)   is the in-plane distance from the chord, so xi = 0 at both ends
   //   P       = chordMid + d*(xi*cos tilt) + r*(R sin psi) + up*(y0 + xi*sin tilt)
   // The surface normal is the plane normal everywhere: no twist, no blend, nothing to tune.
-  function tiltArcSeg(g, chordMid, d, r, meta, bankDeg, bankBlendCm, rollFrac) {
+  function tiltArcSeg(g, chordMid, d, r, meta, bankOf, bankBlendCm, rollFrac, bankProfile) {
     const sweep = 2 * HALF_SWEEP;
     const arcLen = g.R * 2 * HALF_SWEEP;
     const nPlane = V.norm(V.make(-d.x * g.st, g.ct, -d.z * g.st));
-    const bankMax = HW.units.degToRad(bankDeg || 0);
     const bankBlend = M.clamp(bankBlendCm / arcLen, 0.05, 0.5);
     const psiAt = (u) => HALF_SWEEP - sweep * u;
     return {
@@ -138,8 +143,17 @@
       // It must start from ZERO at each joint: the ramps carry no bank, so sharing the tilt's roll
       // schedule left an 8.9 deg STEP in the surface at the ramp -> arc joint and cars stopped dead
       // there (coast: reached s=172 unbanked, s=49 at any bank, then rolled back down).
-      bankAt: bankMax === 0 ? null : (u) => bankMax
-        * M.smoothstep(0, bankBlend, u) * M.smoothstep(0, bankBlend, 1 - u),
+      // 'cone': the bank is CONSTANT over the whole arc, so the surface is exactly a cone about
+      // the circle's axis -- zero twist, and present where the car is FASTEST. 'centre' is the
+      // 2026-09-10 version that eased the bank to zero at both joints; it measured monotonically
+      // worse for a findable reason: it removed the bank exactly at the arc entry, where the car
+      // is at launch speed and the cornering demand is highest, and kept it only near the apex
+      // where the car is slowest and a bank it cannot hold just drops it onto the inner wall.
+      bankAt: !bankOf ? null : bankProfile === 'centre'
+        ? (u) => bankOf(g.rampArc + u * arcLen, u) * M.smoothstep(0, bankBlend, u) * M.smoothstep(0, bankBlend, 1 - u)
+        // The arc's roll distance is measured from whichever joint is nearer, so the schedule is
+        // symmetric and the far ramp picks it up unchanged.
+        : (u) => bankOf(g.rampArc + Math.min(u, 1 - u) * arcLen, u),
       pointAt(u) {
         const psi = psiAt(u), xi = g.R * (Math.cos(psi) + K);
         const p = V.addScaled(V.addScaled(chordMid, d, xi * g.ct), r, g.R * Math.sin(psi));
@@ -171,9 +185,42 @@
     // ramp is barely that. `rollBlendCm` buys the rest from the first part of the arc.
     const D = g.rampArc + cfg.rollBlendCm;
     const rollFrac = (p) => M.smoothstep(0, 1, M.clamp(p / D, 0, 1));
-    const out = rampSeg(g, aOut, A.d, A.r, { arm, name: arm + '-out-ramp' }, true, rollFrac);
-    const arc = tiltArcSeg(g, chordMid, A.d, A.r, { arm, name: arm + '-lobe' }, cfg.lobeBankDeg, cfg.bankBlendCm, rollFrac);
-    const back = rampSeg(g, aIn, A.d, A.r, { arm, name: arm + '-in-ramp' }, false, rollFrac);
+    // BANK. Along the arc, `right` is exactly the OUTWARD radial of the circle (write the tangent
+    // and the plane normal in the plane's own basis and it falls out), so rolling the cross-section
+    // about the tangent by b turns the surface normal b degrees toward the circle's CENTRE.
+    // This is the most important number in the layout. At b = 0 the lobe is a flat ribbon lying in
+    // a tilted plane, and such a surface cannot corner AT ALL -- the centre of the circle is in the
+    // plane, so the direction the car must be pushed lies in the plane, and the surface normal is
+    // perpendicular to it. Every one of the 2.5-5.7 g is then handed to the side wall. At b = 90 deg
+    // the lobe is a genuine LOOP: the car rides the inside of the ring and the FLOOR supplies
+    // v^2/R, which is how the instruction sheet draws it (a car is inverted at the apex of each
+    // rear ring). In between it is a cone -- a banked channel.
+    // Both ramps carry the same bank in on the same roll schedule and by the same construction as
+    // the arc, so every joint is continuous by construction rather than by coincidence.
+    // ONE bank schedule for the whole lobe, as a function of path distance p from the hub gate
+    // (and, on the arc, of the arc parameter u). Both ramps and the arc call it, so every joint is
+    // continuous by construction.
+    //   * Through the JUNCTION TURN the bend is the other way round -- `right` there points AT the
+    //     centre of the turn, not away from it -- so its bank is NEGATIVE in this convention. The
+    //     lane leaves the hub, swings out, then curls back round the lobe: an S-bend, and a real
+    //     road reverses its camber through one. The junction turn is a ~20 cm radius taken at the
+    //     highest speed of the lap (5.4 g) and is the single most expensive stretch on the circuit.
+    //   * Along the ARC the ideal bank tracks v^2/(R g), and v is highest at the two ends and
+    //     lowest at the apex, so the bank eases from `lobeBankDeg` at the ends toward
+    //     `lobeBankApexDeg` at the apex rather than being one compromise angle.
+    const turnBank = HW.units.degToRad(cfg.turnBankDeg || 0);
+    const bankEnd = HW.units.degToRad(cfg.lobeBankDeg || 0);
+    const bankApex = HW.units.degToRad(cfg.lobeBankApexDeg == null ? cfg.lobeBankDeg : cfg.lobeBankApexDeg);
+    const anyBank = turnBank || bankEnd || bankApex;
+    const bankOf = !anyBank ? null : (p, u) => {
+      const f = rollFrac(p);                                   // 0 at the hub gate, 1 once rolled in
+      const rise = M.smoothstep(0, 1, M.clamp(p / Math.max(0.01, cfg.turnBlendCm), 0, 1));
+      const target = u == null ? bankEnd : bankEnd + (bankApex - bankEnd) * Math.sin(Math.PI * u);
+      return (-turnBank * (1 - f) + target * f) * rise;
+    };
+    const out = rampSeg(g, aOut, A.d, A.r, { arm, name: arm + '-out-ramp' }, true, rollFrac, bankOf);
+    const arc = tiltArcSeg(g, chordMid, A.d, A.r, { arm, name: arm + '-lobe' }, bankOf, cfg.bankBlendCm, rollFrac, cfg.lobeBankProfile);
+    const back = rampSeg(g, aIn, A.d, A.r, { arm, name: arm + '-in-ramp' }, false, rollFrac, bankOf);
     const c1 = V.dist(out.pointAt(1), arc.pointAt(0)), c2 = V.dist(arc.pointAt(1), back.pointAt(0));
     if (c1 > 0.05 || c2 > 0.05) console.warn('[track] lobe', arm, 'closure error', c1.toFixed(3), c2.toFixed(3));
     return { segs: [out, arc, back], geom: g };

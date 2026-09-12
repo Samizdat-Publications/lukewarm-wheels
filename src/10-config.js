@@ -100,10 +100,41 @@
                                  // flat. Must be generous: the bank is a twist on top of the tilt
                                  // roll, and the two together must stay under the ~2.5 deg/cm of
                                  // surface warp a rigid four-wheel car can follow.
-    lobeBankDeg: 0,              // EXTRA channel bank rolled about the tangent, on top of the plane
-                                 // tilt. The tilt already leans the whole lobe; this is only for the
-                                 // moulded lip. Non-zero values twist a surface that is otherwise
-                                 // exactly planar, so leave it at 0 unless a sweep says otherwise.
+    lobeBankDeg: 0,              // Rotation of the lobe's SURFACE about the tangent, toward the
+                                 // circle's centre. This is the single most important number in the
+                                 // layout, because a flat ribbon lying in a tilted plane cannot
+                                 // corner AT ALL: the centre of the circle is in the plane, so the
+                                 // direction the car must be pushed lies in the plane, and the
+                                 // surface normal is perpendicular to it. Dot product zero. At
+                                 // bank 0 every one of the 2.5-5.7 g is handed to the side wall,
+                                 // which is why the measured drag in a curve is 0.3-1.1 g and is
+                                 // insensitive to every friction coefficient (it is not friction;
+                                 // it is a box being shoved round a corner by a wall).
+                                 //   0 deg  = flat ribbon in a tilted plane (what a racetrack is)
+                                 //  90 deg  = a genuine LOOP: the car rides the INSIDE of the ring
+                                 //            and the FLOOR supplies v^2/R, as the instruction
+                                 //            sheet shows (cars are drawn inverted at the apex).
+                                 // In between is a cone -- a banked channel. At bank b the surface
+                                 // holds the corner without the wall while v^2/R > g*(component of
+                                 // gravity along the surface), and at the apex of a ring tilted by
+                                 // `tilt` a full loop needs only v^2 > g*R*sin(tilt).
+    lobeBankApexDeg: null,       // bank at the ARC's apex; null = same as lobeBankDeg (a plain cone).
+                                 // The bank that holds a corner without the wall is atan(v^2/(R g)),
+                                 // and v around a lobe runs ~250 cm/s at the ends down to ~100 at the
+                                 // apex -- 76 deg against 27 deg. One angle cannot serve both, so the
+                                 // arc eases from `lobeBankDeg` at the ends to this at the apex.
+    turnBankDeg: 0,              // bank of the JUNCTION TURN, the ~20 cm radius bend between the hub
+                                 // gate and the lobe. It is taken at the highest speed of the lap
+                                 // (5.4 g) and measures 0.45-0.64 g of drag with every friction term
+                                 // in the model turned OFF, which makes it the most expensive stretch
+                                 // on the circuit. It bends the opposite way to the lobe, so the sign
+                                 // is handled in the layout: this number is a positive magnitude.
+    turnBlendCm: 6.0,            // cm from the hub gate over which the junction turn's bank eases in.
+                                 // The gate itself must stay flat: it meets the hub's flat lane.
+    lobeBankProfile: 'cone',     // 'cone' = constant bank over the whole arc (a true cone about the
+                                 // circle axis: zero twist, and banked where the car is FASTEST).
+                                 // 'centre' = the 2026-09-10 schedule that eased the bank to zero at
+                                 // both joints; it measured monotonically worse and this is why.
 
     // ---- foam booster ---------------------------------------------------------
     foamK: 1.2e6,                // dyne/cm foam nip stiffness: ~5.4 N at 0.45 cm squeeze (ESTIMATE)
