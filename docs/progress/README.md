@@ -113,10 +113,14 @@ it: the ribbons roll over as they curve, where in frames 06-09 they were flat pl
 lobes are also bigger (radius 16 -> 19 cm, footprint 116 -> 134), because the junction turn's radius
 is derived from the lobe's and that bend is now the most expensive stretch left.
 
-*Could it run?* A lone car: **1.87 mean laps per 25 s, best 11** across 30 runs, against 0.73 / best
-3 for the shipped flat-plane geometry in the same batch. Wheels-off through the north ring went
-23-47 % -> **0 %**, and its drag 0.23-0.76 g -> 0.10-0.33 g. Self-test 8/8, and its fleet check went
-from 2 of 5 cars lapping to **4 of 5**. Five cars at once still bog the motor and stall.
+*Could it run?* Yes, for the first time. A lone car: **2.07 mean laps per 25 s, best 11** across 30
+runs, against 0.80 / best 4 for the flat-plane geometry in the same batch. Wheels-off through the
+north ring went 23-47 % -> **0 %**, and its drag 0.23-0.76 g -> 0.10-0.33 g. The self-test's fleet
+check went from **2 of 5 cars lapping (best 3) to 5 of 5 (best 10, none leaving the track)**, and
+five cars for 30 s went from 3 crashes with everything stopped to **14 crashes, 15 laps and nothing
+lost off the table** -- that last one also needs the two game affordances added with it, a stronger
+motor and auto-recycle, because five loaded nips otherwise bog the motor below the speed a car
+needs to crest the ring.
 
 
 ## Adding a frame
