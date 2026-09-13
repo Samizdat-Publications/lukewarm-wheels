@@ -100,7 +100,7 @@ lapping. Confirmed by Stewart in a real browser: "worked but only for a lap or s
 ---
 
 ### 10 — The lobes became loops
-`10-2026-09-11-banked-loops.png` · (T23)
+`10-2026-09-13-banked-loops.png` · (T23-T26)
 
 The first frame where the track can actually hold a car. Until now every lobe was a **flat ribbon
 lying in a tilted plane**, and such a surface supplies *zero* cornering force at any tilt: the
@@ -109,18 +109,25 @@ and the surface normal is perpendicular to it. All 2.5-5.7 g went into the side 
 was not driving round the lobe, it was being dragged round it on its side — wheels off the ground
 for 23-91 % of each lobe. Here the lobe surface is rolled toward the circle's centre, so it is a
 banked channel (30 deg) heading toward a real loop, and the **floor** takes the corner. You can see
-it: the ribbons roll over as they curve, where in frames 06-09 they were flat plates on edge. The
-lobes are also bigger (radius 16 -> 19 cm, footprint 116 -> 134), because the junction turn's radius
-is derived from the lobe's and that bend is now the most expensive stretch left.
+it: the ribbons roll over as they curve, where in frames 06-09 they were flat plates on edge.
+The lobe radius is still 16 cm: it was raised to 19 and put back two days later, once T24 showed
+that the n=30 single-offset-set measurement behind the change was the unreliable kind.
 
-*Could it run?* Yes, for the first time. A lone car: **2.07 mean laps per 25 s, best 11** across 30
-runs, against 0.80 / best 4 for the flat-plane geometry in the same batch. Wheels-off through the
-north ring went 23-47 % -> **0 %**, and its drag 0.23-0.76 g -> 0.10-0.33 g. The self-test's fleet
-check went from **2 of 5 cars lapping (best 3) to 5 of 5 (best 10, none leaving the track)**, and
-five cars for 30 s went from 3 crashes with everything stopped to **14 crashes, 15 laps and nothing
-lost off the table** -- that last one also needs the two game affordances added with it, a stronger
-motor and auto-recycle, because five loaded nips otherwise bog the motor below the speed a car
-needs to crest the ring.
+*Could it run?* Yes, for the first time. Measured at **n=120** over two independent sets of start
+offsets, against the previous shipped geometry in the same batch:
+
+| | now | before |
+|---|---|---|
+| runs that completed a lap | **61 %** | 31 % |
+| runs that completed three | **25 %** | 1 % |
+| mean laps per 25 s | 1.59 | 0.44 |
+| runs that stalled out | 35 % | 66 % |
+
+Wheels-off through the north ring went 23-47 % -> **0 %** and its drag 0.23-0.76 g -> 0.10-0.33 g.
+The self-test's fleet check went from 2 of 5 cars lapping to 5 of 5, and five cars for 30 s from
+3 crashes with everything stopped to **19 crashes and 13 laps, nothing lost off the table**. That
+last one also needs the two game affordances added with it -- a stronger motor and auto-recycle --
+because five loaded nips otherwise bog the motor below the speed a car needs to crest the ring.
 
 
 ## Adding a frame

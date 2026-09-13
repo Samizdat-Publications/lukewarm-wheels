@@ -14,20 +14,29 @@ const tally = (a) => a.length ? Object.entries(a.reduce((m, v) => { const k = Ma
   .sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k, n]) => 's' + k + 'x' + n).join(' ') : '-';
 const med = (a) => { const b = a.filter((x) => x !== undefined).sort((x, y) => x - y); return b.length ? b[b.length >> 1] : '-'; };
 console.log('n=' + cars.length * backs.length + ' runs/case, ' + secs + 's each');
-console.log('case'.padEnd(20) + ' laps(mean max)  off% stall% ' + probe.map((p) => ('v@' + p).padStart(6)).join('') + '   where runs failed');
+console.log('case'.padEnd(20) + ' laps(mean max) lap1%+-se lap3%  off% stall% ' + probe.map((p) => ('v@' + p).padStart(6)).join('') + '   where runs failed');
 for (const [name, patch] of Object.entries(cases)) {
   // autoRecycle is a GAME affordance (a car that stops is put back in a nip). It would silently
   // inflate every number here, so this harness measures the physics with it off unless asked.
   const cfg = Object.assign({ autoRecycle: false }, A.base || {}, patch);
+  // `laps` is bimodal -- a run either circulates or dies in the first few seconds -- so its mean
+  // has a huge variance and n=60 cannot resolve a 1.6x change in it (see HANDOFF T24). The
+  // fraction that got ROUND is a Bernoulli and is far tighter, and it is also the actual behaviour
+  // target: docs/REFERENCES.md says a lone car circulates.
+  let got1 = 0, got3 = 0;
   const laps = [], offs = [], offSs = [], dead = [], P = probe.map(() => []);
   for (const carIdx of cars) for (const back of backs) {
     const r = run(cfg, { secs, probeS: probe, back, carIdx });
     laps.push(r.laps); offs.push(r.off !== false ? 1 : 0); if (r.offS != null) offSs.push(r.offS);
+    if (r.laps >= 1) got1++; if (r.laps >= 3) got3++;
     if (r.off === false && r.laps === 0) dead.push(r.endS);
     probe.forEach((p, i) => P[i].push(r.probe[p]));
   }
   const mean = laps.reduce((a, b) => a + b, 0) / laps.length;
+  const pct = (k) => String(Math.round(100 * k / laps.length)).padStart(4);
+  const se1 = Math.round(100 * Math.sqrt((got1 / laps.length) * (1 - got1 / laps.length) / laps.length));
   console.log(name.padEnd(20) + '  ' + mean.toFixed(2).padStart(5) + ' ' + String(Math.max(...laps)).padStart(3)
+    + pct(got1) + '+-' + se1 + pct(got3)
     + '     ' + String(Math.round(100 * offs.reduce((a, b) => a + b, 0) / offs.length)).padStart(3)
     // A run that never left the track and never completed a lap STALLED. Which failure dominates
     // decides what to fix next, and the mean laps alone cannot tell them apart.

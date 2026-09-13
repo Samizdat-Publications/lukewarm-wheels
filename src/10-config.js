@@ -62,16 +62,23 @@
     // differs. A lobe is a flat circle tilted about the horizontal chord through its two ends;
     // everything else (junction radius, hub->chord gap, chord height, plan splay) is DERIVED
     // from lobeRadius + straightLen + the tilt, so the geometry cannot drift out of closure.
-    lobeRadius: 19.0,            // radius of the moulded arc. 16.0 is what the instruction sheet
-                                 // scales to and was shipped until 2026-09-11; 19 measures 0.8 of a
-                                 // lap better because the JUNCTION TURN's radius is derived from it
-                                 // (rt = (K*R - laneOffset - straightLen*sin b)/(1 - cos b), 20.5 cm
-                                 // at R 16 against 25.9 at R 19), and that bend -- flat, ~20 cm, taken
-                                 // at 330-360 cm/s, i.e. 5-6 g -- is now the most expensive stretch
-                                 // on the circuit. Raising R used to be a losing trade because it
-                                 // lengthened an expensive lobe; since T23 the lobe is cheap, so it
-                                 // is not. 18 and 20 are both worse than 19 and 22 collapses (0.35),
-                                 // so this is a real optimum. Costs footprint: 116 -> 134 cm.
+    lobeRadius: 16.0,            // radius of the moulded arc. Raised to 19 on 2026-09-11 and PUT BACK
+                                 // on 2026-09-13, because the evidence for 19 was an n=30 sample on a
+                                 // single set of start offsets ("0.8 of a lap better; 18 and 20 are
+                                 // both worse and 22 collapses") and T24 then proved that exact class
+                                 // of result unreliable -- a 1.6x "win" that survived being repeated
+                                 // vanished on different offsets. Re-measured at n=120 across TWO
+                                 // independent offset sets, R 16 is nominally BETTER, in both:
+                                 //   R 19   1.37 / 1.43 mean laps, lap1% 63 / 52
+                                 //   R 16   2.07 / 1.77 mean laps, lap1% 70 / 52
+                                 // That is ~1.3 SE, so it does not prove 16 is better either. What it
+                                 // does is remove the reason for 19. 16 is the value the instruction
+                                 // sheet scales to, its 116 cm footprint matches the 105-110 cm in
+                                 // Stewart's photos where 19 gave 134, and tools/apex.mjs says it also
+                                 // crests better (worst car over the apex 52-84 cm/s against 12-31).
+                                 // R does set the junction turn's radius (20.5 cm at 16 against 25.9
+                                 // at 19) and that bend is expensive -- but T24 showed the junction
+                                 // turn is not what decides whether a car laps.
                                  // ORIGINAL NOTE: radius of the moulded arc. Scaled off the instruction
                                  // sheet against the known 3.81 cm track width and cross-checked
                                  // against the ~105-110 cm assembled footprint from Stewart's photos.

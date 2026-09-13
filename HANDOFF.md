@@ -1,6 +1,6 @@
 # HANDOFF — live project state
 
-_Last updated: 2026-09-11 by Opus 5 (session 5). Update this block whenever you stop._
+_Last updated: 2026-09-13 by Opus 5 (session 5). Update this block whenever you stop._
 
 ## Strategy
 `docs/progress/` is the dated build timeline — one image per milestone with what the sim could
@@ -25,22 +25,30 @@ with that URL).
 which cannot corner at all, and that one assumption is what three sessions of coefficient work were
 fighting. Fixing it roughly tripled everything.
 
-Shipped defaults: **lobeBankDeg 30, rollBlendCm 8, lobeRadius 19, lobeWallHeight 4.5, loop tilt 40,
+Shipped defaults: **lobeBankDeg 30, rollBlendCm 8, lobeRadius 16, lobeWallHeight 4.5, loop tilt 40,
 sweep tilt 16, rampPow 4, hubHalf 16, laneOffset 2.5, straightLen 1.0, 480 Hz, vehicleMode raycast,
 boostYawDamp 40, motorR 0.6, cellRFresh 0.10, autoRecycle on.**
-Footprint 134 cm, circuit 349 cm, ring apex 24.0 cm, sweep apex 10.3 cm, junction turn radius 25.9.
-Screenshot: `docs/progress/10-2026-09-11-banked-loops.png`.
+Footprint 116 cm, circuit 300 cm, ring apex 20.1 cm, sweep apex 8.6 cm, junction turn radius 20.5.
+Screenshot: `docs/progress/10-2026-09-13-banked-loops.png`.
+
+**n=120, two independent sets of start offsets, both configs in the same batch.** (Anything measured
+at n=30 on one offset set on this project is noise -- see T24.)
 
 | measurement | session 4 | now |
 |---|---|---|
-| lone car, mean laps / 25 s (n=30, same batch) | 0.80 | **2.07** |
-| lone car, best run | 4 laps | **11 laps** |
-| runs that stall with zero laps | 47 % | 27 % |
-| selftest fleet check, cars lapping in 20 s | 2 of 5, best 3 | **5 of 5, best 10, none off** |
-| selftest five-car pile-up, crashes / 15 s | 5 | 6 - 13 |
-| five cars / 30 s (`tools/pileup.mjs`) | 3.0 crashes, 6 laps, nothing still moving | **14.3 crashes, 15 laps, 0 lost off the table** |
+| **runs that completed a lap** | **31 % +- 4** | **61 % +- 4** |
+| **runs that completed three** | **1 %** | **25 %** |
+| lone car, mean laps / 25 s | 0.44 | **1.59** |
+| runs that stalled out with zero laps | 66 % | 35 % |
+| selftest fleet check, cars lapping in 20 s | 2 of 5, best 3 | **5 of 5** |
+| five cars / 30 s (`tools/pileup.mjs`) | 3.0 crashes, 6 laps, nothing still moving | **19.3 crashes, 13.4 laps, 0 lost off the table** |
 | north ring: wheels off the ground | 23 - 47 % | **0 %** |
 | north ring: drag | 0.23 - 0.76 g | **0.10 - 0.33 g** |
+
+The lap-completion figures are 7.5 standard errors apart, so that part is not in doubt. What IS in
+doubt is every difference *within* this session's end state: T24's easement and T26's tilt both
+measure as nothing at n=120, and the honest reading is that essentially all of the gain is T23's
+bank.
 
 **Two things are now game affordances rather than physics, both documented in `10-config.js`:**
 `autoRecycle` (a car stopped, flipped or off the side for `recycleAfter` seconds is put back into
@@ -50,9 +58,10 @@ five loaded nips bog the motor below the surface speed a car needs to crest the 
 set stalls. `tools/ens.mjs` forces `autoRecycle` off so its numbers stay comparable with every
 earlier session, and so does selftest check 7.
 
-**Still not met:** `docs/REFERENCES.md` says a lone car circulates *indefinitely*. The best runs now
-do 11 laps in 25 s, but the mean is 2.07 because 27 % of runs still stall -- almost all of them in
-the junction turn at s=20-40. That is T24 and it is the clearest next task in the project.
+**Still not met:** `docs/REFERENCES.md` says a lone car circulates *indefinitely*. 61 % of runs get
+round at least once and 25 % get round three times, so it is a coin-flip that a given car keeps
+going rather than a car that circulates. T24 and T26 each found a real defect behind that, fixed it,
+and gained nothing -- see T27 in `docs/PLAN.md`.
 
 ## T23: THE LOBE WAS NOT A LOOP. THIS IS THE ONE THAT MATTERED.
 
@@ -193,6 +202,71 @@ standard errors, and under this project's own half-or-double rule, not a result.
 `backs` array gives the same 60 runs and "it reproduced exactly" means only that the code is
 deterministic. **Vary the `backs` array, not just the batch.** Two n=60 samples on different
 offsets is the cheapest honest test, and it is what this was nearly shipped without.
+
+---
+
+## T26: the apex IS the constraint -- and fixing it still does not buy laps
+
+T24 sent me here, and the mechanism is confirmed directly. Tracing a failing run at `back` 0.46:
+the car launches at 230 cm/s, climbs the north ring, and reaches **y = 23.7 cm at 21 cm/s against a
+24.0 cm apex**. It does not crest, rolls back down (s runs 98 -> 95 -> 87 -> 64 -> 56) and ends
+stopped on the ramp. The 19-23 of 60 runs the failure tally puts at "s20-s40, zero laps" are not
+failed launches. They are cars that came back.
+
+`tools/apex.mjs` (new) measures this properly. Mean laps is bimodal and cannot resolve anything;
+the speed AT the apex is continuous, so its median is tight, and it is what the physics is about.
+Both offset sets, n=30 each:
+
+| config | apex cm | median v@apex | worst v@apex |
+|---|---|---|---|
+| R19 t40 | 24.0 | 112 / 114 | **12 / 31** |
+| R19 t34 | 20.9 | 130 / 126 | 42 / 44 |
+| R19 t28 | 17.6 | 150 / 144 | 120 / 35 |
+| R19 t22 | 14.0 | 169 / 169 | 108 / 97 |
+| **R16 t40** | 20.1 | 123 / 130 | 84 / 52 |
+
+Monotone, consistent across offsets, and damning for the shipped geometry: at R19 t40 half the
+cars crested below 112 cm/s and the worst at **12 cm/s**, i.e. sitting on the edge of falling back.
+Lowering the tilt lowers the apex AND widens the junction turn at the same time (beta shrinks with
+tilt, so the same lateral budget buys more radius): rt 25.9 -> 30.1 from t40 to t28.
+
+**And none of it buys laps.** n=120, two independent offset sets pooled:
+
+| | lap1% (+-4.5) | mean laps | off% |
+|---|---|---|---|
+| R19 t40 (was shipped) | 57.5 | 1.40 | 14 |
+| R19 t34 | 60 | 1.76 | 21 |
+| R19 t28 | 60 | 1.64 | 9 |
+| R19 t22 | 62.5 | 1.52 | 14 |
+| R16 t40 | 61 | 1.92 | 11 |
+
+All inside ~1 SE. What happens is that the failure MOVES: fix the crest and cars die instead at
+s~200, the junction turn into the shallow sweep, taken at 370 cm/s straight out of the second nip
+pair, where they leave the track. **The sim is limited by several constraints at once, all sitting
+near their limits.** That is why single-lever fixes keep returning nothing, and it is the single
+most useful thing to know before spending another session on a coefficient.
+
+The obvious compounding move is dead too: a lower apex needs less launch energy, so a gentler
+launch ought to be affordable and would cut the off-track at the fast turn. It is fatal.
+`foamGap` 2.2 at t28 drops crest-reached from 88 % to 46 %; 2.35 reaches the apex 0 % of the time.
+The launch is already at its minimum. (Also measured: at t28 the weaker original motor is a wash
+for a lone car -- median v@apex 131 against 148 -- so T25's stronger motor is earning its place
+only in the five-car game, which is what it was adopted for.)
+
+### What DID change: lobeRadius back to 16
+
+Not because 16 is proven better, but because the reason for 19 evaporated. T23 raised it on an
+**n=30 sample from a single offset set** ("0.8 of a lap better; 18 and 20 are both worse and 22
+collapses") -- exactly the class of result T24 then proved unreliable. Re-measured at n=120 across
+two independent offset sets, 16 is nominally better in BOTH (1.37/1.43 -> 2.07/1.77 mean laps), it
+crests far better (worst car 84/52 cm/s against 12/31), its 116 cm footprint matches the 105-110 cm
+in Stewart's photos where 19 gave 134, and the five-car game gets **19.3 crashes per 30 s against
+13.4** because a shorter circuit puts cars at the crossing more often. At ~1.3 SE none of that is
+proof; the absence of any reason for 19 is the argument.
+
+**The bank is untouched by this.** T23's real result was `lobeBankDeg` 0 -> 30, and it rests on
+mechanistic low-variance measurements (wheels-off through the ring 23-47 % -> 0 %, drag 0.23-0.76 g
+-> 0.10-0.33 g), not on lap counts. Only the radius rode in on the weak evidence.
 
 ---
 
@@ -440,6 +514,7 @@ conclusion in the old HANDOFF that rested on one run should be treated as unprov
 | `tools/coast.mjs` | how much drag, really? coasts a car with the motor off; deterministic. Set `foamK: 0` or the nip brakes it |
 | `tools/attribute.mjs` | splits the per-step loss by what was true that step: on a wall, wheels up, airborne, clean |
 | `tools/wheelprobe.mjs` | per-wheel compression and load, step by step (vehicleMode springs) |
+| `tools/apex.mjs` | does the car CREST? The ring's apex is the binding constraint, and mean laps is far too noisy to see it. Reports the apex height, the speed needed at the foot, and the median and WORST speed measured crossing it -- a continuous quantity, so it resolves what lap counting cannot |
 | `tools/wall.mjs` | WHY is a curve expensive? A deterministic coast over ONE named stretch for several configs at once, reporting drag, contact fraction, impulse and lateral RMS. The ensemble cannot resolve anything under half a lap; this can, because the motor is off and the start state is identical |
 | `tools/pileup.mjs` | is it FUN? five cars through `lineUpFive`, reporting crashes, laps, how many are still moving, and how far the motor bogged. A config that laps beautifully alone and bogs to a standstill with five is not the one to ship |
 | `tools/chaos.mjs` | how much of my result is noise? |
@@ -516,28 +591,25 @@ If it is missing: `node tools/fetch-rapier.mjs`.
 
 ## Next moves, in order
 
-1. **THE APEX, not the junction turn.** T24 killed the turn hypothesis, and tracing a failing run
-   shows the real mechanism directly. At `back` 0.46 the car launches at 230 cm/s, climbs the north
-   ring, and reaches **y = 23.7 cm at 21 cm/s against a 24.0 cm apex** -- it does not crest, rolls
-   back down (s runs 98 -> 95 -> 87 -> 64 -> 56), and ends stopped on the ramp. That is why the
-   failure tally puts 19-23 of 60 runs at "s20-s40" with zero laps: they are not failed launches,
-   they are cars that came BACK. The arithmetic is tight and unforgiving: a car arrives at the lobe
-   with v^2 ~ 52,900 and the climb alone costs 2*981*(24.0 - 1.2) = 44,700.
-   The apex is `y0 + R(1 + cos45)*sin(tilt)`, so the levers are `lobeRadius` and `loopTiltDeg`
-   (and `rampPow`, for the small `y0` part). Both were swept earlier at n=30 on ONE offset set and
-   showed no trend -- which after T24 means nothing either way. Re-run them properly: two n=60
-   samples on different `backs`, and expect to trade apex height against the junction-turn radius
-   that `lobeRadius` also sets.
-2. **The ramp -> arc joint in the VERTICAL plane.** Measured directly (scratch script, the same
-   method as `tools/geom.mjs`): the vertical curvature steps 0.0332 -> 0.0226 /cm across the joint,
-   i.e. **2.28 g -> 1.56 g at 260 cm/s, a 0.7 g step**. Real, but a quarter of the lateral step
-   T24 just showed to be harmless, so rank it accordingly. The fix, if wanted, is to give the
-   ramp's height profile two end conditions instead of one: y = a3 t^3 + a4 t^4 with y''(0) = 0,
-   y'(1) = tanSigma*rampLen and y''(1) matched to the arc, which gives a3 = P - Q/3,
-   a4 = (Q - 2P)/4 and y0 = P/2 - Q/12. It raises the chord (y0 3.74 -> 4.75 at ease 0.35) and so
-   the apex, which item 1 says is exactly the wrong direction -- so do item 1 first.
-3. **The five-car jam.** Already much better with auto-recycle; should follow from (1).
-4. Then `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
+1. **Read T24 and T26 first, and do not sweep another coefficient.** Three sessions of single-lever
+   fixes (T22 the nip, T24 the junction turn, T26 the apex) have each found a REAL defect, fixed it,
+   and gained nothing measurable, because something else is equally close to its limit. The failures
+   simply relocate: fix the crest and cars leave the track at s~200 instead. The launch is pinned at
+   its minimum (a gentler one cannot crest at all) and the track is pinned at its containment limit
+   (anything that makes cars faster raises off-track). Anything that is going to help now has to
+   raise margin in several places at once, which means geometry, not a coefficient.
+2. **If you do measure something: two n=60 samples on DIFFERENT `backs` arrays, and prefer
+   `tools/apex.mjs` or `tools/wall.mjs` over lap counting.** Both report continuous quantities and
+   resolve what the bimodal lap counter cannot. `tools/ens.mjs` now prints `lap1%` and `lap3%` with
+   a standard error, which are much tighter than the mean.
+3. **The ramp -> arc joint in the VERTICAL plane** is a real, measured 0.7 g step (vertical
+   curvature 0.0332 -> 0.0226 /cm across the joint, i.e. 2.28 g -> 1.56 g at 260 cm/s). The fix is
+   to give the ramp's height profile two end conditions instead of one: y = a3 t^3 + a4 t^4 with
+   y''(0) = 0, y'(1) = tanSigma*rampLen and y''(1) matched to the arc, giving a3 = P - Q/3,
+   a4 = (Q - 2P)/4, y0 = P/2 - Q/12. It RAISES the chord and so the apex, which T26 says is the
+   wrong direction -- so expect it to be another honourable draw.
+4. Otherwise the sim is in good enough shape to be played with, and the time is better spent on
+   `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
 
 **Residual, low priority:** `tools/audit.mjs` reports 48 exposed wall end caps at reach -0.69,
 i.e. 0.69 cm outside the lane edge, at the hub gates. They do not respond to `wallSegLen` or
