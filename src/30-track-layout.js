@@ -28,8 +28,9 @@
 (function (HW) {
   const V = HW.V, M = HW.math;
   const SAMPLE_DS = 0.25; // cm between path samples
-  const K = Math.SQRT1_2; // cos 45 deg = sin 135 deg
-  const HALF_SWEEP = 0.75 * Math.PI; // 135 deg; the arc spans +135 -> -135 through 0
+  // The arc's half-sweep was hard-coded here at 135 deg (a 270 deg arc) until T27, and with it the
+  // two constants it implies: sin(phi) and -cos(phi), which both equal SQRT1_2 at 135, which is why
+  // one `K` could stand for both. They are different quantities -- see lobeGeom.
 
   const ARMS = {
     N: { d: V.make(0, 0, -1) }, E: { d: V.make(1, 0, 0) },
@@ -52,8 +53,10 @@
   //            only when the lobe is flat. The junction turn must deliver exactly this heading.
   //   sigma  = climb angle of the arc at its ends; the ramps must arrive at this slope.
   // Given straightLen S, the junction turn's LENGTH and the hub->chord gap follow from closure:
-  //   gap        = Lt*Cs + S*cos(beta)                 (along the arm)
-  //   K*R - L    = Lt*Ss + S*sin(beta)                 (across it)
+  //   gap          = Lt*Cs + S*cos(beta)               (along the arm)
+  //   R*SA - L     = Lt*Ss + S*sin(beta)               (across it)
+  // where SA = sin(phi) puts the arc's two ends +-R*SA either side of the arm axis, phi being the
+  // arc's HALF-SWEEP.
   // where Cs, Ss are the mean cos/sin of the heading over the turn. For a plain circular arc of
   // radius rt, Cs = sin(beta)/beta and Ss = (1-cos(beta))/beta and those reduce to the old
   // rt*sin(beta) / rt*(1-cos(beta)); the general form is what lets the turn be EASED.
@@ -95,15 +98,40 @@
     const tilt = HW.units.degToRad(String(cfg.loopArms || 'NE').toUpperCase().includes(arm) ? cfg.loopTiltDeg : cfg.sweepTiltDeg);
     const ct = Math.cos(tilt), st = Math.sin(tilt);
     const R = cfg.lobeRadius, S = cfg.straightLen, L = cfg.laneOffset;
-    const beta = Math.atan2(1, ct);
+    // THE ARC'S SWEEP (T27). Fixed at 270 deg until 2026-09-13, and it is the strongest lever the
+    // layout has on the junction turn -- the stretch T22 measured as the most expensive on the
+    // circuit and T26 watched cars leave the track in. A shorter arc turns the lane through less,
+    // so each junction bend turns through less too, and the 1 - cos(beta) in the denominator of rt
+    // collapses fast:
+    //     sweep   300    285    270    255    240    225
+    //     beta   66.1   59.6   52.5   45.0   37.0   28.4  deg
+    //     rt      7.7   12.9   20.5   32.3   53.4   98.1  cm     (apex barely moves, 20.5 -> 20.6)
+    // Paid for in FOOTPRINT: the hub -> chord gap runs 16.9 -> 23.6 -> 32.9 cm, because a gentler
+    // bend needs further to run before it has turned enough.
+    const phi = M.clamp(HW.units.degToRad(cfg.lobeSweepDeg || 270) / 2, 0.55 * Math.PI, 0.92 * Math.PI);
+    const SA = Math.sin(phi);        // arc end offset from the arm axis, in units of R
+    const KC = -Math.cos(phi);       // xi = R*(cos psi + KC) is the in-plane distance from the chord
+    // beta is the PLAN angle of the arc's end tangent, which the junction turn must deliver. The
+    // travel tangent at psi is (e2 sin psi - r cos psi), whose horizontal part at the arc's start is
+    // (d*ct*sin phi - r*cos phi) -- hence atan2(KC, ct*SA). At phi = 135 that is atan2(1, ct), the
+    // old closed form.
+    const beta = Math.atan2(KC, ct * SA);
     const sb = Math.sin(beta), cb = Math.cos(beta);
     const turn = turnShape(cfg, beta);
-    const turnLen = (K * R - L - S * sb) / turn.Ss;      // length of the junction turn along its own arc
+    const turnLen = (R * SA - L - S * sb) / turn.Ss;     // length of the junction turn along its own arc
     const gap = turnLen * turn.Cs + S * cb;
     const rt = turnLen / (beta * turn.wMax);             // MINIMUM radius of the turn (its tightest point)
     const RAMP_POW = cfg.rampPow;
     const rampLen = turnLen + S;                         // plan distance, hub gate -> arc end
-    const tanSigma = st / Math.hypot(ct, 1);             // dy/d(plan) at the arc end
+    // dy/d(plan) where the arc meets the ramp. The ramp MUST arrive at exactly this slope or the
+    // joint is a kink. The old closed form st/hypot(ct,1) is only the phi = 135 deg case: in
+    // general the arc's plan speed at psi is R*sqrt(cos^2 psi + ct^2 sin^2 psi) while its climb
+    // rate is R*st*sin psi, so the slope at the end is st*SA/sqrt(KC^2 + ct^2*SA^2). At phi = 135
+    // that reduces exactly (both KC^2 and SA^2 are 1/2, so the 1/sqrt2 cancels).
+    // Getting this wrong at sweep 248 left the ramp arriving at slope 0.509 where the arc starts at
+    // 0.630 -- a 5.2 deg kink, which tools/audit.mjs read as 0.2247 /cm of pitch curvature, i.e.
+    // 20.6 g at 300 cm/s. Self-test check 2's heading-continuity test catches it.
+    const tanSigma = st * SA / Math.hypot(KC, ct * SA);
     // Height profile of a ramp is y0 * t^rampPow with t = plan fraction, so y'(1) = pow*y0/rampLen
     // must equal tan(sigma). The exponent decides where the vertical curvature sits: at 2 it is
     // CONSTANT, which means it jumps from nothing to 2*y0/rampLen^2 the instant the car leaves the
@@ -111,9 +139,10 @@
     // curvature starts at zero and builds, and the chord also sits lower (y0 scales as 1/pow), so
     // the whole lobe is easier to climb.
     const y0 = rampLen * tanSigma / RAMP_POW;            // height of the arc's chord above the hub
-    const apex = y0 + R * (1 + K) * st;
+    const apex = y0 + R * (1 + KC) * st;
     const rampArc = Math.hypot(rampLen, y0 * 0.72); // ~3D length of the ramp
-    return { tilt, ct, st, R, S, beta, rt, turn, turnLen, gap, rampLen, rampArc, tanSigma, y0, apex, pow: RAMP_POW, sigma: Math.atan(tanSigma) };
+    return { tilt, ct, st, R, S, beta, rt, turn, turnLen, gap, rampLen, rampArc, tanSigma, y0, apex,
+      phi, SA, KC, pow: RAMP_POW, sigma: Math.atan(tanSigma) };
   }
 
   // Ramp: junction turn of `beta` at radius rt, then a straight of length S, carrying the height
@@ -170,11 +199,11 @@
   //   P       = chordMid + d*(xi*cos tilt) + r*(R sin psi) + up*(y0 + xi*sin tilt)
   // The surface normal is the plane normal everywhere: no twist, no blend, nothing to tune.
   function tiltArcSeg(g, chordMid, d, r, meta, bankOf, bankBlendCm, rollFrac, bankProfile) {
-    const sweep = 2 * HALF_SWEEP;
-    const arcLen = g.R * 2 * HALF_SWEEP;
+    const sweep = 2 * g.phi;
+    const arcLen = g.R * sweep;
     const nPlane = V.norm(V.make(-d.x * g.st, g.ct, -d.z * g.st));
     const bankBlend = M.clamp(bankBlendCm / arcLen, 0.05, 0.5);
-    const psiAt = (u) => HALF_SWEEP - sweep * u;
+    const psiAt = (u) => g.phi - sweep * u;
     return {
       kind: 'arc', meta, deepWall: true, radius: g.R, sweep, tilt: g.tilt, nPlane, apex: g.apex,
       length: g.R * sweep,
@@ -200,7 +229,7 @@
         // symmetric and the far ramp picks it up unchanged.
         : (u) => bankOf(g.rampArc + Math.min(u, 1 - u) * arcLen, u),
       pointAt(u) {
-        const psi = psiAt(u), xi = g.R * (Math.cos(psi) + K);
+        const psi = psiAt(u), xi = g.R * (Math.cos(psi) + g.KC);
         const p = V.addScaled(V.addScaled(chordMid, d, xi * g.ct), r, g.R * Math.sin(psi));
         p.y = g.y0 + xi * g.st;
         return p;

@@ -130,6 +130,24 @@ last one also needs the two game affordances added with it -- a stronger motor a
 because five loaded nips otherwise bog the motor below the speed a car needs to crest the ring.
 
 
+### 11 - The arc got shorter, and everything got easier
+`11-2026-09-13-sweep248.png` - (T27)
+
+The lobes are the same idea as frame 10, but the moulded arc now sweeps **248 deg instead of 270**,
+and the radius came down 16 -> 14 cm to match. That sounds cosmetic and is not. The junction turn
+between the hub and each lobe -- the stretch that had been the most expensive on the circuit, taken
+at the highest speed of the lap -- is *derived* from the arc's sweep, and going from 270 to 248
+takes its radius from **20.5 cm to 33.9 cm**, cutting the cornering load there by a third. The
+ring's apex came down too (20.1 -> 18.0 cm), and the lap length and footprint barely moved. Every
+earlier geometry lever on this project traded the corner against the climb; this is the first that
+did not.
+
+*Could it run?* The self-test's five-car check hit **16 crashes in 15 seconds with none of the five
+cars stalled and all of them still moving** -- against 5 crashes and 4 cars dead a few days earlier.
+A lone car: 65 % of runs complete a lap and 26 % complete three, n=120 over two independent sets of
+start offsets.
+
+
 ## Adding a frame
 
 WebGL canvases cannot be screenshotted from Node, and `toDataURL` returns an empty image once the

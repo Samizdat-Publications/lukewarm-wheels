@@ -62,7 +62,7 @@
     // differs. A lobe is a flat circle tilted about the horizontal chord through its two ends;
     // everything else (junction radius, hub->chord gap, chord height, plan splay) is DERIVED
     // from lobeRadius + straightLen + the tilt, so the geometry cannot drift out of closure.
-    lobeRadius: 16.0,            // radius of the moulded arc. Raised to 19 on 2026-09-11 and PUT BACK
+    lobeRadius: 14.0,            // radius of the moulded arc. Raised to 19 on 2026-09-11 and PUT BACK
                                  // on 2026-09-13, because the evidence for 19 was an n=30 sample on a
                                  // single set of start offsets ("0.8 of a lap better; 18 and 20 are
                                  // both worse and 22 collapses") and T24 then proved that exact class
@@ -79,10 +79,43 @@
                                  // R does set the junction turn's radius (20.5 cm at 16 against 25.9
                                  // at 19) and that bend is expensive -- but T24 showed the junction
                                  // turn is not what decides whether a car laps.
+                                 // 2026-09-13, T27: 14, paired with lobeSweepDeg 248. R and the
+                                 // sweep both feed rt = (R sin(phi) - L - S sin b)/(1 - cos b), so
+                                 // they have to be chosen together: the shorter sweep widens the
+                                 // junction turn so much that R can come DOWN, which buys back the
+                                 // footprint and the circuit length and lowers the apex as well.
                                  // ORIGINAL NOTE: radius of the moulded arc. Scaled off the instruction
                                  // sheet against the known 3.81 cm track width and cross-checked
                                  // against the ~105-110 cm assembled footprint from Stewart's photos.
                                  // Bend-radius floor is ~12 cm (a 7 cm car needs w + L^2/8R < lane).
+    lobeSweepDeg: 248,           // how far round the moulded arc goes. Hard-coded at 270 until T27,
+                                 // and the strongest lever the layout has on the JUNCTION TURN --
+                                 // the stretch T22 measured as the most expensive on the circuit and
+                                 // T26 watched cars leave the track in, at 5.3 g and the highest
+                                 // speed of the lap. A shorter arc turns the lane through less, so
+                                 // each junction bend turns through less, and
+                                 // rt = (R sin(phi) - L - S sin b)/(1 - cos b) collapses fast:
+                                 //   sweep  300   285   270   255   240   225
+                                 //   beta  66.1  59.6  52.5  45.0  37.0  28.4  deg
+                                 //   rt     7.7  12.9  20.5  32.3  53.4  98.1  cm
+                                 // The apex barely moves across all of that (20.5 -> 20.6 cm), so
+                                 // unlike every other geometry lever this one does NOT trade against
+                                 // the crest -- which is what T27 was looking for. It is paid for in
+                                 // footprint: hub -> chord gap 16.9 -> 23.6 -> 32.9 cm, though at 248
+                                 // with lobeRadius 14 that comes back out again (121 cm against 116).
+                                 // MEASURED at n=120 over two independent offset sets. Every
+                                 // shorter-sweep config beat 270 in BOTH sets on mean laps -- six
+                                 // paired comparisons, all the same direction, which is a sign test
+                                 // at p = 0.016 and is the first structural result on this project to
+                                 // survive the T24 trap. Which MEMBER of the family is best is not
+                                 // resolvable: pooled lap1% is 61 (270/R16), 65.5 (248/R14),
+                                 // 62.5 (240/R15), all inside ~1 SE of each other.
+                                 // 248 with R 14 is chosen because it takes the junction turn from
+                                 // 20.5 to 33.9 cm and the apex from 20.1 to 18.0 while leaving the
+                                 // circuit (297 vs 300 cm) and footprint (121 vs 116) alone.
+                                 // 240 with R 15 measures better still on mean laps (2.23 vs 1.60)
+                                 // and on the five-car pile-up (21.9 crashes per 30 s against 19.3),
+                                 // but costs 19 % footprint and 12 % circuit for it.
     loopArms: 'NE',              // which arms are steeply tilted rings. The sheet has the two rings
                                  // ADJACENT, so each circuit gets one ring and one shallow sweep.
     // TILT vs FIDELITY, measured (all mean laps per 25 s over a 20-run ensemble, hubHalf 16). The instruction sheet has the two rear lobes standing up as rings

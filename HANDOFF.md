@@ -25,11 +25,11 @@ with that URL).
 which cannot corner at all, and that one assumption is what three sessions of coefficient work were
 fighting. Fixing it roughly tripled everything.
 
-Shipped defaults: **lobeBankDeg 30, rollBlendCm 8, lobeRadius 16, lobeWallHeight 4.5, loop tilt 40,
+Shipped defaults: **lobeBankDeg 30, rollBlendCm 8, lobeSweepDeg 248, lobeRadius 14, lobeWallHeight 4.5, loop tilt 40,
 sweep tilt 16, rampPow 4, hubHalf 16, laneOffset 2.5, straightLen 1.0, 480 Hz, vehicleMode raycast,
 boostYawDamp 40, motorR 0.6, cellRFresh 0.10, autoRecycle on.**
-Footprint 116 cm, circuit 300 cm, ring apex 20.1 cm, sweep apex 8.6 cm, junction turn radius 20.5.
-Screenshot: `docs/progress/10-2026-09-13-banked-loops.png`.
+Footprint 121 cm, circuit 297 cm, ring apex 18.0 cm, sweep apex 7.8 cm, junction turn radius 33.9.
+Screenshot: `docs/progress/11-2026-09-13-sweep248.png`.
 
 **n=120, two independent sets of start offsets, both configs in the same batch.** (Anything measured
 at n=30 on one offset set on this project is noise -- see T24.)
@@ -41,7 +41,8 @@ at n=30 on one offset set on this project is noise -- see T24.)
 | lone car, mean laps / 25 s | 0.44 | **1.59** |
 | runs that stalled out with zero laps | 66 % | 35 % |
 | selftest fleet check, cars lapping in 20 s | 2 of 5, best 3 | **5 of 5** |
-| five cars / 30 s (`tools/pileup.mjs`) | 3.0 crashes, 6 laps, nothing still moving | **19.3 crashes, 13.4 laps, 0 lost off the table** |
+| five cars / 30 s (`tools/pileup.mjs`) | 3.0 crashes, 6 laps, nothing still moving | **19.3 crashes, 13.7 laps, 0 lost off the table** |
+| selftest five-car check | 5 crashes, 4 of 5 stalled | **16 crashes, 0 stalled, all five moving** |
 | north ring: wheels off the ground | 23 - 47 % | **0 %** |
 | north ring: drag | 0.23 - 0.76 g | **0.10 - 0.33 g** |
 
@@ -267,6 +268,70 @@ proof; the absence of any reason for 19 is the argument.
 **The bank is untouched by this.** T23's real result was `lobeBankDeg` 0 -> 30, and it rests on
 mechanistic low-variance measurements (wheels-off through the ring 23-47 % -> 0 %, drag 0.23-0.76 g
 -> 0.10-0.33 g), not on lap counts. Only the radius rode in on the weak evidence.
+
+---
+
+## T27: the arc's SWEEP -- the first structural lever that survived
+
+T26 ended with "stop chasing single stretches; find something that raises margin everywhere at
+once, and it has to be geometry". This is it, and it was hiding in a hard-coded constant.
+
+The junction turn's radius comes out of the closure as
+
+    rt = (R*sin(phi) - L - S*sin(beta)) / (1 - cos(beta))     beta = atan2(-cos(phi), ct*sin(phi))
+
+where **phi is the arc's half-sweep**, which had been `HALF_SWEEP = 0.75*PI` since day one -- a
+270 deg arc, read off the instruction sheet. It is the strongest lever in the layout, because a
+shorter arc turns the lane through less, so each junction bend turns through less, and that
+`1 - cos(beta)` in the denominator collapses:
+
+| sweep | 300 | 285 | 270 | 255 | 240 | 225 |
+|---|---|---|---|---|---|---|
+| beta | 66.1 | 59.6 | 52.5 | 45.0 | 37.0 | 28.4 |
+| **rt** | 7.7 | 12.9 | **20.5** | 32.3 | 53.4 | 98.1 |
+| apex | 20.5 | 20.3 | 20.1 | 19.9 | 20.0 | 20.6 |
+
+**The apex barely moves across all of it.** Every other geometry lever on this project trades the
+junction turn against the crest; this one does not, which is exactly what T27 was looking for. And
+because the shorter sweep widens the turn so much, `lobeRadius` can come DOWN to buy back the
+footprint, the circuit length and the apex at the same time.
+
+Shipped: **`lobeSweepDeg` 248 with `lobeRadius` 14.** Junction turn 20.5 -> 33.9 cm, apex 20.1 ->
+18.0, circuit 300 -> 297, footprint 116 -> 121.
+
+### It survived the T24 trap
+
+n=120 over two independent offset sets, every config in both batches:
+
+| config | lap1% A / B | pooled | mean laps A / B | pooled | off% |
+|---|---|---|---|---|---|
+| 270, R16 (was shipped) | 70 / 52 | 61 | 1.92 / 1.27 | 1.60 | 20 |
+| **248, R14** | 78 / 53 | **65.5** | 2.17 / 1.78 | **1.98** | 16 |
+| 255, R14 | 58 / 52 | 55 | 1.98 / 1.48 | 1.73 | 8.5 |
+| 240, R15 | 72 / 53 | 62.5 | 2.53 / 1.93 | **2.23** | 12.5 |
+
+No single pairwise difference is significant -- pooled lap1% spans 55-65.5 against a ~4.4 SE. But
+**all three shorter-sweep configs beat 270 in BOTH offset sets on mean laps**: six paired
+comparisons, all the same direction, a sign test at p = 0.016. That is the first structural result
+here to survive the test that killed T24, and it is a FAMILY effect -- which member is best is not
+resolvable, so 248/R14 is chosen on margins and cost, not on its lap number. 240/R15 measures
+better still (2.23 mean laps, and 21.9 crashes per 30 s in the pile-up against 19.3) but costs 19 %
+footprint and 12 % circuit for it; it is one line away if that trade is ever wanted.
+
+Mechanistically everything moved the right way and nothing moved the wrong way: `tools/apex.mjs`
+median speed over the apex 125 -> 148 and worst case 84 -> 92; median speed at s=110 158/161 ->
+181/178; pitch curvature at the ramp/arc joint 0.0588 -> 0.0495 /cm; off-track 20 % -> 16 %.
+Self-test check 8 is the best it has ever been: **16 crashes in 15 s with zero cars stalled and all
+five still moving**, against 7-13 crashes and 2-5 stalled the day before.
+
+### A bug the audit caught before the ensemble could lie about it
+
+`tanSigma` -- the slope the ramp must arrive at -- was `st/hypot(ct,1)`, which is only the phi=135
+case. In general it is `st*SA/hypot(KC, ct*SA)`. Left unfixed, at sweep 248 the ramp arrived at
+slope 0.509 where the arc starts at 0.630: a 5.2 deg KINK, which `tools/audit.mjs` reported as
+0.2247 /cm of pitch curvature -- **20.6 g at 300 cm/s**. Two ensembles were already running against
+that geometry and had to be killed. Self-test check 2's heading-continuity test catches it too.
+**Run `tools/audit.mjs` on any new geometry before spending an hour measuring it.**
 
 ---
 
@@ -591,25 +656,20 @@ If it is missing: `node tools/fetch-rapier.mjs`.
 
 ## Next moves, in order
 
-1. **Read T24 and T26 first, and do not sweep another coefficient.** Three sessions of single-lever
-   fixes (T22 the nip, T24 the junction turn, T26 the apex) have each found a REAL defect, fixed it,
-   and gained nothing measurable, because something else is equally close to its limit. The failures
-   simply relocate: fix the crest and cars leave the track at s~200 instead. The launch is pinned at
-   its minimum (a gentler one cannot crest at all) and the track is pinned at its containment limit
-   (anything that makes cars faster raises off-track). Anything that is going to help now has to
-   raise margin in several places at once, which means geometry, not a coefficient.
-2. **If you do measure something: two n=60 samples on DIFFERENT `backs` arrays, and prefer
-   `tools/apex.mjs` or `tools/wall.mjs` over lap counting.** Both report continuous quantities and
-   resolve what the bimodal lap counter cannot. `tools/ens.mjs` now prints `lap1%` and `lap3%` with
-   a standard error, which are much tighter than the mean.
-3. **The ramp -> arc joint in the VERTICAL plane** is a real, measured 0.7 g step (vertical
-   curvature 0.0332 -> 0.0226 /cm across the joint, i.e. 2.28 g -> 1.56 g at 260 cm/s). The fix is
-   to give the ramp's height profile two end conditions instead of one: y = a3 t^3 + a4 t^4 with
-   y''(0) = 0, y'(1) = tanSigma*rampLen and y''(1) matched to the arc, giving a3 = P - Q/3,
-   a4 = (Q - 2P)/4, y0 = P/2 - Q/12. It RAISES the chord and so the apex, which T26 says is the
-   wrong direction -- so expect it to be another honourable draw.
-4. Otherwise the sim is in good enough shape to be played with, and the time is better spent on
-   `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
+1. **The sweep family is not exhausted.** T27 showed `lobeSweepDeg` is the one lever that widens the
+   junction turn without paying for it at the crest, and that `lobeRadius` has to be chosen WITH it
+   (both feed `rt = (R sin(phi) - L - S sin b)/(1 - cos b)`). Only four points of that
+   two-dimensional family were measured. 240/R15 already measures better than the shipped 248/R14
+   on mean laps and on the pile-up, at 19 % more footprint. Map the family properly -- but two n=60
+   offset sets per point, and read `tools/apex.mjs` and `tools/audit.mjs` first.
+2. **Run `tools/audit.mjs` on any new geometry BEFORE measuring it.** T27's `tanSigma` bug put a
+   20.6 g kink at the ramp/arc joint and two ensembles were already running on it. The audit takes
+   seconds; an ensemble takes half an hour and will happily report a number for a broken track.
+3. **The ramp -> arc joint in the vertical plane** is still a measured 0.7 g step, and the fix is
+   written out in full in T26's entry (a quartic ramp profile with two end conditions). It raises
+   the apex, which is the wrong direction, so expect a draw.
+4. Otherwise: `docs/ROADMAP.md` Phase 3 (physics fidelity) and Phase 4 (HD build with Blender).
+   The sim is in good enough shape to be played with.
 
 **Residual, low priority:** `tools/audit.mjs` reports 48 exposed wall end caps at reach -0.69,
 i.e. 0.69 cm outside the lane edge, at the hub gates. They do not respond to `wallSegLen` or

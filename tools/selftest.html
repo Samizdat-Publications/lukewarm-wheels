@@ -113,19 +113,22 @@ HW.main.paused = true;
     // Cs = sin(beta)/beta and Ss = (1-cos beta)/beta, which recovers the old rt*sin(beta) and
     // rt*(1-cos beta) exactly -- so this is the same test, not a weaker one.
     try {
-      const K = Math.SQRT1_2, rows = [], errs = [];
+      const rows = [], errs = [];
       for (const arm of ['N', 'E', 'S', 'W']) {
         const g = HW.track.lobeGeom(arm, cfg);
-        // closure: gap = Lt*Cs + S cos b ;  K*R - L = Lt*Ss + S sin b
+        // closure: gap = Lt*Cs + S cos b ;  R*SA - L = Lt*Ss + S sin b
         errs.push(Math.abs(g.gap - (g.turnLen * g.turn.Cs + g.S * Math.cos(g.beta))));
-        errs.push(Math.abs((K * g.R - cfg.laneOffset) - (g.turnLen * g.turn.Ss + g.S * Math.sin(g.beta))));
+        errs.push(Math.abs((g.SA * g.R - cfg.laneOffset) - (g.turnLen * g.turn.Ss + g.S * Math.sin(g.beta))));
+        // SA and KC must come from the arc's own half-sweep, and beta from the end tangent
+        errs.push(Math.abs(g.SA - Math.sin(g.phi)) + Math.abs(g.KC + Math.cos(g.phi)));
+        errs.push(Math.abs(Math.tan(g.beta) - g.KC / (g.ct * g.SA)));
         // and with no easement the turn must still BE a circular arc of radius rt
         if (!g.turn.e0 && !g.turn.e1) {
           errs.push(Math.abs(g.turn.Cs - Math.sin(g.beta) / g.beta));
           errs.push(Math.abs(g.turn.Ss - (1 - Math.cos(g.beta)) / g.beta));
         }
-        // beta must be the plan angle of a tilted circle's end tangent
-        errs.push(Math.abs(Math.tan(g.beta) - 1 / g.ct));
+        // and at the classic 270 deg sweep it must still reduce to the old closed form
+        if (Math.abs(g.phi - 0.75 * Math.PI) < 1e-9) errs.push(Math.abs(Math.tan(g.beta) - 1 / g.ct));
         const segs = track.lobes[arm].segs;
         errs.push(V.dist(segs[0].pointAt(1), segs[1].pointAt(0)));
         errs.push(V.dist(segs[1].pointAt(1), segs[2].pointAt(0)));
@@ -134,7 +137,8 @@ HW.main.paused = true;
           const d2 = V.sub(a2, b2), l = V.len(d2) || 1; return { x: d2.x / l, y: d2.y / l, z: d2.z / l }; };
         errs.push(1 - V.dot(dir(segs[0], 1), dir(segs[1], 0)));
         errs.push(1 - V.dot(dir(segs[1], 1), dir(segs[2], 0)));
-        rows.push(arm + ' tilt ' + f(U.radToDeg(g.tilt), 0) + ' rtMin ' + f(g.rt, 1) + ' turn ' + f(g.turnLen, 1)
+        rows.push(arm + ' tilt ' + f(U.radToDeg(g.tilt), 0) + ' sweep ' + f(2 * U.radToDeg(g.phi), 0)
+          + ' rtMin ' + f(g.rt, 1) + ' turn ' + f(g.turnLen, 1)
           + ' gap ' + f(g.gap, 1) + ' apex ' + f(g.apex, 1));
       }
       const err = Math.max(...errs);
