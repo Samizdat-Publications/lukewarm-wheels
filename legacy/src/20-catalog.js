@@ -2,8 +2,8 @@
 // Colour / tampo / base / window / interior / wheel type are CONFIRMED from the Hot
 // Wheels Wiki page "Criss Cross Crash 5-Pack (1999)" (fetched via the MediaWiki API —
 // see docs/CATALOG-SOURCES.md). Dimensions (cm) and masses (g) are ESTIMATES.
-// Field names are load-bearing: the physics (41-cars.js) reads massG, lengthCm, widthCm,
-// heightCm, wheelbaseCm, trackCm, wheelRadiusCm, crr, cgFrac.
+// Field names are load-bearing: the physics (42-vehicle.js) reads massG, lengthCm,
+// widthCm, heightCm, wheelbaseCm, trackCm, wheelRadiusCm, crr.
 (function (HW) {
   // Per-wheel-type radius (cm) and rolling-resistance coefficient. Radii are within the
   // real 9.5-11.5 mm diameter band for 1:64 wheels; crr is an ESTIMATE (docs/RESEARCH.md s4).
@@ -75,9 +75,6 @@
   for (const c of HW.catalog) {
     const w = WHEELS[c.wheelCode] || WHEELS['5SP'];
     c.wheelRadiusCm = w.radius; c.crr = w.crr;
-    // [E] centre of mass height as a fraction of body height: die-cast body + metal base
-    // put it low; the pickup is the tallest and tippiest.
-    c.cgFrac = c.cgFrac || (c.body.style === 'pickup' ? 0.42 : 0.38);
   }
   HW.catalogById = (id) => HW.catalog.find((c) => c.id === id);
 })(window.HW);

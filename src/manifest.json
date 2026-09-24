@@ -1,19 +1,15 @@
 {
-  "note": "Load order for the plain scripts. tools/build.mjs inlines them in this order into dist/index.html. index.html must list the same files in the same order.",
+  "note": "Load order for the plain scripts. tools/build.mjs inlines them in this order; index.html lists the same files. Files 00-49 are the headless physics (tools/simtest.mjs loads them in node).",
   "scripts": [
-    "src/00-namespace.js",
+    "src/00-core.js",
     "src/10-config.js",
     "src/20-catalog.js",
-    "src/30-track-layout.js",
-    "src/31-track-mesh.js",
-    "src/40-electrical.js",
-    "src/41-booster.js",
-    "src/42-vehicle.js",
-    "src/44-wheel-model.js",
-    "src/43-sim.js",
-    "src/50-render-scene.js",
-    "src/51-render-cars.js",
-    "src/60-ui.js",
-    "src/90-main.js"
+    "src/30-track-path.js",
+    "src/31-track-layout.js",
+    "src/40-power.js",
+    "src/41-cars.js",
+    "src/42-collide.js",
+    "src/43-freebody.js",
+    "src/45-sim.js"
   ]
 }

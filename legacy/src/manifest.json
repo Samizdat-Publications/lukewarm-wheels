@@ -1,0 +1,19 @@
+{
+  "note": "Load order for the plain scripts. tools/build.mjs inlines them in this order into dist/index.html. index.html must list the same files in the same order.",
+  "scripts": [
+    "src/00-namespace.js",
+    "src/10-config.js",
+    "src/20-catalog.js",
+    "src/30-track-layout.js",
+    "src/31-track-mesh.js",
+    "src/40-electrical.js",
+    "src/41-booster.js",
+    "src/42-vehicle.js",
+    "src/44-wheel-model.js",
+    "src/43-sim.js",
+    "src/50-render-scene.js",
+    "src/51-render-cars.js",
+    "src/60-ui.js",
+    "src/90-main.js"
+  ]
+}
