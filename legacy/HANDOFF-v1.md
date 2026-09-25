@@ -696,7 +696,7 @@ is dropped into a nip with the motor off.
    (Stewart types the value himself, e.g. `Set-Content -Path .env`), plus a
    `tools/env-check.mjs` that prints only whether each key is present.
    **Every command given to Stewart must begin with**
-   `cd "C:/Users/stewa/OneDrive/Documents/Claude/Projects/Hot Wheels Sim"`.
+   `cd "C:/Users/stewa/Documents/Claude/Projects/Hot Wheels Sim"`.
 4. **Machine:** ROG Zephyrus G16 (GU605CR), Core Ultra 9 285H, 32 GB, RTX 5070 Ti Laptop
    12 GB + Arc 140T, Win 11 Home 25H2, ~200 GB free. When measuring fps make sure Chrome
    runs on the NVIDIA GPU (Windows Graphics settings, High performance).
