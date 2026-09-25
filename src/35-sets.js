@@ -41,7 +41,7 @@
     }],
     // START HERE: lane C, south arm, just before the S booster (instruction sheet)
     start: { booster: 'S/C', offset: -4.2 },
-    view: { look: [0, 7, 0], wide: [118, 62], wide2: [92, 38], cross: { centre: [0, 4.5, 0], r: 30, h: 11 }, orbit: [0, 6, 4], bound: 40, hero: 'posts' },
+    view: { look: [0, 7, 0], wide: [118, 62], wide2: [92, 38], cross: { centre: [0, 4.5, 0], r: 30, h: 11 }, orbit: [0, 6, 4], bound: 40, hero: 'posts', camera: [-18, 78, 112] },
     selfRunning: true,
   };
 
@@ -83,6 +83,5 @@
     ],
     start: { track: 'drop', s: 2 },
     autoStart: { cars: 3, every: 2.2 },
-    view: { look: [0, 14, 0], wide: [150, 70], wide2: [110, 40], cross: null, orbit: [0, 12, 0], bound: 80, camera: [-40, 70, 140] },
   };
 })(window.HW);

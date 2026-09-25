@@ -202,7 +202,17 @@
       let ext = 0;
       for (const t of tracks) for (let i = 0; i < t.N; i++) ext = Math.max(ext, Math.abs(t.P.x[i]), Math.abs(t.P.z[i]));
       L.stats.footprint = 2 * (ext + cfg.laneW / 2 + cfg.wallT);
-      L.view = Object.assign({ look: [0, 7, 0], wide: [118, 62], wide2: [92, 38], cross: null, orbit: [0, 6, 4], bound: 40 }, set.view || {});
+      // camera hints: a set may give its own; otherwise frame the bounding box of its track
+      const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+      for (const t of tracks) for (let i = 0; i < t.N; i += 4) for (const [k, a] of [[0, t.P.x], [1, t.P.y], [2, t.P.z]]) { lo[k] = Math.min(lo[k], a[i]); hi[k] = Math.max(hi[k], a[i]); }
+      const c = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2];
+      const rad = Math.max(20, Math.hypot(hi[0] - lo[0], hi[2] - lo[2]) / 2, hi[1] / 1.5);
+      L.bounds = { lo, hi, centre: c, radius: rad };
+      L.view = Object.assign({
+        look: [c[0], c[1] * 0.6, c[2]], orbit: [c[0], c[1] * 0.5, c[2]], bound: rad,
+        wide: [rad * 1.8, rad * 0.75], wide2: [rad * 1.3, rad * 0.4], cross: null,
+        camera: [c[0] - rad * 0.25, rad * 0.7, c[2] + rad * 1.7],
+      }, set.view || {});
       return L;
     },
   };
