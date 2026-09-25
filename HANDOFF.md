@@ -1,7 +1,7 @@
 # HANDOFF - live project state
 
-_Last updated: 2026-09-24 by Opus 5.5 (all five roadmap phases done). Update this block whenever
-you stop._
+_Last updated: 2026-09-25 by Opus 5.5 (overnight polish after the five phases, see "Overnight
+2026-09-25" below). Update this block whenever you stop._
 
 ## Where we are
 
@@ -22,6 +22,26 @@ Stewart asked (2026-09-24) for all five roadmap phases, in order; all five are i
 overlay (Forces / O) works on every set. **Published:** https://claude.ai/artifact/2rG33qrywCsbFJwGKFvWqL
 (private to Stewart), republished at the end of this session. To republish from another
 conversation, pass that URL as `url` (read it first) with `dist/artifact.html`.
+
+**Overnight 2026-09-25** (Stewart: "work overnight on anything remaining or that would polish it,
+new features, full control"). Done, each its own commit:
+- Jumps are scored (lip to first touch: airtime, distance, height, landed): speedometer line + best
+  per set (localStorage `hw.jump.<set>`), BIG AIR / RECORD / WIPEOUT banners, Director jump cam in
+  slow motion (one per 7 s), Replay frames the last jump, an air-rush sound, record chimes.
+- Track Builder: `M` Merge back (a run joins the start of run 1; hand start only; same 60 cm / 60
+  deg rule as closing), `X` hammer and `W` paddle-wheel pieces, launcher pull in the code (`L1`..`L9`).
+- Showroom (`V` or the garage button, `74-showroom.js`): a casting on a plinth, its card, session
+  stats and the tuner. The sim pauses; `main.step` hands the frame to `HW.showroom.frame`.
+- Kitchen room (`51b-render-room.js`, `set.room: 'kitchen'`): walls, window, cabinets, splashback.
+- Graphics fixes: shadows fit each set (`HW.render.fitShadows`; before, only +-58 cm round the
+  origin cast any), the floor/rug no longer wash white under the rim light, the rug weave is a fine
+  tiled normal map (it was a corrugated moire up close), open run ends get a tower, the chair loop
+  hangs from the seat, the spiral is clipped to the table leg, better opening views for Kitchen,
+  Race Day and Drop & Jump; top view fits any set.
+- Free cars only count as "out of the world" outside the set's own bounds (the kitchen reaches
+  z = 237 and the old +-160 cm box retrieved cars there instantly).
+- Dev helpers on localhost only: `__run(secs)`, `await __shot(name)`, `__look(pos, target)`, and
+  `HW.main.step(dt)` is the whole frame.
 
 **The project moved** out of OneDrive on 2026-09-24: it lives at
 `C:\Users\stewa\Documents\Claude\Projects\Hot Wheels Sim`, a junction to
@@ -68,9 +88,9 @@ bodies against free cars (`44-stunts.js`). A sim can run on its own event bus (`
 | `37-furniture` | table, chair, books, cardboard box, mug, placed from the track |
 | `40-power` `41-cars` `42-collide` `43-freebody` `44-stunts` `45-sim` | power train, on-track dynamics, SAT, Rapier, launcher + hazards, sim loop |
 | `46-race` `47-challenge` | Race Day controller, why-it-won, tuner, knockout; a set's challenge + lap record |
-| `50`..`59` | renderer, room, track mesh, car models, V2791 hub, cars, cameras, fx, stunt props + furniture, race hardware + force overlay |
+| `50`..`59` | renderer, world (floor, rug) + `51b` room (kitchen), track mesh, car models, V2791 hub, cars, cameras, fx, stunt props + furniture, race hardware + force overlay |
 | `60-audio` `61-audio-assets` | sound (stunt events have their own sounds) |
-| `70-ui` `71-ui-race` `72-builder` `90-main` | HUD, set picker; race/tuner/overlay/challenge panels; the Track Builder; boot |
+| `70-ui` `71-ui-race` `72-builder` `74-showroom` `90-main` | HUD, set picker, jump line; race/tuner/overlay/challenge panels; the Track Builder; the Showroom; boot and `main.step` |
 
 ## Decisions and why (do not re-litigate without new evidence)
 
@@ -99,16 +119,23 @@ bodies against free cars (`44-stunts.js`). A sim can run on its own event bus (`
 
 ## Ideas for next (none started)
 
-- Track Builder: splitters are in, merges are not; hazards and the launcher strength are not
-  pieces yet. A splitter's two branches start overlapping (a Y), which reads fine but is not a
-  moulded splitter piece.
-- The Kitchen spiral could get clips to the table leg; the tower under a chair loop stands inside
-  the chair (below the seat).
-- Loop & Leap and the Kitchen set would suit a "photo finish" replay of the jump.
-- The roadmap's small items (showroom, hand model, car models round two, a listening pass on
-  audio) are still open.
+- A splitter's two branches start overlapping (an X of walls right after the Y). A moulded
+  splitter would widen the lane into two with a divider and hand the car over by its lateral
+  position (car.d re-projected onto the branch).
+- The kitchen book jump is a gentle 0.8 cm hop. A bigger one (lip -2, catch 18 cm further, the
+  south run 18 cm shorter) worked but cost the set its zero-crash return loop; tune the merge first.
+- Hand model (the hand that carries cars is only a glow ring); car models round two (the showroom
+  shows the lofts up close: wheel arches, roof decals); a listening pass on audio.
+- The other sets could get rooms too (`set.room`); Race Day would suit a hallway.
 
 ## Gotchas (each cost time)
+
+- `node tools/regress.mjs save <name>` saves ONE scenario per call (a second name is ignored).
+- `__shot('a/b.png')` becomes a dot-file `.._a_b.png` (the server sanitises names); save into
+  docs/screenshots and move the file.
+- The dev server occasionally resets a connection: a script fails to load and the page shows a
+  boot error about `HW.pieces`. Reload.
+- A near-black surface hides any shadow (2 % albedo): the showroom plinth had to go satin grey.
 
 - The Browser pane suspends requestAnimationFrame while hidden and its screenshots lag. Step the
   sim by hand and render in-page, then POST the canvas to `/__shot` and Read the PNG
