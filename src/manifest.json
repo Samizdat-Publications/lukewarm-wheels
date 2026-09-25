@@ -36,6 +36,7 @@
     "src/70-ui.js",
     "src/71-ui-race.js",
     "src/72-builder.js",
+    "src/74-showroom.js",
     "src/90-main.js"
   ]
 }

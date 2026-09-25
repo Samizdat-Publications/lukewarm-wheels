@@ -41,6 +41,7 @@
     HW.ui.init(sim);
     HW.overlay.build(HW.render.scene, sim);
     HW.uiRace.init(sim, document.getElementById('ui'));
+    HW.showroom.init(sim);
     setupPicking(canvas, sim);
 
     // open running: booster on, a few cars dropped in one after another (a race strip stages its own)
@@ -77,6 +78,7 @@
   // one frame of everything (also driven by hand from tests, where rAF may be throttled)
   main.step = (dt) => {
     const sim = HW.sim;
+    if (HW.showroom.active) { HW.showroom.frame(dt); return; }
     if (main.slowmoT > 0) { main.slowmoT -= dt; if (main.slowmoT <= 0) HW.config.timeScale = main.slow ? 0.25 : main.slowBefore || 1; }
     if (!main.paused) sim.update(dt);
     HW.replay.update(dt, sim);

@@ -71,6 +71,7 @@
       U.crashNum = h('span', { class: 'num', text: '0' });
       U.garage = h('div', { id: 'garage', class: 'panel' },
         h('div', { class: 'head' }, h('span', { class: 'lbl', text: 'Garage · 1999 5-pack' }), h('span', {}, h('span', { class: 'lbl', text: 'crashes ' }), U.crashNum)),
+        h('button', { id: 'btn-showroom', onclick: () => HW.showroom.open(), title: 'Look at the cars up close, and tune them (V)' }, 'Showroom'),
         list);
       root.append(U.garage);
 
@@ -342,7 +343,7 @@
           h('li', { html: 'In the channel, a car follows the track exactly: gravity, the track’s push (it can only push), rolling resistance, wall scrub, air drag and the foam nips. Too slow over a loop top and the track stops pushing: the car <b>falls off</b>.' }),
           h('li', { html: 'Anything that knocks it out of the channel turns it into a free rigid body (Rapier). It tumbles until it lands upright in a lane, or lies still and a hand carries it back to <b>START</b>.' }),
           h('li', { html: 'Two cars rarely crash: the boosters keep them in step. Uneven foam and clacking joints let them drift until they meet at a crossing. Five cars almost never find a safe rhythm.' })),
-        h('p', { html: '<b>Keys</b>: Space booster · A add car · L line up all · N nudge · R replay · S slow-mo · C camera · 1–5 follow a car · T tuning · M sound · H this help. Click a car in the scene or the garage to follow it.' }));
+        h('p', { html: '<b>Keys</b>: Space booster · A add car · L line up all · N nudge · R replay · S slow-mo · C camera · 1–5 follow a car · T tuning · M sound · V showroom · H this help. Click a car in the scene or the garage to follow it.' }));
       U.help.hidden = true;
       root.append(U.help);
     },
