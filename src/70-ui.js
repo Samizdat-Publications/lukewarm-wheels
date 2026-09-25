@@ -342,7 +342,9 @@
         h('ul', {},
           h('li', { html: 'In the channel, a car follows the track exactly: gravity, the track’s push (it can only push), rolling resistance, wall scrub, air drag and the foam nips. Too slow over a loop top and the track stops pushing: the car <b>falls off</b>.' }),
           h('li', { html: 'Anything that knocks it out of the channel turns it into a free rigid body (Rapier). It tumbles until it lands upright in a lane, or lies still and a hand carries it back to <b>START</b>.' }),
-          h('li', { html: 'Two cars rarely crash: the boosters keep them in step. Uneven foam and clacking joints let them drift until they meet at a crossing. Five cars almost never find a safe rhythm.' })),
+          U.sim.layout.hub ? h('li', { html: 'Two cars rarely crash: the boosters keep them in step. Uneven foam and clacking joints let them drift until they meet at a crossing. Five cars almost never find a safe rhythm.' }) : '',
+          U.jumpLine && !U.jumpLine.hidden ? h('li', { html: 'Off a lip, a car flies free. Each jump is measured from the lip to where it first touches: <b>airtime and distance</b> show by the speedometer, with this set’s best. The Director camera cuts to a slow-motion side view of a jump now and then; Replay (R) shows the last one again.' }) : ''),
+        h('p', { html: 'The <b>Showroom</b> (V, or the button in the garage) puts one car at a time on a turning plinth: what the real toy is, the numbers the physics uses, what it did this session, and coins, wheels and paint to tune it. <b>Build</b> opens the Track Builder.' }),
         h('p', { html: '<b>Keys</b>: Space booster · A add car · L line up all · N nudge · R replay · S slow-mo · C camera · 1–5 follow a car · T tuning · M sound · V showroom · H this help. Click a car in the scene or the garage to follow it.' }));
       U.help.hidden = true;
       root.append(U.help);
