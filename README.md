@@ -79,9 +79,12 @@ in at START; **Line up all 5** is the pile-up; **Forces** shows the forces on ea
 Leap, **Fire** (F) shoots the launcher (random strength, or set your own). On Race Day, **Race!**
 (G) runs a heat, **Knockout** a tournament, **Tuner** adds coins, swaps wheels and repaints. On
 the Kitchen Table Grand Prix, **Challenge** asks you to get all five round three times without
-losing one. **Build** opens the Track Builder. Click a car to follow it. Cameras: Orbit, Chase, Onboard (it goes upside down
-through the loops), Top, and Director, which cuts between shots and to a slow-motion crash cam.
-**Replay** plays the last crash back. The tuning drawer exposes battery charge, motor, foam grip
+losing one. **Build** opens the Track Builder (splitters, merges, hazards, a launcher strength in
+the code). **Showroom** (V) puts one car at a time on a turning plinth with its card, its session
+and the tuner. Every jump is scored (airtime and distance, the set's best kept). Click a car to
+follow it. Cameras: Orbit, Chase, Onboard (it goes upside down through the loops), Top, and
+Director, which cuts between shots and to slow-motion crash and jump cams. **Replay** plays the
+last crash or jump back. The tuning drawer exposes battery charge, motor, foam grip
 and squeeze, wall friction, rolling resistance, track-joint roughness and time scale, live.
 
 ## How it is put together
