@@ -216,22 +216,22 @@
    "counts": {
     "crash": 1,
     "bump": 1,
-    "derail": 21,
+    "derail": 22,
     "recapture": 11,
-    "retrieve": 15,
+    "retrieve": 16,
     "stall": 0,
     "dropped": 18,
     "lap": 9
    },
    "laps": [
-    4,
+    5,
     3,
-    2
+    1
    ],
    "crashes": 1,
-   "foam": 383.974
+   "foam": 409.946
   },
-  "hash": "c9f09bafc7b5ae48"
+  "hash": "e6c2458699d27b77"
  },
  "race-s3": {
   "name": "race-s3",
