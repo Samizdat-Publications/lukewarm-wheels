@@ -32,14 +32,24 @@
 
   HW.room = {
     build(scene, L) {
-      const kind = L.set && L.set.room;
-      if (kind !== 'kitchen') return null;
+      const kind = (L.set && L.set.room) || 'living';
+      if (kind === 'none') return null;
       const T = window.THREE, X = window.THREEX, rng = HW.rng(77);
       const g = new T.Group();
-      // walls stand clear of everything the set owns
+      // walls stand clear of everything the set owns, on the far sides as the opening camera
+      // sees it. The room is built in a local frame with its two walls on x = 0 and z = 0 and
+      // the floor running to +x, +z, then placed (and mirrored if need be) at that corner.
       let lo = L.bounds.lo.slice(), hi = L.bounds.hi.slice();
       for (const b of L.solids || []) if (b.furniture) for (const k of [0, 2]) { lo[k] = Math.min(lo[k], b.c[k] - b.h[k]); hi[k] = Math.max(hi[k], b.c[k] + b.h[k]); }
-      const xW = lo[0] - 75, zN = lo[2] - 95, H = 250, len = 900;
+      const v = L.view || {}, cam = v.camera || [0, 0, 1], aim = v.orbit || [0, 0, 0];
+      const sx = aim[0] - cam[0] < 0 ? 1 : -1, sz = aim[2] - cam[2] < 0 ? 1 : -1;
+      // clearance from the set to each wall: room for what stands against it (a 60 cm kitchen run,
+      // an 85 cm sofa) plus a margin to walk round
+      const [mx, mz] = kind === 'kitchen' ? [75, 95] : [155, 110];
+      const cx = sx > 0 ? lo[0] - mx : hi[0] + mx, cz = sz > 0 ? lo[2] - mz : hi[2] + mz;
+      const ez = sz > 0 ? hi[2] - cz : cz - lo[2];                    // room depth to the set's far edge
+      g.position.set(cx, 0, cz); g.scale.set(sx, 1, sz);
+      const xW = 0, zN = 0, H = 250, len = 900;
 
       const wallMat = new T.MeshStandardMaterial({ map: HW.tex.three(plaster(rng), { repeat: 1 }), roughness: 0.93 });
       wallMat.map.repeat.set(len / 120, H / 120);
@@ -57,10 +67,10 @@
       g.add(sk1, sk2);
 
       // the window in the west wall, lined up with where the key light comes from
-      const wz = Math.min(hi[2], zN + 330), wy = 150, ww = 120, wh = 110;
-      const sky = HW.tex.canvas(64, 128), sx = sky.getContext('2d'), sg = sx.createLinearGradient(0, 0, 0, 128);
+      const wz = Math.min(ez, 330), wy = 150, ww = 120, wh = 110;
+      const sky = HW.tex.canvas(64, 128), skx = sky.getContext('2d'), sg = skx.createLinearGradient(0, 0, 0, 128);
       sg.addColorStop(0, '#fff3dc'); sg.addColorStop(0.55, '#ffd9a0'); sg.addColorStop(1, '#f2b27a');
-      sx.fillStyle = sg; sx.fillRect(0, 0, 64, 128);
+      skx.fillStyle = sg; skx.fillRect(0, 0, 64, 128);
       const glass = new T.Mesh(new T.PlaneGeometry(ww, wh), new T.MeshBasicMaterial({ map: HW.tex.three(sky), toneMapped: false, fog: false }));
       glass.material.color.setScalar(1.6);
       glass.rotation.y = Math.PI / 2; glass.position.set(xW + 0.3, wy, wz);
@@ -79,7 +89,18 @@
       glow.rotation.x = -Math.PI / 2; glow.position.set(xW + 110, -0.4, wz + 30);
       g.add(glow);
 
-      // kitchen run along the north wall: base units, worktop, splashback, wall units
+      if (kind === 'living') livingRoom(g, T, X, rng, ez);
+      else kitchen(g, T, X, len);
+      g.traverse((o) => { if (o.isMesh && o !== glass && o !== glow) { o.receiveShadow = true; } });
+      scene.add(g);
+      HW.room.group = g;
+      return g;
+    },
+  };
+
+  // a kitchen run along the north wall: base units, worktop, splashback, wall units
+  function kitchen(g, T, X, len) {
+      const xW = 0, zN = 0;
       const run = Math.min(360, len - 60), x0 = xW + 2;
       const door = new T.MeshPhysicalMaterial({ color: 0x4f6b5d, roughness: 0.42, clearcoat: 0.3, clearcoatRoughness: 0.4 });
       const carcass = new T.MeshStandardMaterial({ color: 0x2c3a33, roughness: 0.7 });
@@ -121,10 +142,43 @@
       jlid.position.set(x0 + run * 0.3, 106.5, zN + 22);
       g.add(body, lever, jar, jlid);
 
-      g.traverse((o) => { if (o.isMesh && o !== glass && o !== glow) { o.receiveShadow = true; } });
-      scene.add(g);
-      HW.room.group = g;
-      return g;
-    },
-  };
+  }
+
+  // a living room: a bookcase along the north wall, a sofa under the window, a floor lamp
+  function livingRoom(g, T, X, rng, ez) {
+    const wood = new T.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.6 });
+    const shelfW = 160, shelfD = 30, shelfH = 180, x0 = 60;
+    const box = (w, h, d, x, y, z, m) => { const o = new T.Mesh(new X.RoundedBoxGeometry(w, h, d, 2, Math.min(0.6, w / 4, h / 4, d / 4)), m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+    // the carcass: two sides, a top, a back and five shelves full of books
+    box(2.5, shelfH, shelfD, x0, shelfH / 2, shelfD / 2, wood); box(2.5, shelfH, shelfD, x0 + shelfW, shelfH / 2, shelfD / 2, wood);
+    box(shelfW + 2.5, 2.5, shelfD, x0 + shelfW / 2, shelfH, shelfD / 2, wood);
+    box(shelfW, shelfH, 1, x0 + shelfW / 2, shelfH / 2, 0.8, new T.MeshStandardMaterial({ color: 0x4e3521, roughness: 0.8 }));
+    for (let k = 0; k < 5; k++) {
+      const y = 8 + k * 36;
+      box(shelfW, 2, shelfD - 2, x0 + shelfW / 2, y, shelfD / 2, wood);
+      let x = x0 + 3;
+      while (x < x0 + shelfW - 6) {
+        const w = 2 + rng() * 3.5, h = 20 + rng() * 10, hue = rng();
+        if (rng() < 0.08) { x += 6; continue; }                       // a gap on the shelf
+        const col = new T.Color().setHSL(hue, 0.35 + rng() * 0.3, 0.25 + rng() * 0.3);
+        box(w, h, 18 + rng() * 5, x + w / 2, y + 1 + h / 2, shelfD / 2 + 1, new T.MeshStandardMaterial({ color: col, roughness: 0.7 }));
+        x += w + 0.2;
+      }
+    }
+    // a sofa along the west wall, under the window
+    const fabric = new T.MeshStandardMaterial({ color: 0x7a8c96, roughness: 0.95 });
+    const sz0 = Math.min(ez, 330) - 110, sl = 200;
+    box(85, 40, sl, 45, 22, sz0 + sl / 2, fabric);                    // base
+    box(22, 45, sl, 11, 60, sz0 + sl / 2, fabric);                    // back
+    for (const z of [sz0 + 11, sz0 + sl - 11]) box(85, 58, 22, 45, 29, z, fabric);   // arms
+    for (let k = 0; k < 3; k++) box(60, 12, sl / 3 - 4, 55, 48, sz0 + 22 + (k + 0.5) * ((sl - 44) / 3), new T.MeshStandardMaterial({ color: 0x8a9ca6, roughness: 0.95 }));
+    // a floor lamp in the corner, its shade lit
+    const brass = new T.MeshStandardMaterial({ color: 0xb08d57, metalness: 1, roughness: 0.35 });
+    const lx = 30, lz = 40;
+    const base = new T.Mesh(new T.CylinderGeometry(12, 14, 3, 32), brass); base.position.set(lx, 1.5, lz);
+    const pole = new T.Mesh(new T.CylinderGeometry(1.2, 1.2, 150, 12), brass); pole.position.set(lx, 76, lz);
+    const shade = new T.Mesh(new T.CylinderGeometry(16, 22, 26, 32, 1, true), new T.MeshStandardMaterial({ color: 0xf2e3c4, emissive: 0xffc98a, emissiveIntensity: 0.55, side: T.DoubleSide, roughness: 0.9 }));
+    shade.position.set(lx, 158, lz);
+    g.add(base, pole, shade);
+  }
 })(window.HW);
