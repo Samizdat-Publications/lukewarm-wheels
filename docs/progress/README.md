@@ -180,6 +180,68 @@ the apex; with tired batteries (tuning drawer) that is exactly where cars start 
 Screenshots for this archive are now taken with the Playwright MCP browser at 1600x900 (it uses
 the real GPU, so they match what the page looks like), straight into `docs/progress/`.
 
+## 14 - 2026-09-24 - sets as data: a double loop
+
+![Loop & Leap's double loop](14-2026-09-24-sets-as-data-double-loop.png)
+
+The engine became a platform. A track set is now plain data (`src/35-sets.js`): a graph of
+tracks, each a chain of snap-together pieces, closed into a circuit or open with ends that stop,
+fly (a jump lip), link or split. Criss Cross Crash was rewritten as set #1 and reproduces the old
+build **bit for bit** (`tools/regress.mjs` hashes every car's state twice a second on fixed
+seeds). The loops here are exact helices eased in and out by quintics that match position,
+tangent and curvature, each hung from a tower beside its apex.
+
+*Could it run?* Drop & Jump, the proof set: 15 of 15 test drops land the jump and finish.
+
+## 15 - 2026-09-24 - Loop & Leap: in the air
+
+![a Porsche 959 over the gap](15-2026-09-24-loop-and-leap-jump.png)
+
+The stunt set: spring launcher, double loop, a kicker and a funnel catch across a gap, a
+two-wheel booster, a corkscrew, a swinging hammer. The launcher throws car and plunger together
+(v = x sqrt(k/(m + m_p))), so a light casting leaves faster than a heavy one. Off the lip the car
+is a free rigid body that pivoted nose-down off the edge; it is caught only if it lands upright
+and moving.
+
+*Could it run?* A strength sweep of all five castings: below ~0.65 a car drops off a loop top,
+~0.65-0.75 it falls short or crash-lands, 0.75-0.95 it lands and finishes, the top end sails over
+(the light Aeroflash first, the heavy Stocker never).
+
+## 16 - 2026-09-24 - Race Day, with the forces showing
+
+![four cars on the drag strip, force overlay on](16-2026-09-24-race-day-forces.png)
+
+A four-lane gravity drag strip with a start gate, a light tree and a timing gate. Nothing drives
+the cars but gravity, so the differences the model already knew about decide it: rolling
+resistance per wheel type, mass against frontal area, how straight a car runs. After each heat
+a card says why the winner won, from the cars' energy ledgers ("lost 15.7% of its drop to axle
+drag, the winner only 13.4%: its 5-Dot wheels roll easier"). The green arrows are the floor
+force in car weights, the trails are coloured by speed.
+
+*Could it run?* Stock, the 5-Dot cars win by 3-8 ms and the Saw Blade Stocker is last every
+heat. With graphite wheels and two coins from the tuner, the Stocker wins every heat.
+
+## 17 - 2026-09-24 - the Kitchen Table Grand Prix
+
+![the kitchen circuit](17-2026-09-24-kitchen-table-gp.png)
+
+Our own set, through the room: a hand start on a 75 cm kitchen table, a four-turn spiral down a
+table leg, a cardboard-box tunnel, a booster, a jump between two stacks of books, a loop standing
+under a chair, and a long boosted ramp back onto the table. The furniture is placed from the
+track (the table's leg is the spiral's axis, the books prop the ramp up to its lowest point).
+Between this frame and the Track Builder (codes like `#t.LSSOSJ.SlSBSFK`), every roadmap phase
+is in.
+
+*Could it run?* Unattended, three cars for two minutes: 63 jumps, 63 caught, 61 laps of about
+5.1 s. The challenge (five cars, three laps each, none lost) depends on how you time the drops.
+
+## 18 - 2026-09-24 - off the books
+
+![leaving the book stack](18-2026-09-24-kitchen-book-jump.png)
+
+The Porsche leaving the lip on the first stack of books, the funnel on the second stack waiting,
+the spiral and the box tunnel behind.
+
 ## Adding a frame
 
 WebGL canvases cannot be screenshotted from Node, and `toDataURL` returns an empty image once the

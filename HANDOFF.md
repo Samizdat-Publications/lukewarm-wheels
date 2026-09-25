@@ -1,105 +1,125 @@
 # HANDOFF - live project state
 
-_Last updated: 2026-09-24 by Opus 5.5 (roadmap phases 1-2 done, 3-5 in progress). Update this
-block whenever you stop._
+_Last updated: 2026-09-24 by Opus 5.5 (all five roadmap phases done). Update this block whenever
+you stop._
 
 ## Where we are
 
-**The engine is a platform now.** A track set is plain data (`src/35-sets.js`), built by a
-generic builder into a graph of tracks. Three sets, picked in the HUD or with `#s.<id>`:
+**The engine is a platform with five sets and a builder.** A set is plain data
+(`src/35-sets.js`), built by one generic builder into a graph of tracks. Pick one in the HUD's
+top-left menu, or with `#s.<id>` in the URL; a builder track rides in `#t.<code>`.
 
-| set | what it shows |
+| set (`#s.`) | what it shows |
 |---|---|
-| `crissCross` | the 2010 V2791, exactly as v2 had it (bit-identical in `tools/regress.mjs`) |
+| `crissCross` | the 2010 V2791, exactly as v2 had it (bit-identical through the Phase 1 refactor) |
 | `dropJump` | the smallest proof: drop tower -> kicker -> free flight -> catch ramp -> finish |
-| `loopLeap` | spring launcher, double loop, jump + funnel catch, 2-wheel booster, corkscrew, swinging hammer, finish, brake run-out |
+| `loopLeap` | spring launcher, double loop, jump + funnel catch, 2-wheel booster, corkscrew, hammer, brake |
+| `dragStrip` | "Race Day": 4-lane gravity drag strip, timing gate, why-it-won card, tuner, knockout |
+| `kitchenGP` | "Kitchen Table Grand Prix": table, leg spiral, box tunnel, book jump, chair loop, boosted ramp; a challenge |
+| `#t.<code>` | Track Builder tracks (Build button): pieces as letters, test-driven headless on every edit |
 
-Stewart asked (2026-09-24) for all five roadmap phases, in order. Phases 1 and 2 are done;
-3 (Race Day), 4 (Track Builder) and 5 (Kitchen Table GP) are next: see `docs/ROADMAP.md`.
-
-**Published:** https://claude.ai/artifact/2rG33qrywCsbFJwGKFvWqL (private to Stewart), still at
-the v2 build until republished. Republish from THIS conversation by passing `dist/artifact.html`
-to the Artifact tool; from any other conversation pass that URL as `url`.
+Stewart asked (2026-09-24) for all five roadmap phases, in order; all five are in. The force
+overlay (Forces / O) works on every set. **Published:** https://claude.ai/artifact/2rG33qrywCsbFJwGKFvWqL
+(private to Stewart), republished at the end of this session. To republish from another
+conversation, pass that URL as `url` (read it first) with `dist/artifact.html`.
 
 **The project moved** out of OneDrive on 2026-09-24: it lives at
-`C:\Users\stewa\Documents\Claude\Projects\Hot Wheels Sim`, which is a junction to
+`C:\Users\stewa\Documents\Claude\Projects\Hot Wheels Sim`, a junction to
 `C:\Users\stewa\ClaudeProjects\Hot Wheels Sim`. Never work in the old OneDrive copy.
 
 ```
-node tools/serve.mjs                    -> http://localhost:8765/   (#s.loopLeap etc.)
-node tools/build.mjs                    -> dist/index.html + dist/artifact.html
-node tools/regress.mjs                  -> bit-exact fingerprints of 11 scenarios (4 s); `save` re-baselines
-node tools/simtest.mjs geomset <set>    -> per-piece length, tightest radius, roll, height; curvature steps
-node tools/simtest.mjs sweep <set> [lo hi step cars] -> fire each casting from the launcher, classify outcomes
-node tools/simtest.mjs auto <set> [secs cars]        -> the set running by itself; event counts
-node tools/simtest.mjs runs <set> [n]   -> drop every casting down an open set
-node tools/simtest.mjs lone|fleet|crashlog|phase|geom|solve   (Criss Cross tools, as before)
+node tools/serve.mjs                    -> http://localhost:8765/   (#s.loopLeap, #t.LSSOSJ.SlSBSFK ...)
+node tools/build.mjs                    -> dist/index.html + dist/artifact.html (~535 KB)
+node tools/regress.mjs                  -> bit-exact fingerprints of 13 scenarios (~10 s); `save [names]` re-baselines
+node tools/simtest.mjs geomset <set>    -> per piece: length, tightest radius, roll, height, plan position; furniture
+node tools/simtest.mjs sweep <set> [lo hi step cars]  -> fire every casting from the launcher, classify outcomes
+node tools/simtest.mjs auto <set> [secs cars]         -> the set running by itself; event counts, derail causes
+node tools/simtest.mjs race [heats] [knockout]        -> Race Day heats + explanations (TUNE='{...}' to tune)
+node tools/simtest.mjs code <code> [strength]         -> build a Track Builder code, test-drive all five
+node tools/simtest.mjs challenge [set secs dropEvery] -> run a set's challenge
+node tools/simtest.mjs runs|lone|fleet|crashlog|phase|geom|solve   (older modes, as before)
 ```
 
 ## The architecture, in one paragraph
 
-A car in the channel is a mass constrained to the track: coordinates `s`, `d`, `h` on ITS
-track (`car.track`), integrated at 1920 Hz (`41-cars.js`). Forces: gravity, v^2*kappa, a floor
-and walls that can only push, rolling resistance, wall scrub, side-slip, air drag, foam nips,
-brake pads. A set is a graph of tracks (`33-track-build.js`): each is closed (a circuit) or open,
-and an open end is data: `stop` (a buffer), `fly` (a lip: the car rides on until its rear axle
-leaves, then becomes a Rapier body with the pitch rate of pivoting off the edge), `{to}` (a
-link/merge) or `{split}`. Leaving the channel hands the car to Rapier (`43-freebody.js`); a free
-car that lands upright and moving in ANY track's lane is recaptured. Hazards are huge-mass
-boxes against channel cars and kinematic bodies against free cars (`44-stunts.js`).
+A car in the channel is a mass constrained to the track: `s`, `d`, `h` on ITS track
+(`car.track`), integrated at 1920 Hz (`41-cars.js`) with gravity, v^2*kappa, a floor and walls
+that can only push, rolling resistance, wall scrub, side-slip, air drag, foam nips and brake
+pads. A set is a graph of tracks (`33-track-build.js`): each closed or open, and an open end is
+data: `stop` (a buffer), `fly` (a lip: the car rides on until its rear axle leaves, then becomes
+a Rapier body with the pitch rate of pivoting off the edge), `{to}` (a link/merge) or `{split}`.
+Leaving the channel hands the car to Rapier (`43-freebody.js`); a free car that lands upright and
+moving in ANY track's lane is recaptured. Props (the V2791 hub, furniture) are built around the
+tracks and placed from them. Hazards are huge-mass boxes against channel cars and kinematic
+bodies against free cars (`44-stunts.js`). A sim can run on its own event bus (`HW.makeBus`).
 
 ## Files (load order = src/manifest.json)
 
 | file | owns |
 |---|---|
-| `00-core` `10-config` `20-catalog` | namespace/math, generic tunables, the five castings |
+| `00-core` `10-config` `20-catalog` | namespace, bus, math/quaternions, generic tunables, the five castings |
 | `30-track-path` | segments (line, B-spline, quintic Hermite, helix), resampling, closed/open paths, heartline banking, frames |
 | `31-track-pieces` | generic pieces: straight, bend, pitch, join, loop, corkscrew, spiral; `fairJoin` |
 | `32-v2791` | the Criss Cross hub as a prop + its `hubLane` / `lobe` pieces |
-| `33-track-build` | set -> tracks, ends/links, widths, brakes, gates, joints, supports, buffers, view |
-| `34-track-features` | booster, launcher, brake pieces; hazards; loop towers |
-| `35-sets` | the sets (data only) |
+| `33-track-build` | set -> tracks, ends/links, widths, brakes, gates, joints, supports, buffers, view, warnings |
+| `34-track-features` | booster (level or sloped), launcher, brake pieces; hazards; loop towers |
+| `35-sets` | the five sets (data only) |
+| `36-builder-codec` | Track Builder codes <-> sets; `testRun` (a silent headless test drive) |
+| `37-furniture` | table, chair, books, cardboard box, mug, placed from the track |
 | `40-power` `41-cars` `42-collide` `43-freebody` `44-stunts` `45-sim` | power train, on-track dynamics, SAT, Rapier, launcher + hazards, sim loop |
-| `50`..`58` | renderer, room, track mesh + towers, car models, V2791 hub, cars, cameras, fx, stunt props |
-| `60-audio` `61-audio-assets` `70-ui` `90-main` | sound, HUD (set picker, launcher panel), boot |
+| `46-race` `47-challenge` | Race Day controller, why-it-won, tuner, knockout; a set's challenge + lap record |
+| `50`..`59` | renderer, room, track mesh, car models, V2791 hub, cars, cameras, fx, stunt props + furniture, race hardware + force overlay |
+| `60-audio` `61-audio-assets` | sound (stunt events have their own sounds) |
+| `70-ui` `71-ui-race` `72-builder` `90-main` | HUD, set picker; race/tuner/overlay/challenge panels; the Track Builder; boot |
 
 ## Decisions and why (do not re-litigate without new evidence)
 
-- Everything from the v2 list still holds (track-constrained dynamics, quintic lobes,
-  heartline bank, 380 motor, deliberate noise, the hand waits for a gap, recapture only moving
-  cars, Neutral tone mapping, towers outside loops).
-- **Phase 1 had to be bit-identical for Criss Cross**, and was: the regression hashes every
-  car's state twice a second on fixed seeds. Two later changes were meant to alter the physics
-  and re-saved the baseline with the reason in the commit: wheel colliders (below) and nothing else.
-- **Free-body wheels are balls of r <= 0.32 inside the body width.** Full-radius balls at
-  +-track/2 reached past the channel walls, so any hand-off inside the channel started wedged
-  (a car leaving a lip lost 45 % of its speed and spun at 45 rad/s). 5-car crash rate went 68 ->
-  55 a minute, same character.
-- **Jumps ride the lip until the rear axle leaves.** Handing off when the centre passed the
-  edge made the rear wheels hit the lip corner (a discrete-contact kick that flipped the Stocker
-  every time). Open tracks extend straight past their ends for this.
-- **Loops/corkscrews/spirals are exact helices** with clothoid-like quintic ease-in/out that
-  match position, tangent and curvature. Circles with straight joins would step the normal force.
-- **A flat sample never inherits a bank flip.** The old "never let U flip" guard latched an
-  inverted frame onto every straight after a loop.
-- **The launcher throws car + plunger**: v = x sqrt(k/(m + m_p)), k = 5.5e5 dyne/cm, x <= 4 cm,
-  m_p = 6 g. That is why a light car leaves faster and why castings differ at the jump.
-- **Loop & Leap is tuned by sweep**, not by hand: see the commit message of e1a80a1 for the
-  outcome bands. Re-run `simtest sweep loopLeap` after touching its geometry.
-- **Sets choose by `#s.<id>` and reload.** Artifacts only pass a bare `#token` (letters, digits,
-  `. _ ~ -`), so `=` is not allowed; Phase 4 codes will use `#t.<code>`.
+- Everything from the v2 list still holds (track-constrained dynamics, quintic lobes, heartline
+  bank, 380 motor, deliberate noise, the hand waits for a gap, recapture only moving cars,
+  Neutral tone mapping, towers outside loops).
+- **Phase 1 had to be bit-identical for Criss Cross, and was.** The regression hashes every
+  car's state twice a second on fixed seeds; change the physics on purpose only with a re-saved
+  baseline and the reason in the commit. Only one such change so far: the wheel colliders.
+- **Free-body wheels are balls of r <= 0.32 inside the body width.** Full-radius balls reached
+  past the channel walls, so every hand-off inside the channel started wedged.
+- **Jumps ride the lip until the rear axle leaves**, then inherit the pivot's nose-down pitch
+  rate. Handing off at the centre made the rear wheels hit the lip corner.
+- **Loops/corkscrews/spirals are exact helices** with ease-in/out quintics matching curvature;
+  loops bank for 450 cm/s unless a set names a speed, so a loop always inverts at the top.
+- **A crest must satisfy v^2 < g R cos(theta)** for the fastest car that reaches it, or cars take
+  off (the Kitchen ramp top is R 150 with only two boosters below it for this reason). The fair
+  quintic's tightest point is ~2/3 of the nominal radius.
+- **The launcher throws car + plunger** (k 5.5e5 dyne/cm, x <= 4 cm, 6 g plunger).
+- **Race results are explained from energy ledgers**, not made up: the card names the loss that
+  differs most between winner and runner-up and the car property behind it.
+- **Builder circuits close only if the run really comes back** (60 cm, 60 deg); fair joins bound
+  their handles (an unbounded far join ran to 1e16).
+- **Furniture is placed from the track**, so moving pieces never leaves the table floating.
+- **Sets choose by `#s.<id>` / `#t.<code>` and reload.** Artifacts only pass a bare `#token`.
+
+## Ideas for next (none started)
+
+- Track Builder: splitters are in, merges are not; hazards and the launcher strength are not
+  pieces yet. A splitter's two branches start overlapping (a Y), which reads fine but is not a
+  moulded splitter piece.
+- The Kitchen spiral could get clips to the table leg; the tower under a chair loop stands inside
+  the chair (below the seat).
+- Loop & Leap and the Kitchen set would suit a "photo finish" replay of the jump.
+- The roadmap's small items (showroom, hand model, car models round two, a listening pass on
+  audio) are still open.
 
 ## Gotchas (each cost time)
 
-- The Browser pane suspends requestAnimationFrame while hidden, and its screenshots lag. To
-  look at a set: define `__shot` / `__run` in the page (see this session: step the sim by hand,
-  render, POST the canvas to `/__shot`, then Read the PNG in `docs/screenshots/`).
+- The Browser pane suspends requestAnimationFrame while hidden and its screenshots lag. Step the
+  sim by hand and render in-page, then POST the canvas to `/__shot` and Read the PNG
+  (`docs/screenshots/`). Region zoom is not supported there.
 - The Playwright MCP browser can be locked by another session ("Browser is already in use").
 - Shell heredocs through the Bash tool break on an apostrophe even when quoted; write patch
   scripts with the Write tool into the scratchpad and run them.
 - A stale `node tools/serve.mjs` from an earlier session may hold port 8765 serving the OLD
   OneDrive copy: check `curl localhost:8765/src/35-sets.js` before trusting it.
 - Do not name a local `G` inside `trackDynamics.step`: `G` is gravity there.
+- Test drives must use their own bus, or the page's audio and HUD hear them.
 - r185 deprecated PCFSoftShadowMap; `window.THREE` exists only after `hw:libs-ready`.
 - Keys: `ELEVENLABS_API_KEY` is in Stewart's environment; there is no Gemini key.
 

@@ -1,5 +1,12 @@
 # ROADMAP - from one set to a track platform
 
+> **Status 2026-09-24: all five phases are built** (commits `9cd845a`..`91ae210`). What each
+> phase became is in `HANDOFF.md` and `docs/progress/README.md` (frames 14-18); the plan below is
+> kept as it was written, for the record. Differences from the plan: Criss Cross is set #1 and
+> bit-identical; "Loop & Leap" uses a spring launcher (the drop tower is its own set, Drop & Jump)
+> and a swinging hammer; the Kitchen set loops under a chair rather than around a chair leg, and
+> one boosted ramp (boosters on the slope) brings cars back to the table.
+
 _Written 2026-09-24 at the end of the v2 session. Read `HANDOFF.md` first; this is the plan for
 what comes after. Stewart's brief for this phase: new tracks, borrowed from Hot Wheels or
 invented, "totally up to you"._

@@ -1,11 +1,20 @@
-# Criss Cross Crash - a simulation
+# Hot Wheels Sim - five track sets on one engine
 
-A browser simulation of the 2010 Hot Wheels **Criss Cross Crash** set (Mattel V2791) running the
-1999 Criss Cross Crash five-pack (#21081): Porsche 959, Aeroflash, Ford GT-90, Chevy Stocker and
-Chevy 1500. A red motorised hub drives four foam booster wheels; one continuous circuit runs
-through two tall loops, two low banked sweeps and a `#` crossing with four crash points.
+A browser simulation of Hot Wheels track, built around the 2010 **Criss Cross Crash** set (Mattel
+V2791) and the 1999 Criss Cross Crash five-pack (#21081): Porsche 959, Aeroflash, Ford GT-90,
+Chevy Stocker and Chevy 1500. What started as one set is now a platform: every set is plain data
+built by one engine, and there are five of them, plus a builder for your own.
 
-![Over the top](docs/progress/13-2026-09-24-v2-over-the-top.png)
+| set | what it is |
+|---|---|
+| **Criss Cross Crash** | the real V2791: a motorised hub, two tall loops, two banked sweeps, a `#` crossing |
+| **Drop & Jump** | the smallest proof: drop tower, kicker, free flight, catch ramp |
+| **Loop & Leap** | spring launcher, double loop, jump, two-wheel booster, corkscrew, swinging hammer |
+| **Race Day** | a four-lane gravity drag strip with a timing gate, a tuner and knockouts, and a card that says why the winner won |
+| **Kitchen Table Grand Prix** | our own: off a kitchen table, down a table leg, through a box, over the books, under a chair and back up |
+| **Track Builder** | snap pieces together, test-drive them, share the track as a link (`#t.<code>`) |
+
+![The Kitchen Table Grand Prix](docs/progress/17-2026-09-24-kitchen-table-gp.png)
 
 ## What is simulated
 
@@ -26,6 +35,13 @@ through two tall loops, two low banked sweeps and a `#` crossing with four crash
 - **The track.** Each lobe is shaped for minimum bending energy, the fairest curve through its
   apex, and banked by the rule roller-coaster designers use: lean the track into the force a car
   at design speed needs. The rear lobes come out as true loops that cars ride upside down.
+- **Jumps and stunts.** A car leaving a lip rides on until its rear axle leaves the edge, then
+  flies as a free rigid body with the pitch rate it got from pivoting off it, and is caught only
+  if it lands upright and moving. Loops, corkscrews and spirals are exact helices eased in by
+  curves that match their curvature. The spring launcher throws the car and its plunger together,
+  so light castings leave faster. Hazards hit cars as bodies of enormous mass.
+- **Racing.** On the drag strip gravity is the only drive, so the castings' wheels, mass and
+  frontal area decide it, and every car keeps an energy ledger that explains the result.
 - **Imperfection.** Track joints clack, every car's wheels drag a little differently, and worn
   foam grips each pass at a slightly different speed. Without that, the boosters lock the cars in
   step and they never meet. With it, crashes come "eventually", the way reviewers describe the
@@ -52,12 +68,18 @@ Headless physics checks, no browser needed:
 node tools/simtest.mjs lone 20 0
 ```
 
-`fleet`, `crashlog`, `phase`, `geom` and `solve` are the other modes; see `HANDOFF.md`.
+`fleet`, `crashlog`, `phase`, `geom`, `solve`, `geomset`, `sweep`, `auto`, `race`, `code` and
+`challenge` are the other modes; see `HANDOFF.md`. `node tools/regress.mjs` checks that the physics
+still reproduces its saved fingerprints bit for bit.
 
 ## Playing
 
-Space switches the booster; **Add car** drops the next casting in at START; **Line up all 5** is
-the pile-up. Click a car to follow it. Cameras: Orbit, Chase, Onboard (it goes upside down
+Pick a set in the top-left menu. Space switches the booster; **Add car** drops the next casting
+in at START; **Line up all 5** is the pile-up; **Forces** shows the forces on each car. On Loop &
+Leap, **Fire** (F) shoots the launcher (random strength, or set your own). On Race Day, **Race!**
+(G) runs a heat, **Knockout** a tournament, **Tuner** adds coins, swaps wheels and repaints. On
+the Kitchen Table Grand Prix, **Challenge** asks you to get all five round three times without
+losing one. **Build** opens the Track Builder. Click a car to follow it. Cameras: Orbit, Chase, Onboard (it goes upside down
 through the loops), Top, and Director, which cuts between shots and to a slow-motion crash cam.
 **Replay** plays the last crash back. The tuning drawer exposes battery charge, motor, foam grip
 and squeeze, wall friction, rolling resistance, track-joint roughness and time scale, live.

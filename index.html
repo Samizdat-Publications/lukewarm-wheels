@@ -228,7 +228,7 @@
     #cambar .seg button { flex: 1; padding: 8px 0; font-size: 11px; letter-spacing: .04em; }
     .iconbtn { width: 34px; height: 34px; }
     #brand { top: calc(54px + env(safe-area-inset-top, 0px)); }
-    #brand .logo { font-size: 22px; }
+    #brand .logo { font-size: 22px; max-width: calc(100vw - 2 * var(--gut) - 200px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
     #brand .tag, #hint { display: none; }
     /* bottom: a strip of cars, the actions, then the power panel */
     #power { left: var(--gut); right: var(--gut); padding: 8px 10px; gap: 6px 12px; grid-template-columns: auto 1fr; }
@@ -239,11 +239,12 @@
     #g-rpm, #g-soc, #g-load { font-size: 16px; }
     .num { font-size: 17px; }
     #speedo { display: none; }
-    #builder { left: var(--gut); right: var(--gut); width: auto; top: calc(92px + env(safe-area-inset-top, 0px)); }
+    #builder { left: var(--gut); right: var(--gut); width: auto; top: calc(128px + env(safe-area-inset-top, 0px)); }
     #builder .palette { grid-template-columns: 1fr; }
-    #race { left: var(--gut); right: var(--gut); width: auto; top: calc(92px + env(safe-area-inset-top, 0px)); padding: 8px 10px; gap: 5px; }
+    #race { left: var(--gut); right: var(--gut); width: auto; top: calc(128px + env(safe-area-inset-top, 0px)); padding: 8px 10px; gap: 5px; }
     #race .why { display: none; }
-    #challenge { left: var(--gut); right: var(--gut); width: auto; top: calc(92px + env(safe-area-inset-top, 0px)); padding: 8px 10px; }
+    #challenge { left: var(--gut); right: var(--gut); width: auto; top: calc(128px + env(safe-area-inset-top, 0px)); padding: 8px 10px; gap: 4px; }
+    #challenge p { font-size: 12px; }
     #overlay { display: none; }
     #launch { left: var(--gut); right: var(--gut); width: auto; bottom: calc(var(--gut) + 158px + env(safe-area-inset-bottom, 0px)); padding: 8px 10px; gap: 5px; }
     #actions { left: var(--gut); right: var(--gut); max-width: none; transform: none; bottom: calc(var(--gut) + 104px + env(safe-area-inset-bottom, 0px));

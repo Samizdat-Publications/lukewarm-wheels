@@ -5,7 +5,9 @@ decisions and why, what is next, and the gotchas. Update it at the end of every 
 before context runs low). Any session must be able to resume from `HANDOFF.md` alone.
 
 ## What this is
-A browser simulation (Three.js r185 + Rapier 0.20, no bundler) of the 2010 Hot Wheels
+A browser simulation (Three.js r185 + Rapier 0.20, no bundler) of Hot Wheels track: since
+2026-09-24 a platform where every set is data (`src/35-sets.js`: Criss Cross Crash, Drop & Jump,
+Loop & Leap, Race Day, Kitchen Table Grand Prix) plus a Track Builder. It began as the 2010 Hot Wheels
 **Criss Cross Crash** set (Mattel V2791: red motorised hub, four foam booster wheels, two tall
 loops, two low banked sweeps, a `#` crossing with four crash points) running the 1999 Criss Cross
 Crash five-pack. v2 (2026-09-24): cars are constrained to the banked track while in the channel
@@ -41,13 +43,17 @@ Working shots go in `docs/screenshots/`.
   order of `src/manifest.json`; those scripts must not touch THREE at load time.
   `node tools/build.mjs` inlines them into `dist/index.html` and `dist/artifact.html`.
 - **Dev server:** `node tools/serve.mjs` -> http://localhost:8765/
-- **Physics checks:** `node tools/simtest.mjs <lone|fleet|crashlog|phase|geom|solve>` loads
-  `src/00`..`49` in Node (Rapier from `tools/vendor/rapier.mjs`; `node tools/fetch-rapier.mjs`).
+- **Physics checks:** `node tools/simtest.mjs <mode>` loads `src/00`..`49` in Node (Rapier from
+  `tools/vendor/rapier.mjs`; `node tools/fetch-rapier.mjs`); modes are listed in HANDOFF.
   Judge multi-car behaviour on several seeds (`CFG='{"seed":N}'`), never one run.
+- **Regression:** `node tools/regress.mjs` must say "all scenarios identical" before any commit
+  that is not MEANT to change the physics; if it is, re-save (`save <names>`) and say why.
 - Each `src/*.js` is an IIFE `(function(HW){ ... })(window.HW)`.
 - All tunables live in `src/10-config.js` (`HW.config`), tagged [M] measured, [D] derived,
   [E] estimate. The tuning drawer binds to it.
-- Keep files under ~400 lines where practical (`53-car-models.js` and `60-audio.js` are the
-  known exceptions; split them if they grow).
+- Keep files under ~400 lines where practical (`53-car-models.js`, `60-audio.js`, `45-sim.js` and
+  `30-track-path.js` are the known exceptions; split them if they grow).
+- A new set is data in `35-sets.js`; a new piece type goes in `31-track-pieces.js` or
+  `34-track-features.js`; furniture/props are placed from the track, not by hand.
 - No git remote; commit locally after each meaningful step with a descriptive message.
 - **Never write an em dash** (Stewart's global rule): commas, colons or spaced hyphens instead.
