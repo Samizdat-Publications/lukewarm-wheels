@@ -186,5 +186,28 @@
    "foam": 418.07
   },
   "hash": "01776f2105be7345"
+ },
+ "drop3-s2": {
+  "name": "drop3-s2",
+  "summary": {
+   "counts": {
+    "crash": 4,
+    "bump": 22,
+    "derail": 21,
+    "recapture": 17,
+    "retrieve": 15,
+    "stall": 0,
+    "dropped": 15,
+    "lap": 14
+   },
+   "laps": [
+    5,
+    5,
+    4
+   ],
+   "crashes": 4,
+   "foam": 491.964
+  },
+  "hash": "f98e3b7f2d233e18"
  }
 }
