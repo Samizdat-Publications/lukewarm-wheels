@@ -5,6 +5,16 @@
 (function (HW) {
   const main = (HW.main = { slow: false, slowT: 0, paused: false });
 
+  // which set: #s.<id> in the URL (an artifact passes only a bare #token)
+  const tok = (location.hash || '').slice(1);
+  if (tok.startsWith('s.') && HW.sets[tok.slice(2)]) HW.config.set = tok.slice(2);
+  const bootSet = HW.sets[HW.config.set || 'crissCross'];
+  try {
+    const bl = document.querySelector('#boot .logo');
+    if (bl && bootSet) bl.innerHTML = HW.ui.logoHtml(bootSet.name);
+    document.title = bootSet.name;
+  } catch (e) { /* no DOM (node) */ }
+
   function boot() {
     const T = window.THREE;
     const canvas = document.getElementById('stage');
@@ -19,17 +29,18 @@
     HW.renderTrack.build(HW.render.scene, sim.layout);
     HW.renderHub.build(HW.render.scene, sim.layout);
     HW.renderCars.build(HW.render.scene, sim);
-    HW.cam.init(HW.render.camera, canvas);
+    HW.cam.init(HW.render.camera, canvas, sim.layout.view);
     HW.fx.init(HW.render.scene);
     HW.replay.init();
     HW.ui.init(sim);
     setupPicking(canvas, sim);
 
-    // open running: booster on, three cars dropped in one after another
+    // open running: booster on, a few cars dropped in one after another
     if (HW.config.autoStart) {
       sim.setSwitch(true);
+      const as = sim.layout.set.autoStart || { cars: 3, every: 0.9 };
       let k = 0;
-      for (const car of sim.cars.slice(0, 3)) sim.queue.push({ car, at: 0.8 + 0.9 * k++ });
+      for (const car of sim.cars.slice(0, as.cars)) sim.queue.push({ car, at: 0.8 + as.every * k++ });
     }
     document.getElementById('boot').classList.add('gone');
     main.last = performance.now();
@@ -101,11 +112,11 @@
       ray.setFromCamera(ndc, HW.render.camera);
       const targets = [];
       for (const it of HW.renderCars.items) if (it.model.visible) targets.push(it.model);
-      targets.push(HW.renderHub.switchKnob);
+      if (HW.renderHub.switchKnob) targets.push(HW.renderHub.switchKnob);
       const hits = ray.intersectObjects(targets, true);
       if (!hits.length) return;
       let o = hits[0].object;
-      if (o === HW.renderHub.switchKnob) { HW.ui.toggleSwitch(); return; }
+      if (o && o === HW.renderHub.switchKnob) { HW.ui.toggleSwitch(); return; }
       while (o && !o.userData.car) o = o.parent;
       if (o && o.userData.car) HW.ui.follow(o.userData.car);
     });

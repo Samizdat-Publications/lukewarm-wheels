@@ -30,9 +30,16 @@
       U.sim = sim;
       try { U.units = localStorage.getItem('hw.units') || 'kmh'; } catch (e) { /* storage blocked */ }
 
+      const L = sim.layout, set = L.set;
+      U.runWord = L.start.track.closed ? 'laps' : 'runs';
+      // the set picker: each set is its own page state, so switching reloads (#s.<id>)
+      const pick = h('select', { id: 'set-pick', 'aria-label': 'Track set' },
+        Object.values(HW.sets).map((st) => h('option', { value: st.id, text: st.name })));
+      pick.value = set.id;
+      pick.addEventListener('change', () => { location.hash = 's.' + pick.value; location.reload(); });
       root.append(h('div', { id: 'brand' },
-        h('div', { class: 'logo', html: 'Criss Cross <span>Crash</span>' }),
-        h('div', { class: 'tag', text: 'Mattel V2791 · 1999 five-pack · live physics' })));
+        h('div', { class: 'logo', html: U.logoHtml(set.name) }),
+        h('div', { class: 'tag', text: set.tag || 'live physics' }), pick));
 
       // camera bar
       const modes = [['orbit', 'Orbit'], ['chase', 'Chase'], ['onboard', 'Onboard'], ['top', 'Top'], ['director', 'Director']];
@@ -74,7 +81,9 @@
         return { el: h('div', { class: 'gauge' }, h('div', { class: 'lbl', text: label }), h('div', {}, num, h('span', { class: 'unit', text: unit })), h('div', { class: 'bar' }, bar)), num, bar };
       };
       U.g = { volt: gauge('volt', 'Battery', 'V'), amp: gauge('amp', 'Motor', 'A'), rpm: gauge('rpm', 'Motor', 'rpm'), foam: gauge('foam', 'Foam wheel', 'cm/s'), soc: gauge('soc', 'Charge', '%'), load: gauge('load', 'Nips busy', '/8') };
-      root.append(h('div', { id: 'power', class: 'panel' },
+      U.nNips = L.boosters.length;
+      U.g.load.el.querySelector('.unit').textContent = '/' + U.nNips;
+      if (U.nNips) root.append(h('div', { id: 'power', class: 'panel' },
         h('div', {}, h('div', { class: 'lbl', text: 'Booster', style: 'margin-bottom:6px' }), U.switchEl),
         h('div', { class: 'gauges' }, U.g.volt.el, U.g.amp.el, U.g.rpm.el, U.g.foam.el, U.g.soc.el, U.g.load.el)));
 
@@ -181,6 +190,12 @@
       else if (k === 'escape') { U.toggleHelp(false); U.toggleDrawer(false); if (HW.replay.active) HW.replay.stop(); }
     },
 
+    // 'Criss Cross Crash' -> 'Criss Cross <span>Crash</span>' (the last word in flame)
+    logoHtml(name) {
+      const w = String(name).split(' '), last = w.pop();
+      return (w.length ? w.join(' ') + ' ' : '') + '<span>' + last + '</span>';
+    },
+
     onCrash(e) {
       U.crashNum.textContent = String(U.sim.crashCount);
       if (e.speed < 150) return;
@@ -247,8 +262,8 @@
       const close = h('button', { class: 'close iconbtn', 'aria-label': 'Close', onclick: () => U.toggleHelp(false), text: '×' });
       U.help = h('div', { id: 'help', class: 'panel', role: 'dialog', 'aria-label': 'How it works' }, close,
         h('h3', { text: 'How it works' }),
-        h('p', { html: 'This is the 2010 Hot Wheels <b>Criss Cross Crash</b> (Mattel V2791) with the 1999 five-pack. One continuous circuit runs through a red hub, two tall loops and two low banked sweeps. The four lanes in the hub cross in a <b>#</b>: four crash points.' }),
-        h('p', { html: 'Four D cells drive one motor, which turns four foam wheels through a gear train. Each wheel sits between two lanes and pinches passing cars against the far wall: <b>eight pushes a lap</b>. Every launch loads the same motor, so the more cars in the nips, the more it bogs. Watch the gauges.' }),
+        h('p', { html: U.sim.layout.set.blurb || '' }),
+        U.sim.layout.hub ? h('p', { html: 'Four D cells drive one motor, which turns four foam wheels through a gear train. Each wheel sits between two lanes and pinches passing cars against the far wall: <b>eight pushes a lap</b>. Every launch loads the same motor, so the more cars in the nips, the more it bogs. Watch the gauges.' }) : '',
         h('ul', {},
           h('li', { html: 'In the channel, a car follows the track exactly: gravity, the track’s push (it can only push), rolling resistance, wall scrub, air drag and the foam nips. Too slow over a loop top and the track stops pushing: the car <b>falls off</b>.' }),
           h('li', { html: 'Anything that knocks it out of the channel turns it into a free rigid body (Rapier). It tumbles until it lands upright in a lane, or lies still and a hand carries it back to <b>START</b>.' }),
@@ -269,7 +284,7 @@
       g.foam.bar.style.width = Math.min(100, tel.foamSpeed / 450 * 100) + '%';
       g.soc.bar.style.width = (tel.soc * 100) + '%';
       const busy = sim.cars.filter((c) => c.mode === 'track' && c.inNip).length;
-      g.load.bar.style.width = (busy / 8 * 100) + '%';
+      g.load.bar.style.width = (busy / Math.max(1, U.nNips) * 100) + '%';
       if (U._t < 0.1) return;
       U._t = 0;
       g.volt.num.textContent = tel.V.toFixed(2);
@@ -284,7 +299,7 @@
         r.chip.textContent = st === 'retrieving' ? 'carried' : st;
         r.chip.className = 'chip ' + st;
         const spd = car.mode === 'track' ? Math.abs(car.v) : 0;
-        r.meta.textContent = car.mode === 'parked' ? car.entry.massG + ' g · ' + car.entry.wheelCode : car.laps + ' laps' + (car.bestLap ? ' · ' + car.bestLap.toFixed(2) + ' s' : '') + (spd > 5 ? ' · ' + Math.round(spd) : '');
+        r.meta.textContent = car.mode === 'parked' ? car.entry.massG + ' g · ' + car.entry.wheelCode : car.laps + ' ' + U.runWord + (car.bestLap ? ' · ' + car.bestLap.toFixed(2) + ' s' : '') + (spd > 5 ? ' · ' + Math.round(spd) : '');
         r.act.textContent = car.mode === 'parked' ? '+' : '−';
       }
       // speedometer: the followed car, or the fastest one on the track

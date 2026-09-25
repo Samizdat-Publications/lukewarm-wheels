@@ -1,6 +1,7 @@
 // 52-render-track.js - the orange track: the classic Hot Wheels channel profile swept
-// along every lobe (the hub draws its own lanes), piece joints with their connector
-// clips, and the TRACK SUPPORT towers / sweep blocks from layout.supports.
+// along every channel of every track (a prop such as the V2791 hub draws its own lanes),
+// piece joints with their connector clips, end buffers, and the TRACK SUPPORT towers /
+// sweep blocks from layout.supports.
 (function (HW) {
   const TRACK_ORANGE = 0xff4400;
 
@@ -97,28 +98,35 @@
       this.materials = { track: mat };
       const group = new T.Group();
       const prof = profile(d);
-      for (const name in L.lobes) {
-        const lb = L.lobes[name];
-        const geo = sweep(L.path, lb.s0, lb.s1, prof, L.joints, 0.35);
+      for (const ch of L.channels) {
+        const geo = sweep(ch.track, ch.s0, ch.s1, prof, ch.track.joints, 0.35);
         const mesh = new T.Mesh(geo, mat);
         mesh.castShadow = true; mesh.receiveShadow = true;
-        mesh.name = 'lobe-' + name;
+        mesh.name = 'track-' + ch.track.id + '-' + ch.name;
         group.add(mesh);
       }
-      // connector clips under every joint that is not a hub edge
+      // connector clips under every joint between two moulded pieces
       const clipMat = new T.MeshStandardMaterial({ color: 0xe4560b, roughness: 0.45 });
       const clipGeo = new T.BoxGeometry(d.W + 2 * d.wallT + 0.12, 0.16, 2.4);
       const f = {};
-      const hubEdges = Object.values(L.laneS).flatMap((ln) => [ln.s0, ln.s1]);
-      for (const js of L.joints) {
-        if (hubEdges.some((e) => Math.abs(e - js) < 0.5)) continue;
-        L.path.frame(js, f);
+      for (const tr of L.tracks) for (const js of tr.clips) {
+        tr.frame(js, f);
         const clip = new T.Mesh(clipGeo, clipMat);
         clip.position.set(f.px - f.ux * (d.floorT + 0.08), f.py - f.uy * (d.floorT + 0.08), f.pz - f.uz * (d.floorT + 0.08));
         const q = HW.Q.fromBasis({ x: f.rx, y: f.ry, z: f.rz }, { x: f.ux, y: f.uy, z: f.uz }, { x: -f.tx, y: -f.ty, z: -f.tz });
         clip.quaternion.set(q.x, q.y, q.z, q.w);
         clip.castShadow = true; clip.receiveShadow = true;
         group.add(clip);
+      }
+      // end buffers and other solid blocks (the same boxes Rapier collides with)
+      const bufMat = new T.MeshPhysicalMaterial({ color: 0xd81e1e, roughness: 0.4, clearcoat: 0.4 });
+      for (const b of L.solids || []) {
+        if (b.kind !== 'buffer') continue;
+        const m = new T.Mesh(new window.THREEX.RoundedBoxGeometry(b.h[0] * 2, b.h[1] * 2, b.h[2] * 2, 2, 0.1), bufMat);
+        m.position.set(b.c[0], b.c[1], b.c[2]);
+        if (b.q) m.quaternion.set(b.q.x, b.q.y, b.q.z, b.q.w);
+        m.castShadow = true; m.receiveShadow = true;
+        group.add(m);
       }
       group.add(this.buildSupports(L));
       scene.add(group);

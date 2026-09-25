@@ -17,11 +17,13 @@
   };
   const C = (HW.cam = {
     mode: 'orbit', car: null, crashCam: true,
-    init(camera, dom) {
+    init(camera, dom, view) {
       const T = window.THREE, X = window.THREEX;
       C.camera = camera;
+      C.view = view || { look: [0, 7, 0], wide: [118, 62], wide2: [92, 38], cross: null, orbit: [0, 6, 4], bound: 40 };
       C.controls = new X.OrbitControls(camera, dom);
-      C.controls.target.set(0, 6, 4);
+      C.controls.target.set(...C.view.orbit);
+      if (C.view.camera) camera.position.set(...C.view.camera);
       C.controls.enableDamping = true; C.controls.dampingFactor = 0.08;
       C.controls.minDistance = 12; C.controls.maxDistance = 320;
       C.controls.maxPolarAngle = Math.PI * 0.49;
@@ -48,8 +50,9 @@
         // orbit around wherever we were looking
         const fwd = new window.THREE.Vector3(0, 0, -1).applyQuaternion(C.camera.quaternion);
         C.controls.target.copy(C.camera.position).addScaledVector(fwd, 60);
-        C.controls.target.y = M.clamp(C.controls.target.y, 2, 20);
-        C.controls.target.x = M.clamp(C.controls.target.x, -40, 40); C.controls.target.z = M.clamp(C.controls.target.z, -40, 40);
+        const B = C.view.bound, o = C.view.orbit;
+        C.controls.target.y = M.clamp(C.controls.target.y, 2, Math.max(20, o[1] * 2));
+        C.controls.target.x = M.clamp(C.controls.target.x, o[0] - B, o[0] + B); C.controls.target.z = M.clamp(C.controls.target.z, o[2] - B, o[2] + B);
       }
       if (mode === 'director') { C.dir.shot = null; }
       C.chase.pos = null;
@@ -114,7 +117,8 @@
       d.t += dt;
       const running = sim.cars.filter((c) => c.mode === 'track');
       if (!d.shot || d.t > d.len) {
-        const shots = ['wide', 'chase', 'loop', 'cross', 'onboard', 'wide2', 'chase'];
+        const hasPosts = sim.layout.supports.some((s) => s.kind === 'post' && s.clip);
+        const shots = ['wide', 'chase', hasPosts ? 'loop' : 'chase', C.view.cross ? 'cross' : 'onboard', 'onboard', 'wide2', 'chase'];
         d.idx = (d.idx + 1) % shots.length;
         d.shot = shots[d.idx]; d.t = 0; d.len = 5 + Math.random() * 3;
         if ((d.shot === 'chase' || d.shot === 'onboard') && running.length) {
@@ -126,12 +130,13 @@
       }
       const tt = d.t;
       if (d.shot === 'wide' || d.shot === 'wide2') {
-        const a = (d.shot === 'wide' ? 0.5 : 2.3) + tt * 0.07, r = d.shot === 'wide' ? 118 : 92, h = d.shot === 'wide' ? 62 : 38;
-        return { pos: new T.Vector3(Math.sin(a) * r, h, Math.cos(a) * r), look: new T.Vector3(0, 7, 0), up: new T.Vector3(0, 1, 0), fov: 36, near: 0.5 };
+        const [r, h] = d.shot === 'wide' ? C.view.wide : C.view.wide2, lk = C.view.look;
+        const a = (d.shot === 'wide' ? 0.5 : 2.3) + tt * 0.07;
+        return { pos: new T.Vector3(lk[0] + Math.sin(a) * r, h, lk[2] + Math.cos(a) * r), look: new T.Vector3(...lk), up: new T.Vector3(0, 1, 0), fov: 36, near: 0.5 };
       }
       if (d.shot === 'loop') {
         // hero shot: across the hub at one of the tall loops, face-on, tower behind it
-        const posts = sim.layout.supports.filter((s) => s.kind === 'post');
+        const posts = sim.layout.supports.filter((s) => s.kind === 'post' && s.clip);
         const lb = posts[(d.idx >> 1) % posts.length];
         const out = new T.Vector3(lb.x, 0, lb.z).normalize();
         const side = new T.Vector3(-out.z, 0, out.x);
@@ -140,11 +145,11 @@
         return { pos, look: centre, up: new T.Vector3(0, 1, 0), fov: 36, near: 0.4 };
       }
       if (d.shot === 'cross') {
-        const a = 3.9 + tt * 0.05;
-        return { pos: new T.Vector3(Math.sin(a) * 30, 11 + tt * 0.4, Math.cos(a) * 30), look: new T.Vector3(0, 4.5, 0), up: new T.Vector3(0, 1, 0), fov: 38, near: 0.2 };
+        const a = 3.9 + tt * 0.05, cr = C.view.cross, c = cr.centre;
+        return { pos: new T.Vector3(c[0] + Math.sin(a) * cr.r, cr.h + tt * 0.4, c[2] + Math.cos(a) * cr.r), look: new T.Vector3(...c), up: new T.Vector3(0, 1, 0), fov: 38, near: 0.2 };
       }
       const car = d.car && d.car.mode !== 'parked' ? d.car : running[0];
-      if (!car) { d.t = d.len + 1; return { pos: C.camera.position.clone(), look: new T.Vector3(0, 6, 0), up: new T.Vector3(0, 1, 0), fov: 38, near: 0.5 }; }
+      if (!car) { d.t = d.len + 1; return { pos: C.camera.position.clone(), look: new T.Vector3(...C.view.look), up: new T.Vector3(0, 1, 0), fov: 38, near: 0.5 }; }
       const saved = C.car; C.car = car;
       const prev = C.mode; C.mode = d.shot === 'onboard' ? 'onboard' : 'chase';
       const r = C.desired(dt, sim);

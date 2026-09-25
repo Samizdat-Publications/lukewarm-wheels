@@ -40,17 +40,17 @@
   }
 
   function buildStatic(api, L, cfg) {
-    const R = api.R, path = L.path, { p, Lh, h0, W, wallT, wallH, floorT } = L.dims;
+    const R = api.R, { W, wallT, wallH, floorT } = L.dims;
     // floor
     fixedBox(api, 0, -2, 0, 400, 2, 400, null, { friction: 0.55, rest: 0.15 });
 
-    // --- track channel along every lobe: floor slabs + two walls per ~1.2 cm
+    // --- track channel along every drawn piece: floor slabs + two walls per ~1.2 cm
     const f = {};
-    for (const name in L.lobes) {
-      const lobe = L.lobes[name];
-      const n = Math.ceil((lobe.s1 - lobe.s0) / 1.2), step = (lobe.s1 - lobe.s0) / n;
+    for (const ch of L.channels) {
+      const path = ch.track;
+      const n = Math.ceil((ch.s1 - ch.s0) / 1.2), step = (ch.s1 - ch.s0) / n;
       for (let k = 0; k < n; k++) {
-        const s = lobe.s0 + (k + 0.5) * step;
+        const s = ch.s0 + (k + 0.5) * step;
         path.frame(s, f);
         const q = HW.Q.fromBasis({ x: f.rx, y: f.ry, z: f.rz }, { x: f.ux, y: f.uy, z: f.uz }, { x: -f.tx, y: -f.ty, z: -f.tz });
         const hz = step * 0.56;
@@ -65,17 +65,19 @@
     }
 
     // --- hub moulding (boxes shared with the renderer, see layout.hub)
-    const hub = L.hub, armW = hub.armW;
-    fixedBox(api, 0, h0 / 2 - 0.01, 0, armW, h0 / 2, Lh, null, { friction: 0.3 });
-    fixedBox(api, 0, h0 / 2 - 0.01, 0, Lh, h0 / 2, armW, null, { friction: 0.3 });
-    for (const b of [...hub.walls, hub.island, ...hub.housings, hub.battery]) {
-      fixedBox(api, b.c[0], b.c[1], b.c[2], b.h[0], b.h[1], b.h[2], null, { friction: b.kind === 'wall' ? 0.25 : 0.4 });
+    if (L.hub) {
+      const hub = L.hub, armW = hub.armW, { Lh, h0 } = L.dims;
+      fixedBox(api, 0, h0 / 2 - 0.01, 0, armW, h0 / 2, Lh, null, { friction: 0.3 });
+      fixedBox(api, 0, h0 / 2 - 0.01, 0, Lh, h0 / 2, armW, null, { friction: 0.3 });
+      for (const b of [...hub.walls, hub.island, ...hub.housings, hub.battery]) {
+        fixedBox(api, b.c[0], b.c[1], b.c[2], b.h[0], b.h[1], b.h[2], null, { friction: b.kind === 'wall' ? 0.25 : 0.4 });
+      }
     }
     const fr = L.foamR;
 
     // foam wheels: kinematic cylinders (axis = world Y), spun every step by the sim
     for (const w of L.wheels) {
-      const b = api.world.createRigidBody(R.RigidBodyDesc.kinematicVelocityBased().setTranslation(w.pos[0], h0 + 0.7, w.pos[2]));
+      const b = api.world.createRigidBody(R.RigidBodyDesc.kinematicVelocityBased().setTranslation(w.pos[0], w.pos[1] + 0.7, w.pos[2]));
       api.world.createCollider(R.ColliderDesc.cylinder(0.65, fr).setFriction(1.1).setRestitution(0.05)
         .setCollisionGroups(groups(GROUP_WORLD, GROUP_CAR)), b);
       api.foam.push(b);
@@ -85,6 +87,8 @@
     for (const sp of L.supports) {
       if (sp.top > 0.2) fixedBox(api, sp.x, sp.top / 2, sp.z, sp.half, sp.top / 2, sp.half, null, { friction: 0.4 });
     }
+    // end buffers on open runs, and any solid props a set places (books, a box, a table)
+    for (const b of L.solids || []) fixedBox(api, b.c[0], b.c[1], b.c[2], b.h[0], b.h[1], b.h[2], b.q || null, { friction: b.friction == null ? 0.4 : b.friction, rest: b.rest });
   }
 
   // ---------------------------------------------------------------- per-car bodies

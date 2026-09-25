@@ -86,6 +86,39 @@ if (mode === 'lone') {
   process.exit(0);
 }
 
+if (mode === 'runs') {
+  // node tools/simtest.mjs runs <setId> [runsPerCar] : drop every casting down an open set,
+  // one car at a time, and report what happened on each run
+  const setId = process.argv[3] || 'dropJump', per = +(process.argv[4] || 3);
+  HW.config.set = setId;
+  const R = await rapier();
+  const sim = new HW.Sim({ RAPIER: R });
+  const L = sim.layout;
+  console.log(`set ${L.set.name}: ` + L.tracks.map((t) => `${t.id} ${fmt(t.length, 1)} cm ${t.closed ? 'closed' : 'open'} [${fmt(t.P.y[0], 1)} -> ${fmt(t.P.y[t.N - 1], 1)}]`).join(', '));
+  const h = 1 / sim.cfg.substepHz;
+  let log = null;
+  HW.bus.on('derail', (e) => { if (log && e.car === log.car) log.ev.push(`${e.cause} @${e.car.track.id}:${fmt(e.car.s, 1)} v=${fmt(Math.hypot(e.car.vel.x, e.car.vel.y, e.car.vel.z))}`); });
+  HW.bus.on('recapture', (e) => { if (log && e.car === log.car) log.ev.push(`caught @${e.car.track.id}:${fmt(e.car.s, 1)} v=${fmt(e.car.v)}`); });
+  HW.bus.on('gate', (e) => { if (log && e.car === log.car) log.ev.push(`${e.gate.kind} ${fmt(sim.time - log.t0, 3)}s v=${fmt(e.car.v)}`); });
+  HW.bus.on('buffer', (e) => { if (log && e.car === log.car) log.ev.push(`buffer v=${fmt(e.speed)}`); });
+  HW.bus.on('retrieve', (e) => { if (log && e.car === log.car) log.done = true; });
+  const tally = {};
+  for (const car of sim.cars) {
+    for (let k = 0; k < per; k++) {
+      for (const c of sim.cars) if (c.mode !== 'parked') sim.park(c);
+      sim.placeOnTrack(car, L.start.s, 0, 0, false, L.start.track);
+      log = { car, t0: sim.time, ev: [], done: false };
+      let n = 0;
+      while (!log.done && n++ < 20 / h) sim.step(h);
+      const ok = log.ev.some((x) => x.startsWith('finish'));
+      tally[car.name] = (tally[car.name] || 0) + (ok ? 1 : 0);
+      console.log(`  ${car.name.padEnd(15)} ${ok ? 'OK  ' : 'FAIL'} ${log.ev.join(' | ')}`);
+    }
+  }
+  console.log('  finished', JSON.stringify(tally));
+  process.exit(0);
+}
+
 if (mode === 'five') {
   const secs = +(process.argv[3] || 60);
   const R = await rapier();

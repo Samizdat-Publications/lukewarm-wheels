@@ -100,6 +100,7 @@
 
   HW.renderHub = {
     build(scene, L) {
+      if (!L.hub) { this.switchKnob = null; return; }
       const T = window.THREE, X = window.THREEX, hub = L.hub, h0 = hub.deckH, { p, Lh, W } = L.dims;
       const g = new T.Group();
       const red = new T.MeshPhysicalMaterial({ color: 0xc8141c, roughness: 0.34, clearcoat: 0.45, clearcoatRoughness: 0.22, specularIntensity: 0.5 });
@@ -218,6 +219,7 @@
     },
 
     update(dt, sim) {
+      if (!this.switchKnob) return;
       const st = sim.power.state, a = st.wheelAngle, w = sim.power.omegaW;
       for (const piv of this.wheels) piv.rotation.y = -a;          // clockwise seen from above
       this.gearPivot.rotation.y = a;                                // the idler turns the other way

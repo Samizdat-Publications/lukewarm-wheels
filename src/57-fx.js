@@ -85,7 +85,7 @@
       // put every car back where the paused sim really has it
       const sim = HW.sim;
       for (const car of sim.cars) {
-        if (car.mode === 'track') HW.trackDynamics.pose(car, sim.layout.path);
+        if (car.mode === 'track') HW.trackDynamics.pose(car, car.track || sim.layout.path);
         else if (car.mode === 'free' && sim.fb) HW.freebody.read(sim.fb, car);
         else if (car.mode === 'parked') car.pos.y = -1000;
       }

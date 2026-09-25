@@ -21,9 +21,23 @@
 
   const PIECE_LEN = 30.5;          // [M] a straight orange track piece is 12 in; joints fall every piece
 
+  // A run starts at an absolute pose, or relative to where an earlier run ENDS:
+  // { rel: 'id', forward, left, up, heading (turn, deg), pitch (absolute, deg) } - a catch
+  // ramp placed across a gap from a jump lip.
+  function startOf(from, ctx) {
+    if (!from.rel) return HW.pieces.startPose(from);
+    const e = ctx.ends[from.rel];
+    if (!e) throw new Error('track ' + from.rel + ' must come before the run that starts from it');
+    const V = HW.pieces.vec, t = e.t, hl = Math.hypot(t[0], t[2]) || 1;
+    const fwd = [t[0] / hl, 0, t[2] / hl], left = V.cross([0, 1, 0], fwd);
+    const at = V.add(V.add(V.add(e.p, V.sc(fwd, from.forward || 0)), V.sc(left, from.left || 0)), [0, from.up || 0, 0]);
+    const heading = Math.atan2(fwd[0], -fwd[2]) * 180 / Math.PI - (from.heading || 0);
+    return HW.pieces.startPose({ at, heading, pitch: from.pitch || 0 });
+  }
+
   function buildTrack(ts, ctx) {
     const cfg = ctx.cfg;
-    let pose = ts.from ? HW.pieces.startPose(ts.from) : null;
+    let pose = ts.from ? startOf(ts.from, ctx) : null;
     const segs = [], marks = [];
     ts.pieces.forEach((pc, k) => {
       const id = pc.id || pc.type + k;
@@ -45,6 +59,7 @@
       segs.push(...r.segs);
       pose = r.pose;
     });
+    if (pose) ctx.ends[ts.id] = pose;
 
     // Bank: pieces may bring their own rule (the V2791 lobes); straights and vertical
     // curves are flat; anything else is banked by the heartline rule at the speed a car
@@ -94,7 +109,7 @@
     if (closed) return null;
     if (spec == null || spec === 'stop') return { kind: 'stop' };
     if (spec === 'fly') return { kind: 'fly' };
-    if (spec.to) return { kind: 'link', track: byId[spec.to], s: spec.s || 0 };
+    if (spec.to) return { kind: 'link', track: byId[spec.to], s: spec.s };
     if (spec.split) return { kind: 'split', tracks: spec.split.map((id) => byId[id]), policy: spec.policy || 'alternate', n: 0 };
     return { kind: 'stop', ...spec };
   }
@@ -111,7 +126,7 @@
         const s = ch.s0 + (ch.s1 - ch.s0) * (k + 0.5) / n;
         ch.track.frame(s, f);
         const top = f.py - f.uy * cfg.floorT - 0.5;
-        if (f.uy < 0.75 || top < 2.5) continue;
+        if (f.uy < 0.5 || top < 2.5) continue;
         if (out.some((o) => Math.hypot(o.x - f.px, o.z - f.pz) < 9)) continue;
         let blocked = false;
         for (const tr of L.tracks) {
@@ -134,7 +149,7 @@
       const set = HW.sets[id];
       if (!set) throw new Error('no track set ' + id);
       const params = Object.assign({}, set.params);
-      const ctx = { cfg, set, params, props: {}, floorY: set.floorY == null ? 0.8 : set.floorY };
+      const ctx = { cfg, set, params, props: {}, ends: {}, floorY: set.floorY == null ? 0.8 : set.floorY };
       for (const pr of set.props || []) HW.propTypes[pr.kind].prepare(ctx, pr);
 
       const tracks = set.tracks.map((ts) => buildTrack(ts, ctx));
@@ -174,6 +189,16 @@
       L.startS = L.start.s;
 
       L.supports.push(...autoSupports(L, cfg));
+      // a red end block at every open end that stops the car (the same box Rapier collides with)
+      L.solids = [];
+      for (const t of tracks) for (const [lnk, s, sg] of [[t.endLink, t.length, 1], [t.startLink, 0, -1]]) {
+        if (!lnk || lnk.kind !== 'stop') continue;
+        const f = t.frame(s, {}), off = sg * 0.7, up = (cfg.wallH - cfg.floorT) / 2;
+        L.solids.push({ kind: 'buffer', track: t,
+          c: [f.px + f.tx * off + f.ux * up, f.py + f.ty * off + f.uy * up, f.pz + f.tz * off + f.uz * up],
+          h: [cfg.laneW / 2 + cfg.wallT, (cfg.wallH + cfg.floorT) / 2 + 0.25, 0.6],
+          q: HW.Q.fromBasis({ x: f.rx, y: f.ry, z: f.rz }, { x: f.ux, y: f.uy, z: f.uz }, { x: -f.tx, y: -f.ty, z: -f.tz }) });
+      }
       let ext = 0;
       for (const t of tracks) for (let i = 0; i < t.N; i++) ext = Math.max(ext, Math.abs(t.P.x[i]), Math.abs(t.P.z[i]));
       L.stats.footprint = 2 * (ext + cfg.laneW / 2 + cfg.wallT);

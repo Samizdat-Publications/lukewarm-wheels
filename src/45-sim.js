@@ -48,13 +48,15 @@
     }
 
     // ------------------------------------------------------------ placing cars
-    placeOnTrack(car, s, v = 0, d = 0, reversed = false) {
+    placeOnTrack(car, s, v = 0, d = 0, reversed = false, track = null) {
       if (car.mode === 'free' && this.fb) HW.freebody.deactivate(this.fb, car);
-      car.mode = 'track'; car.status = 'running';
-      car.s = M.wrap(s, this.layout.path.length); car.v = v; car.d = d; car.vd = 0; car.h = 0; car.vh = 0;
+      track = track || this.layout.start.track;
+      car.mode = 'track'; car.status = 'running'; car.track = track; car.finished = false;
+      car.s = track.wrap(s); car.v = v; car.d = d; car.vd = 0; car.h = 0; car.vh = 0;
       car.reversed = reversed; car.stallT = 0; car.retrieve = null; car.inNip = null;
-      HW.trackDynamics.pose(car, this.layout.path);
-      if (car.lapStartT == null) car.lapStartT = this.time;
+      HW.trackDynamics.pose(car, track);
+      // a circuit times laps from the first drop; an open run times every run from its start
+      if (car.lapStartT == null || !track.closed) car.lapStartT = this.time;
     }
 
     park(car) {
@@ -107,7 +109,7 @@
     }
 
     step(h) {
-      const cfg = this.cfg, L = this.layout, path = L.path;
+      const cfg = this.cfg;
       // queued launches
       if (this.queue.length) {
         const ready = this.queue.filter((q) => q.at <= this.time);
@@ -119,7 +121,7 @@
         if (car.mode !== 'track') continue;
         const r = HW.trackDynamics.step(car, h, this);
         tau += r.tau;
-        HW.trackDynamics.pose(car, path);
+        HW.trackDynamics.pose(car, car.track);
         if (r.derail) this.derail(car, r.derail);
         else this.watchStall(car, h);
       }
@@ -144,6 +146,8 @@
       if (sp > car.topSpeed) car.topSpeed = sp;
       if (sp < 3 && !car.inNip) {
         car.stallT += h;
+        // at rest after the finish, or stuck on an open run: the hand takes it back to the start
+        if (cfg.autoRetrieve && ((car.finished && car.stallT > 0.5) || (!car.track.closed && car.stallT > cfg.stallTime))) { this.startRetrieve(car); return; }
         if (car.stallT > cfg.stallTime && car.status !== 'stalled') { car.status = 'stalled'; this.emit('stall', { car }); }
         if (cfg.autoNudge && car.stallT > cfg.stallTime + 0.8) this.nudge(car);
       } else if (sp > 8) {
@@ -152,9 +156,37 @@
       }
     }
 
+    // ------------------------------------------------------------ the end of an open run
+    // Called by the dynamics when a car runs past either end of an open track. Returns a
+    // derail cause if the car leaves the track, else null (it stopped, or moved on).
+    trackEnd(car, path) {
+      const over = car.s > path.length, link = over ? path.endLink : path.startLink;
+      if (!link || link.kind === 'stop') {
+        // a buffer: the car bounces off the end block
+        const sp = Math.abs(car.v);
+        car.s = over ? path.length : 0;
+        car.v = -car.v * 0.3;
+        if (sp > 20) this.emit('buffer', { car, speed: sp });
+        return null;
+      }
+      if (link.kind === 'fly') return 'jump';
+      let next = link.track;
+      if (link.kind === 'split') {
+        const n = link.tracks.length;
+        next = link.policy === 'random' ? link.tracks[Math.floor(this.rng() * n) % n] : link.tracks[link.n++ % n];
+        this.emit('split', { car, from: path, to: next });
+      }
+      const extra = over ? car.s - path.length : -car.s;       // how far past the end
+      const entry = link.s != null ? link.s : over ? 0 : next.length;
+      car.track = next;
+      car.s = next.wrap(over ? entry + extra : entry - extra);
+      car.inNip = null;
+      return null;
+    }
+
     // ------------------------------------------------------------ leaving the track
     derail(car, cause) {
-      car.mode = 'free'; car.status = 'crashed';
+      car.mode = 'free'; car.status = cause === 'jump' ? 'airborne' : 'crashed';
       car.freeT = 0; car.restT = 0; car.noRecaptureT = this.cfg.recaptureDelay;
       car.inNip = null; car.Nf = 0; car.Nw = 0;
       if (this.fb) HW.freebody.activate(this.fb, car);
@@ -192,11 +224,14 @@
     }
 
     tryRecapture(car) {
-      const path = this.layout.path, cfg = this.cfg;
+      const cfg = this.cfg;
       const up = Q.rotate(car.quat, { x: 0, y: 1, z: 0 }), fwd = Q.rotate(car.quat, { x: 0, y: 0, z: -1 });
-      // probe at the running-surface point under the car
-      const nr = path.nearest(car.pos.x, car.pos.y, car.pos.z);
+      // probe at the running-surface point under the car, on whichever track is nearest
+      let nr = null;
+      for (const t of this.layout.tracks) { const r = t.nearest(car.pos.x, car.pos.y, car.pos.z); if (r && r.i >= 0 && (!nr || r.dist < nr.dist)) nr = r; }
       if (!nr || nr.dist > 4) return false;
+      const path = nr.track;
+      if (!path.closed && (nr.s < 0.5 || nr.s > path.length - 0.5)) return false;
       const f = path.frame(nr.s, {});
       const dx = car.pos.x - f.px, dy = car.pos.y - f.py, dz = car.pos.z - f.pz;
       const d = dx * f.rx + dy * f.ry + dz * f.rz, hn = dx * f.ux + dy * f.uy + dz * f.uz;
@@ -212,12 +247,12 @@
       if (Math.abs(vR) > 80 || vU > 60) return false;
       // A car that has come to rest in a lane is debris, not a runner: leave it to the hand.
       // (Recapturing it stationary parks an obstacle in the # for the next car to hit.)
-      if (Math.abs(vT) < 25 && !(this.power.state.on && this.nipAt(nr.s))) return false;
+      if (Math.abs(vT) < 25 && !(this.power.state.on && this.nipAt(nr.s, path))) return false;
       // the floor must actually hold it here at this speed (not the underside of a loop top)
       const kU = f.kx * f.ux + f.ky * f.uy + f.kz * f.uz;
       if (vT * vT * kU + HW.units.G * f.uy < -50) return false;
       if (this.fb) HW.freebody.deactivate(this.fb, car);
-      car.mode = 'track'; car.status = 'running';
+      car.mode = 'track'; car.status = 'running'; car.track = path;
       car.s = nr.s; car.v = vT; car.d = M.clamp(d, -dmax, dmax); car.vd = vR;
       car.h = Math.max(0, hn); car.vh = car.h > 0 ? vU : 0;
       car.reversed = al < 0; car.stallT = 0;
@@ -227,19 +262,22 @@
     }
 
     // is s inside a booster's reach?
-    nipAt(s) {
+    nipAt(s, track) {
       const L = this.layout;
-      return L.boosters.some((b) => Math.abs(M.loopDelta(s, b.s, L.path.length)) < 4.5);
+      track = track || L.path;
+      return L.boosters.some((b) => b.track === track && Math.abs(track.delta(s, b.s)) < 4.5);
     }
 
     // Would a car launched from START HERE now meet anyone at a crossing during its first lap?
     // Every car is assumed to hold its average lap speed; a launched car takes ~40 ms to get
     // up to speed. A kid watching the set times the drop the same way.
     dropClear(car) {
-      const L = this.layout, P = L.path, len = P.length, win = 0.075;
+      const L = this.layout, P = L.start.track, len = P.length, win = 0.075;
+      // an open run (a drop tower, a drag strip): just keep the start clear
+      if (!P.closed) return !this.cars.some((c) => c !== car && c.mode === 'track' && c.track === P && c.s - L.start.s < 30);
       const vNew = 360, tNew = (s) => 0.04 + M.wrap(s - L.startS, len) / vNew;
       for (const c of this.cars) {
-        if (c === car || c.mode !== 'track') continue;
+        if (c === car || c.mode !== 'track' || c.track !== P) continue;
         if (Math.abs(M.loopDelta(c.s, L.startS, len)) < 10) return false;
         // average lap speed; before a first lap, the typical one (instantaneous speed swings 30 % round a loop)
         const vc = c.lastLap ? len / c.lastLap : len / 1.17;
@@ -264,7 +302,7 @@
 
     // a smooth hand-carry: lift, arc over to START HERE, turn to face the lane, set down
     advanceRetrieve(car, h) {
-      const L = this.layout, path = L.path, r = car.retrieve;
+      const L = this.layout, path = L.start.track, r = car.retrieve;
       const f = path.frame(L.startS, {});
       const target = { x: f.px, y: f.py, z: f.pz };
       const qT = Q.fromBasis({ x: f.rx, y: f.ry, z: f.rz }, { x: f.ux, y: f.uy, z: f.uz }, { x: -f.tx, y: -f.ty, z: -f.tz });
@@ -283,16 +321,16 @@
       car.vel.x = car.vel.y = car.vel.z = 0;
       if (u >= 1) {
         // wait until the drop zone is clear, hovering just above it
-        const zoneFree = !this.cars.some((c) => c !== car && c.mode === 'track' && Math.abs(M.loopDelta(c.s, L.startS, path.length)) < 9);
+        const zoneFree = !this.cars.some((c) => c !== car && c.mode === 'track' && c.track === path && Math.abs(path.delta(c.s, L.startS)) < 9);
         const clear = zoneFree && (r.wait > 2.5 || this.dropClear(car));
-        if (clear) { this.placeOnTrack(car, L.startS, 0, 0, false); this.emit('dropped', { car, waited: r.wait }); }
+        if (clear) { this.placeOnTrack(car, L.startS, 0, 0, false, path); this.emit('dropped', { car, waited: r.wait }); }
         else { car.pos.y = target.y + 3 + Math.sin(this.time * 6) * 0.4; r.wait += h; }
       }
     }
 
     // ------------------------------------------------------------ car-car contact
     contacts() {
-      const cars = this.cars, n = cars.length, path = this.layout.path, cfg = this.cfg;
+      const cars = this.cars, n = cars.length;
       for (let i = 0; i < n; i++) {
         const A = cars[i];
         if (A.mode !== 'track' && A.mode !== 'free') continue;
@@ -303,8 +341,8 @@
           const dx = A.pos.x - B.pos.x, dy = A.pos.y - B.pos.y, dz = A.pos.z - B.pos.z;
           const reach = (A.len + B.len) / 2 + 0.5;
           if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
-          if (A.mode === 'track' && B.mode === 'track') {
-            const ds = M.loopDelta(B.s, A.s, path.length);
+          if (A.mode === 'track' && B.mode === 'track' && A.track === B.track) {
+            const ds = A.track.delta(B.s, A.s);
             if (Math.abs(ds) < (A.len + B.len) / 2 + 0.05 && Math.abs(ds) < 12) { this.bump(A, B, ds); continue; }
           }
           this._obbA = HW.collide.obb(A, this._obbA); this._obbB = HW.collide.obb(B, this._obbB);
@@ -332,8 +370,8 @@
         if (closing > 25) this.emit('bump', { a: rear, b: front, speed: closing, pos: V.lerp(rear.pos, front.pos, 0.5) });
       }
       if (overlap > 0) {
-        const L = this.layout.path.length, w = rear.m / (rear.m + front.m);
-        rear.s = M.wrap(rear.s - overlap * (1 - w), L); front.s = M.wrap(front.s + overlap * w, L);
+        const T = rear.track, w = rear.m / (rear.m + front.m);
+        rear.s = T.wrap(rear.s - overlap * (1 - w)); front.s = T.wrap(front.s + overlap * w);
       }
     }
 
@@ -374,7 +412,7 @@
           car.v += dv.x * f.tx + dv.y * f.ty + dv.z * f.tz;
           car.vd += dLat; car.vh += Math.max(0, dUp);
           if (car.vh > 0 && car.h <= 0) car.h = 1e-4;
-          car.s = M.wrap(car.s + (sep.x * f.tx + sep.y * f.ty + sep.z * f.tz), this.layout.path.length);
+          car.s = car.track.wrap(car.s + (sep.x * f.tx + sep.y * f.ty + sep.z * f.tz));
         }
       };
       apply(A, bA, -1); apply(B, bB, 1);

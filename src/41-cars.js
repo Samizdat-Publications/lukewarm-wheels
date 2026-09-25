@@ -34,7 +34,9 @@
       this.CdA = 0;                                       // set from config at sim init
       this.mode = 'parked';                               // parked | track | free | held | retrieving
       this.status = 'parked';                             // running | stalled | crashed | ...
-      // on-track coordinates
+      // on-track coordinates: which track of the set's graph, and where on it
+      this.track = null;
+      this.finished = false;                              // crossed a finish gate this run
       this.s = 0; this.v = 0; this.d = 0; this.vd = 0; this.h = 0; this.vh = 0;
       this.reversed = false;                              // car faces -T (it was put back backwards)
       // world pose (rendering, collisions)
@@ -62,7 +64,7 @@
   // foam-wheel shaft (dyne.cm), so the power train can feel every launch.
   HW.trackDynamics = {
     step(car, h, sim) {
-      const cfg = sim.cfg, L = sim.layout, path = L.path, f = car.frame, m = car.m;
+      const cfg = sim.cfg, L = sim.layout, path = car.track || L.path, f = car.frame, m = car.m;
       path.frame(car.s, f);
       const v = car.v, v2 = v * v;
       // gravity components in the track frame (g vector = (0,-G,0))
@@ -89,14 +91,15 @@
       const W = cfg.laneW, dmax = Math.max(0, (W - car.wid) / 2);
       let Fdrive = 0, Flat = 0, tauBack = 0, nip = null;
       for (const b of L.boosters) {
-        const ds = M.loopDelta(car.s, b.s, path.length);
+        if (b.track !== path) continue;
+        const ds = path.delta(car.s, b.s);
         if (Math.abs(ds) > car.halfLen + 3) continue;
         // right side of the car, measured from the lane centre along R; the wheel is on the right
         const side = car.d + car.wid / 2;
-        const foamEdge = L.dims.p - L.foamR;                 // how far the foam reaches into the lane
+        const foamEdge = b.foamEdge;                         // how far the foam reaches into the lane
         const d0 = side - foamEdge;
         if (d0 <= 0) continue;
-        const ch = Math.sqrt(Math.max(0, d0 * (2 * L.foamR - d0)));   // half chord of the squeeze
+        const ch = Math.sqrt(Math.max(0, d0 * (2 * b.foamR - d0)));   // half chord of the squeeze
         const lo = Math.max(ds - car.halfLen, -ch), hi = Math.min(ds + car.halfLen, ch);
         const ov = hi - lo;
         if (ov <= 0 || ch <= 0) continue;
@@ -109,7 +112,7 @@
         Flat += b.pushSign * N;
         // foam is lossy: damp the car's sideways motion while it is squeezed
         Flat += -2 * 0.5 * Math.sqrt(cfg.foamK * m) * car.vd * (ov / (2 * ch));
-        tauBack += F * L.foamR;
+        tauBack += F * b.foamR;
         nip = b;
       }
       if (nip && car.inNip !== nip) { car.nipJit = 1 + cfg.foamJitter * (2 * sim.rng() - 1); sim.emit('nip', { car, booster: nip }); }
@@ -160,8 +163,10 @@
       car.v = vNew;
       const sOld = car.s;
       car.s = car.s + vNew * h;
-      if (car.s >= path.length) car.s -= path.length;
-      else if (car.s < 0) car.s += path.length;
+      if (path.closed) {
+        if (car.s >= path.length) car.s -= path.length;
+        else if (car.s < 0) car.s += path.length;
+      }
       // bookkeeping
       const av = Math.abs(v);
       car.energy.roll += muRR * Nf * av * h;
@@ -170,7 +175,7 @@
       car.energy.boost += Fdrive * v * h;
       car.Nf = Nf; car.Nw = Nw; car.wallSide = wallSide;
       // track joints between sOld and the new s: a small random clack
-      const J = L.joints;
+      const J = path.joints;
       for (let k = 0; k < J.length; k++) {
         const js = J[k];
         const crossed = vNew >= 0 ? (sOld < js && car.s >= js) || (car.s < sOld && (sOld < js || car.s >= js))
@@ -184,10 +189,26 @@
         car.energy.impact += 0.5 * m * sp * sp * (1 - (1 - loss) * (1 - loss));
         if (sp > 30) sim.emit('joint', { car, speed: sp });
       }
+      // gates: a finish line ends a run (and counts it), a lap line counts a lap
+      const GT = path.gates;
+      for (let k = 0; k < GT.length; k++) {
+        const gs = GT[k].s;
+        if (!(vNew > 0 && sOld < gs && car.s >= gs)) continue;
+        if (GT[k].kind === 'finish' || GT[k].kind === 'lap') lap(car, sim);
+        if (GT[k].kind === 'finish') car.finished = true;
+        sim.emit('gate', { car, gate: GT[k] });
+      }
       // laps: a forward wrap past s=0 counts, unless it only undoes an earlier backward wrap
-      if (car.s < sOld - path.length / 2) { if (car.lapDebt > 0) car.lapDebt--; else lap(car, sim); }
-      else if (car.s > sOld + path.length / 2) car.lapDebt = (car.lapDebt || 0) + 1;
+      if (path.closed && !GT.length) {
+        if (car.s < sOld - path.length / 2) { if (car.lapDebt > 0) car.lapDebt--; else lap(car, sim); }
+        else if (car.s > sOld + path.length / 2) car.lapDebt = (car.lapDebt || 0) + 1;
+      }
       car.wheelSpin += v / car.entry.wheelRadiusCm * h;
+      // an open run ends: a buffer, a lip, or the next track of the graph
+      if (!path.closed && (car.s > path.length || car.s < 0)) {
+        const end = sim.trackEnd(car, path);
+        if (end) return { tau: tauBack, derail: end };
+      }
       if (car.h > cfg.derailLift) return { tau: tauBack, derail: 'lift' };
       if (path.noWall[f.i] && Math.abs(car.d) > W / 2 + 0.6) return { tau: tauBack, derail: 'drift' };
       return { tau: tauBack, derail: null };
@@ -195,6 +216,7 @@
 
     // world pose from the track coordinates (car origin = running surface, centre of wheelbase)
     pose(car, path) {
+      if (car.track) path = car.track;
       const f = path.frame(car.s, car.frame);
       const rx = f.rx, ry = f.ry, rz = f.rz, ux = f.ux, uy = f.uy, uz = f.uz;
       let tx = f.tx, ty = f.ty, tz = f.tz;
