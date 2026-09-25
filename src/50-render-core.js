@@ -112,6 +112,27 @@
       if (R.key.shadow.map) { R.key.shadow.map.dispose(); R.key.shadow.map = null; }
     },
 
+    // The key light's shadow box: +-58 cm round the V2791 (its original framing), grown to the
+    // set's own footprint when the set is bigger (the kitchen spans three metres), keeping the
+    // light's direction. Furniture counts too: a chair at the edge still throws a shadow.
+    fitShadows(bounds, solids) {
+      if (!bounds) return;
+      let lo = bounds.lo.slice(), hi = bounds.hi.slice();
+      for (const b of solids || []) if (b.furniture) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], b.c[k] - b.h[k]); hi[k] = Math.max(hi[k], b.c[k] + b.h[k]); }
+      const cx = (lo[0] + hi[0]) / 2, cz = (lo[2] + hi[2]) / 2;
+      const half = Math.hypot(hi[0] - lo[0], hi[2] - lo[2]) / 2 + hi[1] * 0.35 + 8;
+      if (half <= 58 && Math.hypot(cx, cz) < 10) return;
+      const key = R.key, sc = key.shadow.camera;
+      const dir = new window.THREE.Vector3(-95, 146, 70).normalize();
+      const dist = half + 180;
+      key.target.position.set(cx, 4, cz);
+      key.position.set(cx + dir.x * dist, 4 + dir.y * dist, cz + dir.z * dist);
+      sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half;
+      sc.near = Math.max(5, dist - half - 120); sc.far = dist + half + 60;
+      sc.updateProjectionMatrix();
+      key.shadow.normalBias = 0.03 * half / 58;
+    },
+
     setQuality(name) {
       if (!QUALITY[name] || name === R.quality) return;
       R.quality = name;

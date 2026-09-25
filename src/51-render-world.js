@@ -156,7 +156,8 @@
         map: tex.three(wf.col, { repeat: size / tile }),
         normalMap: tex.three(tex.normalFrom(wf.hgt, 2.2), { repeat: size / tile, srgb: false }),
         roughnessMap: tex.three(wf.rough, { repeat: size / tile, srgb: false }),
-        roughness: 0.62, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.28,
+        // satin varnish: a low, soft clearcoat (a strong one turned the rim light into a white haze)
+        roughness: 0.66, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.32, specularIntensity: 0.5,
       });
       floorMat.normalScale.set(0.6, 0.6);
       const floor = new T.Mesh(new T.PlaneGeometry(size, size), floorMat);
@@ -172,7 +173,7 @@
         map: tex.three(rt.col, { repeat: 1 }),
         normalMap: tex.three(tex.normalFrom(weaveTile(), 1.6), { repeat: 1, srgb: false }),
         roughness: 0.94, metalness: 0,
-        sheen: 1.0, sheenRoughness: 0.6, sheenColor: new T.Color(0x8fa6d8),
+        sheen: 0.35, sheenRoughness: 0.85, sheenColor: new T.Color(0x8fa6d8), specularIntensity: 0.3,
       });
       rugMat.normalMap.repeat.set(RW / 4, RH / 4);
       rugMat.normalScale.set(0.55, 0.55);

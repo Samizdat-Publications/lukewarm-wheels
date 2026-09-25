@@ -22,6 +22,7 @@
     "src/47-challenge.js",
     "src/50-render-core.js",
     "src/51-render-world.js",
+    "src/51b-render-room.js",
     "src/52-render-track.js",
     "src/53-car-models.js",
     "src/54-render-hub.js",

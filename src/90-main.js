@@ -27,7 +27,9 @@
     HW.render.quality = q;
     HW.render.init(canvas);
     const sim = (HW.sim = new HW.Sim({ RAPIER: window.RAPIER || null }));
+    HW.render.fitShadows(sim.layout.bounds, sim.layout.solids);
     HW.world.build(HW.render.scene);
+    HW.room.build(HW.render.scene, sim.layout);
     HW.renderTrack.build(HW.render.scene, sim.layout);
     HW.renderHub.build(HW.render.scene, sim.layout);
     HW.renderProps.build(HW.render.scene, sim);

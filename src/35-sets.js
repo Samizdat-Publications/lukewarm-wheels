@@ -172,7 +172,7 @@
   // One continuous circuit across two tracks (the jump splits it), every mechanic in the box.
   const TABLE = 75, ON_TABLE = TABLE + 0.25;           // [M] kitchen table height; track running surface on it
   S.kitchenGP = {
-    id: 'kitchenGP', name: 'Kitchen Table Grand Prix', year: 2026, floor: 'rug',
+    id: 'kitchenGP', name: 'Kitchen Table Grand Prix', year: 2026, floor: 'rug', room: 'kitchen',
     tag: 'table · spiral · box tunnel · book jump · chair loop · booster ramp',
     blurb: 'Our own set, through the kitchen. A car leaves the kitchen table in a spiral down a table leg, runs through a cardboard-box tunnel, gets a push from a booster, climbs a stack of books and jumps the gap to the next stack, loops under a chair, and two boosters drive it back up a long ramp onto the table. The challenge: get all five cars round without losing one, and beat the lap record.',
     tracks: [
