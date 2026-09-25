@@ -1,125 +1,107 @@
 # HANDOFF - live project state
 
-_Last updated: 2026-09-24 by Opus 5.5 (v2 rebuild). Update this block whenever you stop._
+_Last updated: 2026-09-24 by Opus 5.5 (roadmap phases 1-2 done, 3-5 in progress). Update this
+block whenever you stop._
 
 ## Where we are
 
-**v2 works.** Cars lap indefinitely, loop upside down, crash at the `#`, fly off, and get carried
-back to START by the hand. The old rigid-body-only build (v1, five sessions, never got a lone car
-round reliably) is archived in `legacy/` with its own HANDOFF; do not revive its approach.
+**The engine is a platform now.** A track set is plain data (`src/35-sets.js`), built by a
+generic builder into a graph of tracks. Three sets, picked in the HUD or with `#s.<id>`:
 
-**Published:** https://claude.ai/artifact/2rG33qrywCsbFJwGKFvWqL (private to Stewart). Republish
-from THIS conversation by passing `dist/artifact.html` to the Artifact tool again; from any other
-conversation pass that URL as `url`. (v1 is still at the old link,
-https://claude.ai/code/artifact/7426bcb0-d860-471f-9500-bab46b71017d, untouched.)
+| set | what it shows |
+|---|---|
+| `crissCross` | the 2010 V2791, exactly as v2 had it (bit-identical in `tools/regress.mjs`) |
+| `dropJump` | the smallest proof: drop tower -> kicker -> free flight -> catch ramp -> finish |
+| `loopLeap` | spring launcher, double loop, jump + funnel catch, 2-wheel booster, corkscrew, swinging hammer, finish, brake run-out |
+
+Stewart asked (2026-09-24) for all five roadmap phases, in order. Phases 1 and 2 are done;
+3 (Race Day), 4 (Track Builder) and 5 (Kitchen Table GP) are next: see `docs/ROADMAP.md`.
+
+**Published:** https://claude.ai/artifact/2rG33qrywCsbFJwGKFvWqL (private to Stewart), still at
+the v2 build until republished. Republish from THIS conversation by passing `dist/artifact.html`
+to the Artifact tool; from any other conversation pass that URL as `url`.
+
+**The project moved** out of OneDrive on 2026-09-24: it lives at
+`C:\Users\stewa\Documents\Claude\Projects\Hot Wheels Sim`, which is a junction to
+`C:\Users\stewa\ClaudeProjects\Hot Wheels Sim`. Never work in the old OneDrive copy.
 
 ```
-node tools/serve.mjs                 -> http://localhost:8765/          (dev, no build step)
-node tools/build.mjs                 -> dist/index.html + dist/artifact.html (single file, ~380 KB)
-node tools/simtest.mjs lone 20 0     -> one car, laps / speeds per region / energy (no browser)
-node tools/simtest.mjs fleet 5 30    -> N cars with Rapier, per-second timeline
-node tools/simtest.mjs crashlog 5 8  -> every crash/derail/recapture with car states
-node tools/simtest.mjs phase 3 60    -> phase drift between cars (why crashes are "eventual")
-node tools/simtest.mjs geom          -> track geometry summary
-node tools/simtest.mjs solve         -> re-solve the lobe shapes (paste the q's into 10-config.js)
-http://localhost:8765/tools/cars.html   -> car turntable (?car=2&close=1&view=side|q34|under)
-http://localhost:8765/tools/audio.html  -> audio audition page with a fake race and level meter
+node tools/serve.mjs                    -> http://localhost:8765/   (#s.loopLeap etc.)
+node tools/build.mjs                    -> dist/index.html + dist/artifact.html
+node tools/regress.mjs                  -> bit-exact fingerprints of 11 scenarios (4 s); `save` re-baselines
+node tools/simtest.mjs geomset <set>    -> per-piece length, tightest radius, roll, height; curvature steps
+node tools/simtest.mjs sweep <set> [lo hi step cars] -> fire each casting from the launcher, classify outcomes
+node tools/simtest.mjs auto <set> [secs cars]        -> the set running by itself; event counts
+node tools/simtest.mjs runs <set> [n]   -> drop every casting down an open set
+node tools/simtest.mjs lone|fleet|crashlog|phase|geom|solve   (Criss Cross tools, as before)
 ```
-`CFG='{"muWall":0.25}' node tools/simtest.mjs ...` overrides any config key.
-
-Measured (2026-09-24, fresh batteries): lone car of each casting 1.11-1.21 s a lap, 16 laps in
-20 s, no stalls or derails. 2 cars: 50 laps each per minute, no crash. 3 cars: ~10 crashes a
-minute. 4: 8-50 (seed-dependent). 5: ~70 a minute. 152 fps at 1600x900 on the RTX 5070 Ti.
 
 ## The architecture, in one paragraph
 
-A car in the channel is a mass constrained to the track: coordinates `s` (along), `d` (across,
-walls at +-dmax), `h` (lift) in the banked track frame, integrated at 1920 Hz
-(`41-cars.js` `trackDynamics.step`). Forces: gravity, the centripetal demand v^2*kappa, a floor
-reaction that can only push, wall reactions that can only push, rolling resistance crr*N, wall
-scrub muWall*N_wall, tyre side-slip, air drag and the foam nips. If the floor would have to
-pull (too slow over a loop top) the car lifts; past `derailLift` it leaves. Leaving hands the car
-to Rapier (`43-freebody.js`) with its exact pose and velocity; every car owns one Rapier body for
-life, parked kinematic far below the world while on track. A free car that lands upright,
-aligned and MOVING in a lane is recaptured (`45-sim.js tryRecapture`); one at rest is debris the
-hand collects. Car-car: same stretch of track = 1D impulse along the lane (`bump`); anything
-else = oriented-box SAT + rigid-body impulse (`42-collide.js`), and a hard hit derails.
+A car in the channel is a mass constrained to the track: coordinates `s`, `d`, `h` on ITS
+track (`car.track`), integrated at 1920 Hz (`41-cars.js`). Forces: gravity, v^2*kappa, a floor
+and walls that can only push, rolling resistance, wall scrub, side-slip, air drag, foam nips,
+brake pads. A set is a graph of tracks (`33-track-build.js`): each is closed (a circuit) or open,
+and an open end is data: `stop` (a buffer), `fly` (a lip: the car rides on until its rear axle
+leaves, then becomes a Rapier body with the pitch rate of pivoting off the edge), `{to}` (a
+link/merge) or `{split}`. Leaving the channel hands the car to Rapier (`43-freebody.js`); a free
+car that lands upright and moving in ANY track's lane is recaptured. Hazards are huge-mass
+boxes against channel cars and kinematic bodies against free cars (`44-stunts.js`).
 
 ## Files (load order = src/manifest.json)
 
 | file | owns |
 |---|---|
-| `00-core` `10-config` `20-catalog` | namespace/math, every tunable (tagged [M]/[D]/[E]), the five castings |
-| `30-track-path` | segments (line, B-spline, quintic Hermite), arc-length resampling, heartline banking, frame lookup |
-| `31-track-layout` | V2791 layout: lanes, lobes (bending-energy solve), boosters, crossings, joints, hub boxes, supports |
-| `40-power` | 4 D cells -> 380-class motor -> gear -> four foam wheels sharing one flywheel |
-| `41-cars` `42-collide` `43-freebody` `45-sim` | on-track dynamics, SAT/impulses, Rapier world, the sim loop and car life cycle |
-| `50`..`57` | renderer/post, room, track mesh + towers, car models, hub, car instances, cameras, fx + replay |
-| `60-audio` `61-audio-assets` | synthesized motor/rolling + 10 ElevenLabs one-shots (base64, 96 KB) |
-| `70-ui` `90-main` | HUD, tuning drawer, help; boot, frame loop, picking, auto quality |
+| `00-core` `10-config` `20-catalog` | namespace/math, generic tunables, the five castings |
+| `30-track-path` | segments (line, B-spline, quintic Hermite, helix), resampling, closed/open paths, heartline banking, frames |
+| `31-track-pieces` | generic pieces: straight, bend, pitch, join, loop, corkscrew, spiral; `fairJoin` |
+| `32-v2791` | the Criss Cross hub as a prop + its `hubLane` / `lobe` pieces |
+| `33-track-build` | set -> tracks, ends/links, widths, brakes, gates, joints, supports, buffers, view |
+| `34-track-features` | booster, launcher, brake pieces; hazards; loop towers |
+| `35-sets` | the sets (data only) |
+| `40-power` `41-cars` `42-collide` `43-freebody` `44-stunts` `45-sim` | power train, on-track dynamics, SAT, Rapier, launcher + hazards, sim loop |
+| `50`..`58` | renderer, room, track mesh + towers, car models, V2791 hub, cars, cameras, fx, stunt props |
+| `60-audio` `61-audio-assets` `70-ui` `90-main` | sound, HUD (set picker, launcher panel), boot |
 
 ## Decisions and why (do not re-litigate without new evidence)
 
-- **Track-constrained dynamics, Rapier only for crashes.** It is how ride simulators work and it
-  is exact for a car in contact with a smooth track. v1's losses were numerical (wall scrub, edge
-  snags, wedging), which no coefficient could fix.
-- **Lobes are quintic-Hermite halves meeting at an apex, minimum bending energy.** Earlier tries
-  (tilted circle + B-spline transitions) kinked to 2-3.5 cm radius where the flat hub lane met
-  the climb. The solve is cached in `10-config.js` (`loop.q`, `sweep.q`); re-run `simtest solve`
-  whenever `ux/yx/beta/Rt` or the hub dimensions change.
-- **Bank = heartline rule at a design speed**, rate-limited to 7 deg/cm and diffused with the flat
-  hub lanes held fixed (roll measured from a rotation-minimising frame, so it works where the
-  track is vertical). The sweeps are capped at 62 deg of bank; the outer wall carries the rest,
-  so cars slow in the sweeps, as on the toy.
-- **The motor is a 380-class (0.8 ohm, heavier rotor).** With a 280 (1.4 ohm) a launch from rest
-  dragged the foam from 410 to ~200 cm/s, the next car through a nip missed the loop, fell, and
-  started a crash cascade: 40 crashes / 45 s with four cars against 4 with the stronger motor.
-- **Noise is physical and deliberate.** Every track joint clacks (`jointLoss/Kick/Hop`), every car
-  has its own wheel drag (`wheelSpread`), and every foam pass grips at a slightly different speed
-  (`foamJitter`). Without these, the boosters phase-lock the cars and three cars NEVER crash (the
-  gaps held to the millisecond for 30 laps). With them, crashes are "eventual", as reviewers say.
-- **The hand waits for a gap** (`Sim.dropClear`): it predicts every crossing for one lap and
-  drops only when the new car will not meet anyone, or after 2.5 s of waiting.
-- **Recapture only moving cars.** Recapturing a car at rest parked obstacles in the `#` and every
-  following car piled into them.
-- **Tone mapping is Khronos Neutral, and GTAO is off.** ACES turned the track salmon; GTAO
-  darkened the thin track to brown.
-- **Support towers stand OUTSIDE the loops** and bracket to the channel. Attached at the lowest
-  corner (v2 first try) they poked into the car's path at the inverted apex.
-- **Aeroflash height is 1.5 cm** (was 1.35) so its 1 cm wheels fit under fenders.
-
-## Next moves: read `docs/ROADMAP.md`
-
-Stewart (2026-09-24) wants new tracks next, borrowed from Hot Wheels or invented. The plan:
-
-1. **Phase 1, engine to platform:** a track set becomes a data file, the single closed path
-   becomes a track graph (splitters, merges, catch nets, finish gates), and Criss Cross Crash
-   becomes set #1 with no change in look or behaviour (regression with `tools/simtest.mjs`).
-2. **Phase 2, Stunt Pack:** drop tower, spring launcher, jump ramp + catch ramp (jumps are where
-   this engine is unique), corkscrew, kinematic hazards; set #2 "Loop & Leap".
-3. **Phase 3, Race Day:** 4-lane gravity drag strip with a timing gate, car tuner, tournament,
-   physics overlays.
-4. **Phase 4, Track Builder:** snap-together pieces, shareable `#token` track codes.
-5. **Phase 5, "Kitchen Table Grand Prix":** an original mega-set running over furniture.
-
-Start with Phase 1, proving it with a tiny second set (drop tower -> jump -> catch -> finish).
-Smaller items (showroom, gear-train x-ray, a hand model, car models round two, a listening pass on
-the audio) are listed at the end of the roadmap. Published artifact is at version 2.
+- Everything from the v2 list still holds (track-constrained dynamics, quintic lobes,
+  heartline bank, 380 motor, deliberate noise, the hand waits for a gap, recapture only moving
+  cars, Neutral tone mapping, towers outside loops).
+- **Phase 1 had to be bit-identical for Criss Cross**, and was: the regression hashes every
+  car's state twice a second on fixed seeds. Two later changes were meant to alter the physics
+  and re-saved the baseline with the reason in the commit: wheel colliders (below) and nothing else.
+- **Free-body wheels are balls of r <= 0.32 inside the body width.** Full-radius balls at
+  +-track/2 reached past the channel walls, so any hand-off inside the channel started wedged
+  (a car leaving a lip lost 45 % of its speed and spun at 45 rad/s). 5-car crash rate went 68 ->
+  55 a minute, same character.
+- **Jumps ride the lip until the rear axle leaves.** Handing off when the centre passed the
+  edge made the rear wheels hit the lip corner (a discrete-contact kick that flipped the Stocker
+  every time). Open tracks extend straight past their ends for this.
+- **Loops/corkscrews/spirals are exact helices** with clothoid-like quintic ease-in/out that
+  match position, tangent and curvature. Circles with straight joins would step the normal force.
+- **A flat sample never inherits a bank flip.** The old "never let U flip" guard latched an
+  inverted frame onto every straight after a loop.
+- **The launcher throws car + plunger**: v = x sqrt(k/(m + m_p)), k = 5.5e5 dyne/cm, x <= 4 cm,
+  m_p = 6 g. That is why a light car leaves faster and why castings differ at the jump.
+- **Loop & Leap is tuned by sweep**, not by hand: see the commit message of e1a80a1 for the
+  outcome bands. Re-run `simtest sweep loopLeap` after touching its geometry.
+- **Sets choose by `#s.<id>` and reload.** Artifacts only pass a bare `#token` (letters, digits,
+  `. _ ~ -`), so `=` is not allowed; Phase 4 codes will use `#t.<code>`.
 
 ## Gotchas (each cost time)
 
-- The Browser pane (Claude_Browser) suspends requestAnimationFrame while hidden: the live loop
-  does not run there. Step the sim yourself (`for (...) HW.sim.step(1/1920)`) or use the
-  Playwright MCP browser, which runs rAF and uses the real GPU.
-- Shell heredocs through the Bash tool break on an apostrophe in the content; use Write/Edit.
-- r185 deprecated PCFSoftShadowMap: use PCFShadowMap + `shadow.radius`.
-- The car-model subagent stalled twice (600 s stream watchdog) and wrote nothing but
-  `tools/cars.html`; the models were written in-session. If you delegate big generative files,
-  ask for many small writes.
-- `window.THREE`/`THREEX` exist only after `hw:libs-ready`; classic scripts must not touch them at
-  load time.
-- Keys: `ELEVENLABS_API_KEY` is in Stewart's environment. `tools/sfx/generate.mjs` reads it and
-  never prints it. There is no Gemini key; nothing needs one.
+- The Browser pane suspends requestAnimationFrame while hidden, and its screenshots lag. To
+  look at a set: define `__shot` / `__run` in the page (see this session: step the sim by hand,
+  render, POST the canvas to `/__shot`, then Read the PNG in `docs/screenshots/`).
+- The Playwright MCP browser can be locked by another session ("Browser is already in use").
+- Shell heredocs through the Bash tool break on an apostrophe even when quoted; write patch
+  scripts with the Write tool into the scratchpad and run them.
+- A stale `node tools/serve.mjs` from an earlier session may hold port 8765 serving the OLD
+  OneDrive copy: check `curl localhost:8765/src/35-sets.js` before trusting it.
+- Do not name a local `G` inside `trackDynamics.step`: `G` is gravity there.
+- r185 deprecated PCFSoftShadowMap; `window.THREE` exists only after `hw:libs-ready`.
+- Keys: `ELEVENLABS_API_KEY` is in Stewart's environment; there is no Gemini key.
 
 ## Stewart (standing preferences)
 
