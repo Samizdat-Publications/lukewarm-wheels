@@ -170,7 +170,7 @@
           }
           // head of the tower and a bracket reaching across to grip the channel
           const head = new T.Mesh(new X.RoundedBoxGeometry(1.8, 1.0, 1.8, 2, 0.2), mat);
-          head.position.set(sp.x, h, sp.z);
+          head.position.set(sp.x, h - (sp.clip ? 0 : 0.4), sp.z);    // a free-standing head sits just under the floor
           g.add(head);
           if (sp.clip) {
             const a = new T.Vector3(sp.x, h, sp.z), b = new T.Vector3(sp.clip[0], sp.clip[1], sp.clip[2]);

@@ -168,9 +168,13 @@
     for (const ch of L.channels) {
       const seg0 = ch.track.segments.find((sg) => sg.meta.piece === ch.name);
       if (seg0 && seg0.meta.autoSupport === false) continue;
-      const n = Math.max(1, Math.round((ch.s1 - ch.s0) / 24));
-      for (let k = 0; k < n; k++) {
-        const s = ch.s0 + (ch.s1 - ch.s0) * (k + 0.5) / n;
+      const n = Math.max(1, Math.round((ch.s1 - ch.s0) / 24)), at = [];
+      for (let k = 0; k < n; k++) at.push(ch.s0 + (ch.s1 - ch.s0) * (k + 0.5) / n);
+      // the free end of an open run (a catch funnel's mouth, a lip) is held up too
+      const tl = ch.track.length;
+      if (!ch.track.closed && ch.s0 < 0.5) at.unshift(Math.min(ch.s1, 2));
+      if (!ch.track.closed && ch.s1 > tl - 0.5) at.push(Math.max(ch.s0, tl - 2));
+      for (const s of at) {
         ch.track.frame(s, f);
         const top = f.py - f.uy * cfg.floorT - 0.5;
         if (f.uy < 0.5 || top < 2.5) continue;

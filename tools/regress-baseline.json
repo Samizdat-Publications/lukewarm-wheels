@@ -191,24 +191,24 @@
   "name": "drop3-s2",
   "summary": {
    "counts": {
-    "crash": 4,
-    "bump": 22,
+    "crash": 3,
+    "bump": 21,
     "derail": 21,
-    "recapture": 17,
+    "recapture": 16,
     "retrieve": 15,
     "stall": 0,
-    "dropped": 15,
-    "lap": 14
+    "dropped": 16,
+    "lap": 13
    },
    "laps": [
-    5,
+    4,
     5,
     4
    ],
-   "crashes": 4,
+   "crashes": 3,
    "foam": 491.964
   },
-  "hash": "f98e3b7f2d233e18"
+  "hash": "7d8df533e81a8d77"
  },
  "leap3-s2": {
   "name": "leap3-s2",
