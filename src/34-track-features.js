@@ -89,7 +89,17 @@
         }
         // the clip grips the channel's outer (upper) face at the apex, on the tower's side
         const clip = at(f, 0, -(cfg.floorT + 0.25), 0).map((v, k) => v + n[k] * best.sg * (W / 2 + wt));
-        L.supports.push({ kind: 'post', x: best.x, z: best.z, top: clip[1], s: iTop * tr.ds, half: 0.6, clip, track: tr, piece: id });
+        // under a chair seat (or any furniture top) the tower hangs from it instead of standing
+        // on the floor between the chair legs: `hang` is the height of the underside it grips
+        let hang = null;
+        for (const b of L.solids) {
+          if (!b.furniture || b.h[1] > 2 || b.c[1] - b.h[1] < clip[1] + 2) continue;
+          const lx = best.x - b.c[0], lz = best.z - b.c[2];
+          const q = b.q || { x: 0, y: 0, z: 0, w: 1 }, yaw = 2 * Math.atan2(q.y, q.w);
+          const u = Math.cos(yaw) * lx - Math.sin(yaw) * lz, w = Math.sin(yaw) * lx + Math.cos(yaw) * lz;
+          if (Math.abs(u) < b.h[0] - 1 && Math.abs(w) < b.h[2] - 1) hang = Math.min(hang == null ? 1e9 : hang, b.c[1] - b.h[1]);
+        }
+        L.supports.push({ kind: 'post', x: best.x, z: best.z, top: clip[1], s: iTop * tr.ds, half: 0.6, clip, track: tr, piece: id, hang });
       }
       // hazards: { type: 'hammer' | 'paddle', track, piece or s, ... } in the set. The moving part
       // is a box: axes (rotation axis, arm, their cross product), half extents `half` on them.

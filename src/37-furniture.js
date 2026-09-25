@@ -42,6 +42,15 @@
             L.solids.push({ kind: 'furniture', furniture: true, look: 'tableleg', c: [lx, (top - t) / 2, lz], h: [2.4, (top - t) / 2, 2.4] });
           }
           L.table = { cx, cz, sx, sz, top };
+          // the spiral is clipped to the leg it winds round: a collar on the leg and a strut to
+          // the channel's inner edge, twice a turn (drawn only; a car never reaches under it)
+          const f = {}, step = Math.PI * seg.meta.helix.r;
+          for (let s = seg.s0 + step / 2; s < seg.s0 + seg.length; s += step) {
+            tr.frame(s, f);
+            const dx = c[0] - f.px, dz = c[2] - f.pz, l = Math.hypot(dx, dz) || 1, y = f.py - f.uy * (cfg.floorT + 0.3);
+            const e = cfg.laneW / 2 + cfg.wallT - 0.3;
+            L.supports.push({ kind: 'bracket', a: [c[0] - dx / l * 2.5, y, c[2] - dz / l * 2.5], b: [f.px + dx / l * e, y, f.pz + dz / l * e], leg: [c[0], c[2]] });
+          }
         } else if (it.type === 'chair') {
           // a chair standing over a loop (its legs straddle the track), or one the track runs
           // across (seatUnder: the seat's top meets the track's underside)

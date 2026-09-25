@@ -90,7 +90,9 @@
 
     // loop support towers and sweep blocks (layout.supports)
     for (const sp of L.supports) {
-      if (sp.top > 0.2) fixedBox(api, sp.x, sp.top / 2, sp.z, sp.half, sp.top / 2, sp.half, null, { friction: 0.4 });
+      if (sp.kind === 'bracket') continue;
+      if (sp.hang != null) fixedBox(api, sp.x, (sp.top + sp.hang) / 2, sp.z, sp.half, (sp.hang - sp.top) / 2, sp.half, null, { friction: 0.4 });
+      else if (sp.top > 0.2) fixedBox(api, sp.x, sp.top / 2, sp.z, sp.half, sp.top / 2, sp.half, null, { friction: 0.4 });
     }
     // end buffers on open runs, and any solid props a set places (books, a box, a table)
     for (const b of L.solids || []) fixedBox(api, b.c[0], b.c[1], b.c[2], b.h[0], b.h[1], b.h[2], b.q || null, { friction: b.friction == null ? 0.4 : b.friction, rest: b.rest });

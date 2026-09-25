@@ -68,7 +68,12 @@
     let dt = (now - main.last) / 1000;
     main.last = now;
     if (!(dt > 0)) return;
-    dt = Math.min(dt, 0.1);
+    main.step(Math.min(dt, 0.1));
+    autoQuality(dt);
+  }
+
+  // one frame of everything (also driven by hand from tests, where rAF may be throttled)
+  main.step = (dt) => {
     const sim = HW.sim;
     if (main.slowmoT > 0) { main.slowmoT -= dt; if (main.slowmoT <= 0) HW.config.timeScale = main.slow ? 0.25 : main.slowBefore || 1; }
     if (!main.paused) sim.update(dt);
@@ -90,7 +95,17 @@
         HW.audio.update(dt, sim, { pos: c.position, fwd, up });
       } catch (e) { /* audio must never stop the game */ }
     }
-    autoQuality(dt);
+  };
+
+  // dev server only: step by hand and save the canvas (tools/serve.mjs writes docs/screenshots/)
+  if (typeof location !== 'undefined' && location.hostname === 'localhost') {
+    window.__run = (secs, dt = 1 / 60) => { for (let i = Math.round(secs / dt); i > 0; i--) main.step(dt); return HW.sim.time; };
+    window.__shot = async (name) => {
+      main.step(1 / 60);
+      const r = await fetch('/__shot?name=' + encodeURIComponent(name), { method: 'POST', body: document.getElementById('stage').toDataURL('image/png') });
+      return r.status;
+    };
+    window.__look = (pos, target) => { HW.cam.setMode('orbit'); HW.cam.blend = null; HW.cam.controls.autoRotate = false; HW.cam.controls.target.set(...target); HW.cam.camera.position.set(...pos); HW.cam.controls.update(); };
   }
 
   // drop a quality level if the frame rate stays low for a few seconds

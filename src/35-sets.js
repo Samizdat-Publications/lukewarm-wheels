@@ -247,6 +247,6 @@
     start: { track: 'table', s: 8 }, startV: 250,
     autoStart: { cars: 3, every: 3 },
     challenge: { cars: 5, laps: 3 },
-    view: { camera: [195, 150, 330], orbit: [3, 25, 78], look: [3, 25, 78], bound: 150 },
+    view: { camera: [280, 170, 150], orbit: [0, 20, 95], look: [0, 20, 95], bound: 150 },
   };
 })(window.HW);

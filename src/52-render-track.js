@@ -153,14 +153,17 @@
       for (const sp of L.supports) {
         if (sp.kind === 'post') {
           const h = sp.top;
+          // a standing tower has its foot on the floor; a hanging one clamps under the seat
+          const y0 = sp.hang != null ? sp.hang : 0, dn = sp.hang != null ? -1 : 1;
           const foot = new T.Mesh(new X.RoundedBoxGeometry(6.2, 0.5, 6.2, 2, 0.2), mat);
-          foot.position.set(sp.x, 0.25, sp.z);
-          const post = new T.Mesh(new X.RoundedBoxGeometry(1.3, h - 0.5, 1.3, 2, 0.12), mat);
-          post.position.set(sp.x, 0.5 + (h - 0.5) / 2, sp.z);
+          foot.position.set(sp.x, y0 + dn * 0.25, sp.z);
+          const len = Math.abs(h - y0) - 0.5;
+          const post = new T.Mesh(new X.RoundedBoxGeometry(1.3, len, 1.3, 2, 0.12), mat);
+          post.position.set(sp.x, (h + y0 + dn * 0.5) / 2, sp.z);
           g.add(foot, post);
           // ladder rungs on two faces, like the moulded TRACK SUPPORT
           const rungGeo = new T.BoxGeometry(1.42, 0.18, 1.42);
-          for (let y = 2; y < h - 1; y += 1.1) {
+          for (let y = Math.min(h, y0) + 2; y < Math.max(h, y0) - 1; y += 1.1) {
             const r = new T.Mesh(rungGeo, dark);
             r.position.set(sp.x, y, sp.z);
             g.add(r);
@@ -177,6 +180,15 @@
             arm.lookAt(b);
             g.add(arm);
           }
+        } else if (sp.kind === 'bracket') {
+          // a collar round a table leg and a strut out to the spiral channel
+          const collar = new T.Mesh(new X.RoundedBoxGeometry(5.6, 1.4, 5.6, 2, 0.25), mat);
+          collar.position.set(sp.leg[0], sp.a[1], sp.leg[1]);
+          const a = new T.Vector3(...sp.a), b = new T.Vector3(...sp.b);
+          const arm = new T.Mesh(new X.RoundedBoxGeometry(0.9, 0.5, a.distanceTo(b) + 0.6, 2, 0.12), mat);
+          arm.position.copy(a).lerp(b, 0.5);
+          arm.lookAt(b);
+          g.add(collar, arm);
         } else {
           const h = Math.max(0.3, sp.top);
           for (let k = 0; k < 3; k++) {
