@@ -95,8 +95,8 @@
       this.tourney = null;
       this.best = {};
       try { this.best = JSON.parse(localStorage.getItem('hw.best.' + L.id) || '{}') || {}; } catch (e) { this.best = {}; }
-      HW.bus.on('gate', (e) => this.onGate(e));
-      HW.bus.on('derail', (e) => { const r = this.entry(e.car); if (r && this.state === 'running' && r.time == null) r.dnf = e.cause === 'hit' ? 'crashed' : 'left the track'; });
+      sim.bus.on('gate', (e) => this.onGate(e));
+      sim.bus.on('derail', (e) => { const r = this.entry(e.car); if (r && this.state === 'running' && r.time == null) r.dnf = e.cause === 'hit' ? 'crashed' : 'left the track'; });
     }
     entry(car) { return this.current ? this.current.find((r) => r.car === car) : null; }
 

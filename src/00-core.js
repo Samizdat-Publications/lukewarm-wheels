@@ -7,15 +7,19 @@
   HW.version = '2.0.0';
 
   // ---- event bus -------------------------------------------------------------
-  const listeners = new Map();
-  HW.bus = {
-    on(evt, fn) { if (!listeners.has(evt)) listeners.set(evt, new Set()); listeners.get(evt).add(fn); return fn; },
-    off(evt, fn) { const s = listeners.get(evt); if (s) s.delete(fn); },
-    emit(evt, data) {
-      const s = listeners.get(evt);
-      if (s) for (const fn of s) { try { fn(data); } catch (e) { console.error('[bus]', evt, e); } }
-    },
+  // HW.bus is the page's bus; a sim can be given its own (the Track Builder's silent test drives)
+  HW.makeBus = () => {
+    const listeners = new Map();
+    return {
+      on(evt, fn) { if (!listeners.has(evt)) listeners.set(evt, new Set()); listeners.get(evt).add(fn); return fn; },
+      off(evt, fn) { const s = listeners.get(evt); if (s) s.delete(fn); },
+      emit(evt, data) {
+        const s = listeners.get(evt);
+        if (s) for (const fn of s) { try { fn(data); } catch (e) { console.error('[bus]', evt, e); } }
+      },
+    };
   };
+  HW.bus = HW.makeBus();
 
   // ---- units -------------------------------------------------------------------
   HW.units = {

@@ -147,6 +147,26 @@
   #overlay .ebar i { display: block; height: 10px; }
   #overlay .ekey { display: flex; flex-wrap: wrap; gap: 4px 10px; font: 600 10px var(--label); color: var(--muted); }
   #overlay .ekey i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+  body.building #garage, body.building #power, body.building #launch, body.building #race, body.building #actions, body.building #speedo, body.building #overlay, body.building #hint, body.building #cambar .seg { display: none !important; }
+  #btn-build { font: 700 12px var(--label); letter-spacing: .1em; text-transform: uppercase; color: var(--text); padding: 0 12px; border-radius: 10px; }
+  #builder { position: absolute; left: var(--gut); top: calc(118px + env(safe-area-inset-top, 0px)); bottom: var(--gut); width: 440px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  #builder .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #builder .close { margin-left: auto; }
+  #builder .seg button[aria-pressed=true], #builder .tabs button[aria-selected=true], #builder .row button[aria-pressed=true] { background: var(--orange); color: #111; }
+  #builder .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  #builder .tabs button { font: 600 11px var(--label); padding: 4px 8px; }
+  #builder .strip { display: flex; flex-wrap: wrap; gap: 4px; min-height: 30px; padding: 6px; border-radius: 8px; background: rgba(255,255,255,.05); }
+  #builder .strip .chip { font: 600 11px var(--label); padding: 3px 7px; border-radius: 6px; background: rgba(255,255,255,.1); color: var(--text); text-transform: none; letter-spacing: 0; }
+  #builder .strip .chip.on { background: var(--orange); color: #111; }
+  #builder .palette { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+  #builder .grp .keys { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+  #builder .pc { font: 600 11px var(--label); padding: 4px 7px; text-transform: none; letter-spacing: 0; }
+  #builder .pc b { color: var(--flame); }
+  #builder .status p { margin: 3px 0; font: 500 13px/1.35 var(--label); color: var(--text); }
+  #builder .status p.ok { color: #6ff09a; }
+  #builder .status p.warn { color: #ffb37a; }
+  #builder input[type=text] { flex: 1; min-width: 120px; font: 600 13px ui-monospace, monospace; background: rgba(0,0,0,.35); color: var(--text); border: 1px solid rgba(255,255,255,.2); border-radius: 6px; padding: 5px 8px; }
+  #builder .hint { font: 500 12px var(--label); color: var(--muted); }
   #actions { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--gut) + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; padding: 8px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 2 * var(--gut)); }
 
   #speedo { position: absolute; right: var(--gut); bottom: calc(var(--gut) + env(safe-area-inset-bottom, 0px)); padding: 12px 16px; text-align: right; min-width: 190px; }
@@ -211,6 +231,8 @@
     #g-rpm, #g-soc, #g-load { font-size: 16px; }
     .num { font-size: 17px; }
     #speedo { display: none; }
+    #builder { left: var(--gut); right: var(--gut); width: auto; top: calc(92px + env(safe-area-inset-top, 0px)); }
+    #builder .palette { grid-template-columns: 1fr; }
     #race { left: var(--gut); right: var(--gut); width: auto; top: calc(92px + env(safe-area-inset-top, 0px)); padding: 8px 10px; gap: 5px; }
     #race .why { display: none; }
     #overlay { display: none; }
@@ -278,6 +300,7 @@
 <script src="src/33-track-build.js"></script>
 <script src="src/34-track-features.js"></script>
 <script src="src/35-sets.js"></script>
+<script src="src/36-builder-codec.js"></script>
 <script src="src/40-power.js"></script>
 <script src="src/41-cars.js"></script>
 <script src="src/42-collide.js"></script>
@@ -299,6 +322,7 @@
 <script src="src/61-audio-assets.js"></script>
 <script src="src/70-ui.js"></script>
 <script src="src/71-ui-race.js"></script>
+<script src="src/72-builder.js"></script>
 <script src="src/90-main.js"></script>
 <!-- /HW:SCRIPTS -->
 

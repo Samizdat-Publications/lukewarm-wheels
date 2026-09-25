@@ -90,7 +90,7 @@
     const ctrlOf = (a, b) => [A, sc(tA, a), sc(kA, a * a), sc(kB, b * b), sc(tB, b), B];
     const floorY = opts.floorY;
     const cost = (q) => {
-      if (q[0] < 0.2 * chord || q[1] < 0.2 * chord) return 1e9;
+      if (q[0] < 0.2 * chord || q[1] < 0.2 * chord || q[0] > 5 * chord + 30 || q[1] > 5 * chord + 30) return 1e9;
       const s = quinticStats(ctrlOf(q[0], q[1]), 80);
       return s.E * chord + 2 * s.J * chord * chord * chord + (floorY != null && s.ymin < floorY ? (floorY - s.ymin) ** 2 * 100 : 0);
     };
@@ -191,11 +191,13 @@
   T.loop = (pc, pose, ctx) => {
     const r = pc.radius || 12, lat = pc.lateral == null ? 5 : pc.lateral;
     const left = sc(pose.right, -1);
-    return helixRun(pose, ctx, { side: upOf(pose), axis: left, r, b: lat / (2 * Math.PI), turns: 1, lead: pc.lead, meta: { maxBank: null, loop: true } });
+    // a loop banks toward its own axis all the way round: bank for a fast car (heartline at
+    // 450 cm/s) unless the set names the speed it expects
+    return helixRun(pose, ctx, { side: upOf(pose), axis: left, r, b: lat / (2 * Math.PI), turns: 1, lead: pc.lead, meta: { maxBank: null, loop: true, vDesign: 450 } });
   };
   T.corkscrew = (pc, pose, ctx) => {
     const r = pc.radius || 7, adv = pc.advance == null ? 36 : pc.advance, dir = pc.dir === 'right' ? -1 : 1;
-    return helixRun(pose, ctx, { side: upOf(pose), axis: sc(pose.right, -dir), r, b: adv / (2 * Math.PI), turns: 1, lead: pc.lead, meta: { maxBank: null, loop: true } });
+    return helixRun(pose, ctx, { side: upOf(pose), axis: sc(pose.right, -dir), r, b: adv / (2 * Math.PI), turns: 1, lead: pc.lead, meta: { maxBank: null, loop: true, vDesign: 450 } });
   };
   T.spiral = (pc, pose, ctx) => {
     const r = pc.radius || 15, dir = pc.dir === 'right' ? -1 : 1, drop = pc.drop == null ? 12 : pc.drop;

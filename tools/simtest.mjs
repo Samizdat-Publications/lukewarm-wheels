@@ -167,6 +167,22 @@ if (mode === 'sweep') {
   process.exit(0);
 }
 
+if (mode === 'code') {
+  // node tools/simtest.mjs code <builderCode> [strength] : build a Track Builder code, test-drive every casting
+  const code = process.argv[3] || 'LSSOSJ.SlSBSF', strength = +(process.argv[4] || 0.85);
+  const set = HW.builderCodec.toSet(code);
+  if (!set) { console.log('not a valid code'); process.exit(1); }
+  HW.sets.custom = set; HW.config.set = 'custom';
+  const L = HW.layout.build(HW.config);
+  console.log(`${set.code}: ` + L.tracks.map((t) => `${t.id} ${fmt(t.length, 1)} cm${t.closed ? ' closed' : ''} ends ${t.startLink ? t.startLink.kind : '-'}/${t.endLink ? t.endLink.kind : '-'}`).join(', ') + `, supports ${L.supports.length}, dead ends ${HW.builderCodec.deadEnds(HW.builderCodec.decode(code)).length}`);
+  const R = await rapier();
+  for (let i = 0; i < 5; i++) {
+    const r = HW.builderCodec.testRun(set, R, i, strength);
+    console.log(`  ${HW.catalog[i].name.padEnd(15)} ${r.ok ? 'OK ' + (r.laps ? r.laps + ' laps' : fmt(r.time, 2) + ' s') : 'FAIL ' + r.fail.kind + ' at run ' + (r.fail.run + 1) + ' piece ' + (r.fail.piece + 1) + ' (' + r.fail.region + ')'}  top ${fmt(r.top)} cm/s`);
+  }
+  process.exit(0);
+}
+
 if (mode === 'race') {
   // node tools/simtest.mjs race [heats] [knockout] : Race Day heats, times, and the explanation
   HW.config.set = 'dragStrip';

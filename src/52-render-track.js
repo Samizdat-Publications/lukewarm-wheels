@@ -90,6 +90,14 @@
   HW.renderTrack = {
     materials: null,
     build(scene, L) {
+      const group = this.buildGroup(L);
+      scene.add(group);
+      this.group = group;
+      return group;
+    },
+
+    // the whole track as one group, not yet in a scene (the Track Builder previews with it)
+    buildGroup(L) {
       const T = window.THREE, d = { W: L.dims.W, wallT: L.dims.wallT, wallH: L.dims.wallH, floorT: L.dims.floorT };
       const bump = HW.tex.three(HW.tex.normalFrom(plasticTexture(), 0.6), { repeat: 1, srgb: false });
       const mat = new T.MeshPhysicalMaterial({
@@ -133,8 +141,6 @@
         group.add(m);
       }
       group.add(this.buildSupports(L));
-      scene.add(group);
-      this.group = group;
       return group;
     },
 

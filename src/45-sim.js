@@ -11,10 +11,11 @@
   const V = HW.V, M = HW.math, Q = HW.Q;
 
   HW.Sim = class Sim {
-    constructor({ cfg = HW.config, layout = null, RAPIER = null, catalog = HW.catalog } = {}) {
+    constructor({ cfg = HW.config, layout = null, RAPIER = null, catalog = HW.catalog, bus = null } = {}) {
       this.cfg = cfg;
+      this.bus = bus || HW.bus;
       this.layout = layout || HW.layout.build(cfg);
-      this.power = HW.power.create(cfg, this.layout.foamR);
+      this.power = HW.power.create(cfg, this.layout.foamR, this.bus);
       this.time = 0;
       this.cars = [];
       this.events = [];
@@ -37,7 +38,7 @@
       data.t = this.time;
       this.events.push({ type, ...data });
       if (this.events.length > 400) this.events.splice(0, 100);
-      HW.bus.emit(type, data);
+      this.bus.emit(type, data);
     }
 
     addCar(entry) {
@@ -350,7 +351,8 @@
         const zoneFree = !this.cars.some((c) => c !== car && c.mode === 'track' && c.track === path && Math.abs(path.delta(c.s, s0)) < 9);
         const clear = zoneFree && (r.wait > 2.5 || (to ? true : this.dropClear(car)));
         if (clear) {
-          this.placeOnTrack(car, s0, 0, 0, false, path);
+          // a hand-start track (Track Builder "P") has no launcher: the hand flicks the car in
+          this.placeOnTrack(car, s0, to ? 0 : L.set.startV || 0, 0, false, path);
           if (to) { car.held = !!to.hold; car.retrieveTo = null; }
           this.emit('dropped', { car, waited: r.wait });
         }

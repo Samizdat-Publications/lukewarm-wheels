@@ -39,9 +39,17 @@
     const cfg = ctx.cfg;
     let pose = ts.from ? startOf(ts.from, ctx) : null;
     const segs = [], marks = [];
+    let closed = !!ts.closed;
     ts.pieces.forEach((pc, k) => {
       const id = pc.id || pc.type + k;
       if (pc.type === 'gate') { marks.push({ at: segs.length, kind: pc.kind || 'finish', id }); return; }
+      // closing a circuit: only when the run really comes back to its start (a real track either
+      // meets itself or it does not); otherwise it stays an open run and the builder says why
+      if (pc.id === 'close' && pc.type === 'join') {
+        const t0 = HW.pieces.dirOf(pc.heading, 0), gap = Math.hypot(pc.to[0] - pose.p[0], pc.to[1] - pose.p[1], pc.to[2] - pose.p[2]);
+        const ang = Math.acos(Math.max(-1, Math.min(1, t0[0] * pose.t[0] + t0[1] * pose.t[1] + t0[2] * pose.t[2]))) * 180 / Math.PI;
+        if (gap > 60 || ang > 60) { closed = false; (ctx.warnings = ctx.warnings || []).push({ track: ts.id, kind: 'close', text: `the run ends ${gap.toFixed(0)} cm and ${ang.toFixed(0)} deg away from its start: too far to close` }); return; }
+      }
       const make = HW.pieces.types[pc.type];
       if (!make) throw new Error('unknown piece type ' + pc.type + ' in track ' + ts.id);
       ctx.curPiece = id; ctx.curTrack = ts.id;
@@ -87,7 +95,7 @@
       const maxDeg = 'maxBank' in m ? m.maxBank : ts.maxBank == null ? 50 : ts.maxBank;
       return { flat: false, vNom: Math.sqrt(Math.max(v2, 60 * 60)), gain: 1, maxDeg };
     };
-    const path = HW.Path.build(segs, { closed: !!ts.closed, ds: cfg.sampleDs, smoothCm: cfg.bankSmoothCm, bank });
+    const path = HW.Path.build(segs, { closed, ds: cfg.sampleDs, smoothCm: cfg.bankSmoothCm, bank });
     path.id = ts.id; path.spec = ts; path.name = ts.name || ts.id;
     // where each piece lies along the track
     path.pieces = {};
@@ -189,12 +197,13 @@
       const byId = {};
       tracks.forEach((t, i) => { t.index = i; byId[t.id] = t; });
       tracks.forEach((t) => { t.endLink = resolveEnd(t.spec.end, byId, t.closed); t.startLink = resolveEnd(t.spec.start, byId, t.closed); });
+      const warnings = ctx.warnings || [];
 
       const L = {
         set, id, tracks, byId, path: tracks[0], params,
         dims: { W: cfg.laneW, wallT: cfg.wallT, wallH: cfg.wallH, floorT: cfg.floorT },
         boosters: [], wheels: [], crossings: [], gaps: [], lanes: {}, laneS: {}, lobes: {}, hub: null,
-        supports: [], foamR: params.foamR || 3, props: ctx.props,
+        supports: [], foamR: params.foamR || 3, props: ctx.props, warnings,
         stats: { length: tracks.reduce((a, t) => a + t.length, 0), footprint: 0 },
       };
       // channels: the orange track that gets drawn and collided (props draw their own)

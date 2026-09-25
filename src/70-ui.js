@@ -48,8 +48,9 @@
         modes.map(([m, label]) => (U.camBtns[m] = h('button', { id: 'cam-' + m, 'aria-pressed': m === 'orbit' ? 'true' : 'false', onclick: () => U.setCam(m) }, label))));
       U.soundBtn = h('button', { id: 'btn-sound', class: 'iconbtn panel', title: 'Sound (M)', 'aria-label': 'Toggle sound', html: ICON.mute, onclick: () => U.toggleSound() });
       const gearBtn = h('button', { id: 'btn-tune', class: 'iconbtn panel', title: 'Tuning (T)', 'aria-label': 'Physics tuning', html: ICON.gear, onclick: () => U.toggleDrawer() });
+      const buildBtn = h('button', { id: 'btn-build', class: 'panel', title: 'Track Builder', onclick: () => HW.builderUI.open() }, 'Build');
       const helpBtn = h('button', { id: 'btn-help', class: 'iconbtn panel', title: 'How it works (H)', 'aria-label': 'How it works', html: ICON.help, onclick: () => U.toggleHelp() });
-      root.append(h('div', { id: 'cambar' }, seg, U.soundBtn, gearBtn, helpBtn));
+      root.append(h('div', { id: 'cambar' }, seg, buildBtn, U.soundBtn, gearBtn, helpBtn));
 
       // garage
       U.rows = new Map();

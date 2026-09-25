@@ -9,7 +9,7 @@
 (function (HW) {
   const M = HW.math;
   HW.power = {
-    create(cfg, foamRcm) {
+    create(cfg, foamRcm, bus) {
       const rW = foamRcm / 100;                       // foam wheel radius, m
       const st = {
         on: false, omegaM: 0, Q: 0, I: 0, V0: 0, Rpack: 0, Vterm: 0, soc: 1,
@@ -23,7 +23,7 @@
       const api = {
         state: st,
         foamR: foamRcm,
-        setSwitch(on) { if (st.on !== !!on) { st.on = !!on; HW.bus.emit('switch', st.on); } },
+        setSwitch(on) { if (st.on !== !!on) { st.on = !!on; (bus || HW.bus).emit('switch', st.on); } },
         reset() { st.omegaM = 0; st.Q = (1 - cfg.charge) * capC(); st.I = 0; st.t = 0; st.energyJ = 0; },
         setCharge(c) { cfg.charge = M.clamp(c, 0, 1); st.Q = (1 - cfg.charge) * capC(); },
         get omegaW() { return st.omegaM / cfg.gearRatio; },

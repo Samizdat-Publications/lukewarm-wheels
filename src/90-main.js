@@ -8,6 +8,8 @@
   // which set: #s.<id> in the URL (an artifact passes only a bare #token)
   const tok = (location.hash || '').slice(1);
   if (tok.startsWith('s.') && HW.sets[tok.slice(2)]) HW.config.set = tok.slice(2);
+  // a Track Builder code: the link carries the whole track
+  if (tok.startsWith('t.')) { const set = HW.builderCodec.toSet(tok.slice(2)); if (set) { HW.sets.custom = set; HW.config.set = 'custom'; } }
   const bootSet = HW.sets[HW.config.set || 'crissCross'];
   try {
     const bl = document.querySelector('#boot .logo');
