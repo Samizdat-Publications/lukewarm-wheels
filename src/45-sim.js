@@ -59,7 +59,7 @@
       track = track || this.layout.start.track;
       car.mode = 'track'; car.status = 'running'; car.track = track; car.finished = false;
       car.s = track.wrap(s); car.v = v; car.d = d; car.vd = 0; car.h = 0; car.vh = 0;
-      car.reversed = reversed; car.stallT = 0; car.retrieve = null; car.inNip = null; car.jump = null;
+      car.reversed = reversed; car.stallT = 0; car.retrieve = null; car.inNip = null; car.jump = null; car.splitFrom = null;
       HW.trackDynamics.pose(car, track);
       // a circuit times laps from the first drop; an open run times every run from its start
       if (car.lapStartT == null || !track.closed) car.lapStartT = this.time;
@@ -127,6 +127,7 @@
         if (car.mode !== 'track') continue;
         const r = HW.trackDynamics.step(car, h, this);
         tau += r.tau;
+        if (car.track.endLink && car.track.endLink.kind === 'split' && !r.derail) this.guideSplit(car);
         HW.trackDynamics.pose(car, car.track);
         if (r.derail) this.derail(car, r.derail);
         else this.watchStall(car, h);
@@ -192,8 +193,10 @@
       }
       let next = link.track;
       if (link.kind === 'split') {
-        const n = link.tracks.length;
-        next = link.policy === 'random' ? link.tracks[Math.floor(this.rng() * n) % n] : link.tracks[link.n++ % n];
+        if (car.splitFrom === path && car.splitNext) {
+          // steered across the mouth already: its lateral place carries over onto the branch
+          next = car.splitNext; car.d -= car.splitOff; car.splitFrom = car.splitNext = null;
+        } else next = this.pickBranch(link);
         this.emit('split', { car, from: path, to: next });
       }
       const extra = over ? car.s - path.length : -car.s;       // how far past the end
@@ -202,6 +205,27 @@
       car.s = next.wrap(over ? entry + extra : entry - extra);
       car.inNip = null;
       return null;
+    }
+
+    pickBranch(link) {
+      const n = link.tracks.length;
+      return link.policy === 'random' ? link.tracks[Math.floor(this.rng() * n) % n] : link.tracks[link.n++ % n];
+    }
+
+    // A splitter's mouth: the flipper chooses the branch as the car enters and steers it across
+    // to that half of the widening lane, so it arrives lined up with its branch.
+    guideSplit(car) {
+      const tr = car.track;
+      if (tr._mouth === undefined) { const pc = tr.spec.pieces.find((p) => p.mouth); tr._mouth = pc ? tr.pieces[pc.id] || null : null; }
+      const m = tr._mouth;
+      if (!m || car.s < m.s0 || car.v <= 0) return;
+      if (car.splitFrom !== tr) {
+        const next = this.pickBranch(tr.endLink), k = tr.endLink.tracks.indexOf(next);
+        car.splitFrom = tr; car.splitNext = next;
+        car.splitOff = (k === 0 ? -1 : 1) * (this.cfg.laneW / 2 + this.cfg.wallT);   // branch 0 is the left one
+      }
+      const u = M.clamp((car.s - m.s0) / Math.max(1e-6, m.s1 - m.s0), 0, 1);
+      car.d = car.splitOff * u * u * (3 - 2 * u); car.vd = 0;
     }
 
     // ------------------------------------------------------------ leaving the track

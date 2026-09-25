@@ -41,7 +41,9 @@
     F: { name: 'Finish gate', make: () => [{ type: 'gate', kind: 'finish' }] },
     K: { name: 'Brake + end', make: () => [{ type: 'brake', len: 40 }], ends: true },
     J: { name: 'Jump', make: () => [{ type: 'pitch', angle: 22, radius: 30 }, { type: 'straight', len: 8 }], ends: true, children: 1 },
-    Y: { name: 'Splitter', make: () => [], ends: true, children: 2 },
+    // a moulded splitter: the lane widens into two side by side (a flipper steers each car
+    // into one of them), and the branches start from the two halves of the mouth
+    Y: { name: 'Splitter', make: () => [{ type: 'straight', len: 12, width: [HW.config.laneW, 2 * (HW.config.laneW + HW.config.wallT)], mouth: true }], ends: true, children: 2 },
     M: { name: 'Merge back', make: () => [], ends: true },
     X: { name: 'Hammer', make: () => [{ type: 'straight', len: PIECE }], hazard: { type: 'hammer', period: 2.2, amp: 40, arm: 16 } },
     W: { name: 'Paddle wheel', make: () => [{ type: 'straight', len: PIECE }], hazard: { type: 'paddle', period: 1.6 } },
@@ -104,8 +106,8 @@
         pieces.push({ type: 'straight', len: 34, width: [8, 3.6], id: 'funnel' }, { type: 'pitch', angle: 8, radius: 40, width: [3.6, 3.175], id: 'flare' });
       } else if (par && par.kind === 'Y') {
         const sg = par.branch === 0 ? 1 : -1;
-        from = { rel: 'r' + par.run, forward: 0, pitch: 0 }; start = 'fly'; vIn = 250;
-        pieces.push({ type: 'bend', angle: 25 * sg, radius: 30, id: 'forkA' }, { type: 'bend', angle: -25 * sg, radius: 30, id: 'forkB' });
+        from = { rel: 'r' + par.run, forward: 0, left: sg * (HW.config.laneW / 2 + HW.config.wallT), pitch: 0 }; start = 'fly'; vIn = 250;
+        pieces.push({ type: 'bend', angle: 15 * sg, radius: 40, id: 'forkA' }, { type: 'bend', angle: -15 * sg, radius: 40, id: 'forkB' });
       } else { from = { at: [-80, 1.2, 40 * i], heading: 90 }; }
       let end = 'stop';
       run.forEach((ch, k) => {

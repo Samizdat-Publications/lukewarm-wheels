@@ -28,7 +28,9 @@ new features, full control"). Done, each its own commit:
 - Jumps are scored (lip to first touch: airtime, distance, height, landed): speedometer line + best
   per set (localStorage `hw.jump.<set>`), BIG AIR / RECORD / WIPEOUT banners, Director jump cam in
   slow motion (one per 7 s), Replay frames the last jump, an air-rush sound, record chimes.
-- Track Builder: `M` Merge back (a run joins the start of run 1; hand start only; same 60 cm / 60
+- Track Builder: a moulded splitter `Y` (the lane widens into two halves over 12 cm; a flipper,
+  `Sim.guideSplit`, picks the branch as the car enters and steers it across; the branches start
+  side by side and the car's lateral place carries over), `M` Merge back (a run joins the start of run 1; hand start only; same 60 cm / 60
   deg rule as closing), `X` hammer and `W` paddle-wheel pieces, launcher pull in the code (`L1`..`L9`).
 - Showroom (`V` or the garage button, `74-showroom.js`): a casting on a plinth, its card, session
   stats and the tuner. The sim pauses; `main.step` hands the frame to `HW.showroom.frame`.
@@ -119,9 +121,6 @@ bodies against free cars (`44-stunts.js`). A sim can run on its own event bus (`
 
 ## Ideas for next (none started)
 
-- A splitter's two branches start overlapping (an X of walls right after the Y). A moulded
-  splitter would widen the lane into two with a divider and hand the car over by its lateral
-  position (car.d re-projected onto the branch).
 - The kitchen book jump is a gentle 0.8 cm hop. A bigger one (lip -2, catch 18 cm further, the
   south run 18 cm shorter) worked but cost the set its zero-crash return loop; tune the merge first.
 - Hand model (the hand that carries cars is only a glow ring); car models round two (the showroom
