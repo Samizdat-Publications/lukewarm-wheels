@@ -77,6 +77,7 @@
           { type: 'gate', kind: 'finish' },
           { type: 'straight', len: 45, id: 'brake' },
         ],
+        start: 'fly',                                                   // open behind: no buffer to land on
         end: 'stop',
       },
     ],

@@ -193,7 +193,7 @@
       const GT = path.gates;
       for (let k = 0; k < GT.length; k++) {
         const gs = GT[k].s;
-        if (!(vNew > 0 && sOld < gs && car.s >= gs)) continue;
+        if (!(vNew > 0 && sOld < gs && car.s >= gs) || car.finished) continue;
         if (GT[k].kind === 'finish' || GT[k].kind === 'lap') lap(car, sim);
         if (GT[k].kind === 'finish') car.finished = true;
         sim.emit('gate', { car, gate: GT[k] });

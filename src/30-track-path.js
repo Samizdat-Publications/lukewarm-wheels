@@ -337,7 +337,15 @@
         const x = s / ds; i = Math.floor(x); a = x - i; if (i >= N) i = N - 1;
         j = i + 1 < N ? i + 1 : 0;
       } else {
-        s = s < 0 ? 0 : s > path.length ? path.length : s;
+        // past an open end the track carries on straight (a lip the car's rear is still on)
+        if (s < 0 || s > path.length) {
+          const e = s < 0 ? 0 : path.length;
+          f = path.frame(e, f);
+          const over = s - e;
+          f.px += f.tx * over; f.py += f.ty * over; f.pz += f.tz * over;
+          f.kx = 0; f.ky = 0; f.kz = 0; f.s = s;
+          return f;
+        }
         const x = s / ds; i = Math.floor(x); if (i > N - 2) i = N - 2;
         a = x - i; if (a > 1) a = 1;
         j = i + 1;

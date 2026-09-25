@@ -120,71 +120,71 @@
   "name": "fleet3-s3",
   "summary": {
    "counts": {
-    "crash": 15,
-    "bump": 7,
-    "derail": 22,
-    "recapture": 12,
-    "retrieve": 8,
-    "stall": 1,
-    "dropped": 11,
-    "lap": 66
+    "crash": 6,
+    "bump": 1,
+    "derail": 9,
+    "recapture": 2,
+    "retrieve": 7,
+    "stall": 0,
+    "dropped": 10,
+    "lap": 78
    },
    "laps": [
-    23,
-    22,
-    21
+    29,
+    25,
+    24
    ],
-   "crashes": 15,
-   "foam": 415.378
+   "crashes": 6,
+   "foam": 391.831
   },
-  "hash": "a725c05be0e46e4b"
+  "hash": "176a20806bef6c6f"
  },
  "fleet3-s4": {
   "name": "fleet3-s4",
   "summary": {
    "counts": {
-    "crash": 3,
-    "bump": 5,
-    "derail": 5,
-    "recapture": 1,
-    "retrieve": 4,
-    "stall": 1,
-    "dropped": 7,
-    "lap": 81
+    "crash": 7,
+    "bump": 8,
+    "derail": 11,
+    "recapture": 9,
+    "retrieve": 2,
+    "stall": 0,
+    "dropped": 5,
+    "lap": 86
    },
    "laps": [
-    29,
-    26,
-    26
+    28,
+    30,
+    28
    ],
-   "crashes": 3,
-   "foam": 388.108
+   "crashes": 7,
+   "foam": 412.457
   },
-  "hash": "01118d36a426eb56"
+  "hash": "3d86fffbdde509ad"
  },
  "fleet5-s7": {
   "name": "fleet5-s7",
   "summary": {
    "counts": {
-    "crash": 38,
-    "bump": 15,
-    "derail": 48,
-    "recapture": 28,
-    "retrieve": 20,
+    "crash": 34,
+    "bump": 22,
+    "derail": 56,
+    "recapture": 29,
+    "retrieve": 26,
     "stall": 0,
-    "dropped": 23,
-    "lap": 27
+    "dropped": 29,
+    "lap": 9
    },
    "laps": [
-    6,
-    8,
-    4,
-    5,
-    4
+    3,
+    3,
+    2,
+    1,
+    0
    ],
-   "crashes": 38,
-   "foam": 393.157
+   "crashes": 34,
+   "foam": 418.07
   },
-  "hash": "56335ab6ea6219bb"
+  "hash": "01776f2105be7345"
  }
 }

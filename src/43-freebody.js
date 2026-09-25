@@ -110,13 +110,17 @@
     colliders[0].setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS);
     colliders[0].setContactForceEventThreshold(car.m * HW.units.G * 6);
     api.byCollider.set(colliders[0].handle, car);
-    const rw = e.wheelRadiusCm, tx = e.trackCm / 2, wz = e.wheelbaseCm / 2;
+    // Wheels are low-friction balls touching the running surface. A ball of the full wheel
+    // radius at +-track/2 would reach past the body and past the channel walls (1.57-1.70 cm
+    // from the centreline against a 1.59 cm half-lane), so every hand-off made inside the
+    // channel would start wedged into both walls. Keep each ball inside the body's width.
+    const rb = Math.min(e.wheelRadiusCm, 0.32), tx = Math.min(e.trackCm / 2, e.widthCm / 2 - rb - 0.02), wz = e.wheelbaseCm / 2;
     const wheels = [];
     for (const [x, z] of [[-tx, -wz], [tx, -wz], [-tx, wz], [tx, wz]]) {
-      const wd = R.ColliderDesc.ball(rw).setTranslation(x, rw, z).setFriction(0.04).setRestitution(0.2)
+      const wd = R.ColliderDesc.ball(rb).setTranslation(x, rb, z).setFriction(0.04).setRestitution(0.2)
         .setDensity(0.0001).setCollisionGroups(0);
       colliders.push(api.world.createCollider(wd, body));
-      wheels.push({ x, y: rw, z });
+      wheels.push({ x, y: rb, z, r: rb });
     }
     api.bodies.set(car, { body, colliders, wheels, park, active: false });
   };
@@ -172,7 +176,7 @@
       const wp = HW.Q.rotate(q, w);
       const origin = { x: t.x + wp.x, y: t.y + wp.y, z: t.z + wp.z };
       api.wheelRay.origin = origin; api.wheelRay.dir = { x: -up.x, y: -up.y, z: -up.z };
-      const hit = api.world.castRay(api.wheelRay, car.entry.wheelRadiusCm + 0.12, true, undefined, groups(GROUP_CAR, GROUP_WORLD), undefined, b);
+      const hit = api.world.castRay(api.wheelRay, w.r + 0.12, true, undefined, groups(GROUP_CAR, GROUP_WORLD), undefined, b);
       if (!hit) continue;
       touching++;
       const r = { x: wp.x, y: wp.y, z: wp.z };

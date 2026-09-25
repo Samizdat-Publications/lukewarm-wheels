@@ -169,7 +169,18 @@
         if (sp > 20) this.emit('buffer', { car, speed: sp });
         return null;
       }
-      if (link.kind === 'fly') return 'jump';
+      if (link.kind === 'fly') {
+        // off a lip: the car rides on until its rear axle leaves the edge, pivoting nose-down
+        // about the rear wheels meanwhile; the free body inherits that pitch rate
+        const r = car.entry.wheelbaseCm / 2, over2 = over ? car.s - path.length : -car.s;
+        if (over2 < r) return null;
+        const f = car.frame, v = Math.abs(car.v) || 1, bh = car.boxHalf;
+        const k2 = (bh.y * bh.y + bh.z * bh.z) / 3;               // box radius of gyration^2 about its centre
+        const w = HW.units.G * Math.max(0, f.uy) * r / (k2 + r * r) * (r / v);
+        const sg = -Math.sign(car.v);                                  // nose-down about the track's right axis
+        car.lipSpin = { x: f.rx * w * sg, y: f.ry * w * sg, z: f.rz * w * sg };
+        return 'jump';
+      }
       let next = link.track;
       if (link.kind === 'split') {
         const n = link.tracks.length;
@@ -189,6 +200,7 @@
       car.mode = 'free'; car.status = cause === 'jump' ? 'airborne' : 'crashed';
       car.freeT = 0; car.restT = 0; car.noRecaptureT = this.cfg.recaptureDelay;
       car.inNip = null; car.Nf = 0; car.Nw = 0;
+      if (car.lipSpin) { car.angVel.x += car.lipSpin.x; car.angVel.y += car.lipSpin.y; car.angVel.z += car.lipSpin.z; car.lipSpin = null; }
       if (this.fb) HW.freebody.activate(this.fb, car);
       this.emit('derail', { car, cause });
     }
