@@ -26,6 +26,9 @@
       C.controls.minDistance = 12; C.controls.maxDistance = 320;
       C.controls.maxPolarAngle = Math.PI * 0.49;
       C.controls.zoomSpeed = 0.9;
+      // a slow turntable until the viewer takes the camera
+      C.controls.autoRotate = true; C.controls.autoRotateSpeed = 0.35;
+      C.controls.addEventListener('start', () => { C.controls.autoRotate = false; });
       C.blend = null;
       C.tmp = { p: new T.Vector3(), q: new T.Quaternion(), m: new T.Matrix4(), look: new T.Vector3(), up: new T.Vector3(0, 1, 0) };
       C.chase = { pos: null, dir: new T.Vector3(0, 0, -1) };
@@ -40,6 +43,7 @@
       C.startBlend();
       C.mode = mode;
       C.controls.enabled = mode === 'orbit';
+      C.controls.autoRotate = false;
       if (mode === 'orbit') {
         // orbit around wherever we were looking
         const fwd = new window.THREE.Vector3(0, 0, -1).applyQuaternion(C.camera.quaternion);
@@ -153,7 +157,7 @@
       const des = C.desired(dt, sim);
       if (!des) {
         // orbit mode: OrbitControls owns the camera
-        C.controls.update();
+        C.controls.update(dt);
         if (C.blend) C.applyBlend(dt, null);
         const want = fit(38);
         if (!C.blend && (Math.abs(cam.fov - want) > 0.05 || cam.near !== 0.5)) { cam.fov = want; cam.near = 0.5; cam.updateProjectionMatrix(); }

@@ -241,7 +241,8 @@
       for (const c of this.cars) {
         if (c === car || c.mode !== 'track') continue;
         if (Math.abs(M.loopDelta(c.s, L.startS, len)) < 10) return false;
-        const vc = c.lastLap ? len / c.lastLap : Math.max(120, Math.abs(c.v));
+        // average lap speed; before a first lap, the typical one (instantaneous speed swings 30 % round a loop)
+        const vc = c.lastLap ? len / c.lastLap : len / 1.17;
         if (c.v < 40) continue;                                  // stopped cars are handled by the zone check
         for (const x of L.crossings) {
           for (let k = 0; k < 2; k++) {
