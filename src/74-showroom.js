@@ -41,16 +41,18 @@
       bx.fillStyle = gr; bx.fillRect(0, 0, 4, 256);
       sc.background = HW.tex.three(bg);
       sc.environment = HW.render.scene.environment;
-      sc.environmentIntensity = 0.8;
-      const key = new T.DirectionalLight(0xfff1e0, 2.4); key.position.set(-14, 22, 12); key.castShadow = true;
+      sc.environmentIntensity = 0.45;
+      // key from above the viewer's shoulder (the camera stands at +x +z), so the shadow falls on the plinth in view
+      const key = new T.DirectionalLight(0xfff1e0, 2.8); key.position.set(-8, 30, 10); key.castShadow = true;
       Object.assign(key.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 5, far: 60 });
-      key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0003; key.shadow.radius = 5;
-      const rim = new T.DirectionalLight(0x9fc4ff, 1.6); rim.position.set(12, 8, -16);
+      key.shadow.camera.updateProjectionMatrix();
+      key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0003; key.shadow.normalBias = 0.02; key.shadow.radius = 5;
+      const rim = new T.DirectionalLight(0x9fc4ff, 1.8); rim.position.set(-10, 9, -18);
       const fill = new T.HemisphereLight(0xc9d6ff, 0x3a2414, 0.45);
       sc.add(key, rim, fill);
-      // the plinth: satin black with an orange Hot Wheels ring, on a soft pool of light
+      // the plinth: satin grey (light enough to show the car's shadow) with an orange ring
       const plinth = new T.Group();
-      const top = new T.Mesh(new T.CylinderGeometry(9, 9.4, 1.2, 96), new T.MeshPhysicalMaterial({ color: 0x121317, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.25 }));
+      const top = new T.Mesh(new T.CylinderGeometry(9, 9.4, 1.2, 96), new T.MeshPhysicalMaterial({ color: 0x62666f, roughness: 0.6, clearcoat: 0.25, clearcoatRoughness: 0.35 }));
       top.position.y = -0.6; top.receiveShadow = true;
       const ring = new T.Mesh(new T.TorusGeometry(9.25, 0.18, 12, 128), new T.MeshStandardMaterial({ color: 0xff6a13, emissive: 0xff4a00, emissiveIntensity: 0.6, roughness: 0.4 }));
       ring.rotation.x = Math.PI / 2; ring.position.y = -0.02;
@@ -104,6 +106,16 @@
       S.model.scale.setScalar(2);
       S.model.position.set(0, 0, 0);
       S.plinth.add(S.model);
+      // a soft contact shadow under the car, as a product shot has
+      if (!S.blob) {
+        const T = window.THREE, c = HW.tex.canvas(128, 128), x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 6, 64, 64, 64);
+        g.addColorStop(0, 'rgba(0,0,0,0.75)'); g.addColorStop(0.55, 'rgba(0,0,0,0.35)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+        S.blob = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: HW.tex.three(c), transparent: true, depthWrite: false }));
+        S.blob.rotation.x = -Math.PI / 2; S.blob.position.y = 0.03; S.blob.renderOrder = 1;
+        S.plinth.add(S.blob);
+      }
+      S.blob.scale.set(car.entry.widthCm * 2 * 2.2, car.entry.lengthCm * 2 * 1.4, 1);
       S.spin = S.spin || 0.25;
       S.fill(car);
     },
@@ -172,7 +184,7 @@
       const wide = w > 820, a = S.cam;
       a.aspect = w / hh; a.fov = w / hh < 1 ? 40 : 28; a.updateProjectionMatrix();
       const off = wide ? -4.5 : 0;
-      a.position.set(off + S.dist * 0.68, S.dist * 0.3, S.dist * 0.68);
+      a.position.set(off + S.dist * 0.66, S.dist * 0.42, S.dist * 0.66);
       a.lookAt(off, wide ? 1.5 : -3, 0);
       R.renderer.render(S.scene, a);
     },

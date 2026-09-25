@@ -242,6 +242,35 @@ is in.
 The Porsche leaving the lip on the first stack of books, the funnel on the second stack waiting,
 the spiral and the box tunnel behind.
 
+## 19 - 2026-09-25 - a kitchen, not a void
+
+![the kitchen room](19-2026-09-25-kitchen-room.png)
+
+Overnight polish. The Kitchen Table Grand Prix now stands in a kitchen: plaster walls, a window
+on the side the late sun comes from, green cabinets with brass handles, a tiled splashback and a
+toaster. The sun's shadow box grows to fit each set (before, anything more than 58 cm from the
+middle cast no shadow, so the chair and the ramp floated). The spiral is clipped to the table leg,
+the chair loop hangs from the seat, and the book-jump catch stands on a tower at its mouth.
+
+## 20 - 2026-09-25 - jumps are scored, and the Director watches them
+
+![the jump cam](20-2026-09-25-jump-cam.png)
+
+Every jump is measured from the lip to the first touch: airtime, distance, height, landed or
+not. The speedometer shows the last one and the set's best; a record, a huge one or a wipeout gets
+a banner and a chime. In Director mode a car leaving a lip cuts to a side-on tracking shot in
+slow motion (at most one every 7 s), and Replay frames the last jump. Here the Porsche is 0.2 s
+out of the Loop & Leap kicker.
+
+## 21 - 2026-09-25 - the Showroom
+
+![the showroom](21-2026-09-25-showroom.png)
+
+V (or the garage's Showroom button) puts one casting on a turning plinth in a small studio:
+its card (what the real toy is, the numbers the physics uses), what it did this session, and the
+tuner. The Track Builder also gained Merge back (splitter branches come round again), hammer and
+paddle-wheel pieces, and a launcher strength that rides in the code.
+
 ## Adding a frame
 
 WebGL canvases cannot be screenshotted from Node, and `toDataURL` returns an empty image once the
