@@ -87,6 +87,29 @@
     return c;
   }
 
+  // Bake a group of static meshes into one mesh per material: hundreds of tower rungs and clips
+  // were each a draw call (the kitchen drew ~1300 a frame). Same look, same shadows.
+  function bake(group) {
+    const T = window.THREE, bins = new Map();
+    group.updateMatrixWorld(true);
+    group.traverse((o) => {
+      if (!o.isMesh) return;
+      let geo = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      for (const k of Object.keys(geo.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') geo.deleteAttribute(k);
+      geo.applyMatrix4(o.matrixWorld);
+      if (!bins.has(o.material)) bins.set(o.material, []);
+      bins.get(o.material).push(geo);
+    });
+    const out = new T.Group();
+    for (const [mat, list] of bins) {
+      const m = new T.Mesh(window.THREEX.mergeGeometries(list), mat);
+      m.castShadow = true; m.receiveShadow = true;
+      out.add(m);
+      for (const gg of list) gg.dispose();
+    }
+    return out;
+  }
+
   HW.renderTrack = {
     materials: null,
     build(scene, L) {
@@ -120,16 +143,16 @@
       // connector clips under every joint between two moulded pieces
       const clipMat = new T.MeshStandardMaterial({ color: 0xe4560b, roughness: 0.45 });
       const clipGeo = new T.BoxGeometry(d.W + 2 * d.wallT + 0.12, 0.16, 2.4);
-      const f = {};
+      const f = {}, clips = new T.Group();
       for (const tr of L.tracks) for (const js of tr.clips) {
         tr.frame(js, f);
         const clip = new T.Mesh(clipGeo, clipMat);
         clip.position.set(f.px - f.ux * (d.floorT + 0.08), f.py - f.uy * (d.floorT + 0.08), f.pz - f.uz * (d.floorT + 0.08));
         const q = HW.Q.fromBasis({ x: f.rx, y: f.ry, z: f.rz }, { x: f.ux, y: f.uy, z: f.uz }, { x: -f.tx, y: -f.ty, z: -f.tz });
         clip.quaternion.set(q.x, q.y, q.z, q.w);
-        clip.castShadow = true; clip.receiveShadow = true;
-        group.add(clip);
+        clips.add(clip);
       }
+      if (clips.children.length) group.add(bake(clips));
       // end buffers and other solid blocks (the same boxes Rapier collides with)
       const bufMat = new T.MeshPhysicalMaterial({ color: 0xd81e1e, roughness: 0.4, clearcoat: 0.4 });
       for (const b of L.solids || []) {
@@ -199,8 +222,7 @@
           }
         }
       }
-      g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-      return g;
+      return bake(g);
     },
   };
 })(window.HW);

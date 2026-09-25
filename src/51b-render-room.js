@@ -153,6 +153,8 @@
     box(2.5, shelfH, shelfD, x0, shelfH / 2, shelfD / 2, wood); box(2.5, shelfH, shelfD, x0 + shelfW, shelfH / 2, shelfD / 2, wood);
     box(shelfW + 2.5, 2.5, shelfD, x0 + shelfW / 2, shelfH, shelfD / 2, wood);
     box(shelfW, shelfH, 1, x0 + shelfW / 2, shelfH / 2, 0.8, new T.MeshStandardMaterial({ color: 0x4e3521, roughness: 0.8 }));
+    // the books are one merged mesh (a shelf-full as separate meshes cost ~150 draw calls)
+    const books = [];
     for (let k = 0; k < 5; k++) {
       const y = 8 + k * 36;
       box(shelfW, 2, shelfD - 2, x0 + shelfW / 2, y, shelfD / 2, wood);
@@ -161,10 +163,18 @@
         const w = 2 + rng() * 3.5, h = 20 + rng() * 10, hue = rng();
         if (rng() < 0.08) { x += 6; continue; }                       // a gap on the shelf
         const col = new T.Color().setHSL(hue, 0.35 + rng() * 0.3, 0.25 + rng() * 0.3);
-        box(w, h, 18 + rng() * 5, x + w / 2, y + 1 + h / 2, shelfD / 2 + 1, new T.MeshStandardMaterial({ color: col, roughness: 0.7 }));
+        const geo = new T.BoxGeometry(w, h, 18 + rng() * 5).toNonIndexed();
+        geo.translate(x + w / 2, y + 1 + h / 2, shelfD / 2 + 1);
+        const n = geo.attributes.position.count, c = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) { c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b; }
+        geo.setAttribute('color', new T.Float32BufferAttribute(c, 3));
+        books.push(geo);
         x += w + 0.2;
       }
     }
+    const shelfBooks = new T.Mesh(X.mergeGeometries(books), new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }));
+    shelfBooks.castShadow = true;
+    g.add(shelfBooks);
     // a sofa along the west wall, under the window
     const fabric = new T.MeshStandardMaterial({ color: 0x7a8c96, roughness: 0.95 });
     const sz0 = Math.min(ez, 330) - 110, sl = 200;
