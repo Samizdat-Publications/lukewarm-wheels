@@ -98,10 +98,10 @@
     const himg = hc.createImageData(w, h), hd = himg.data;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
-      const weave = ((x + (y >> 1)) % 4 < 2 ? 1 : -1) * ((y + (x >> 1)) % 4 < 2 ? 1 : -1);
-      const n = (rng() - 0.5) * 22 + weave * 7;
+      // heathered wool: colour speckle only; the weave itself is a fine tiled normal map
+      const n = (rng() - 0.5) * 20;
       d[i] = Math.max(0, d[i] + n * 0.7); d[i + 1] = Math.max(0, d[i + 1] + n * 0.8); d[i + 2] = Math.max(0, d[i + 2] + n);
-      const hv = 128 + weave * 38 + (rng() - 0.5) * 40;
+      const hv = 128 + (rng() - 0.5) * 18;
       hd[i] = hd[i + 1] = hd[i + 2] = hv; hd[i + 3] = 255;
     }
     c.putImageData(img, 0, 0); hc.putImageData(himg, 0, 0);
@@ -123,6 +123,24 @@
       c.beginPath(); c.moveTo(k, h); c.lineTo(k + h, 0); c.stroke();
     }
     return { col, hgt };
+  }
+
+  // a basket weave, 4 cm square, 16 yarn cells each way (2.5 mm): smooth bumps so it reads as
+  // wool up close and mips to flat from across the room
+  function weaveTile() {
+    const S = 256, c = tex.canvas(S, S), x = c.getContext('2d'), img = x.createImageData(S, S), d = img.data;
+    const cell = S / 16;
+    for (let py = 0; py < S; py++) for (let px = 0; px < S; px++) {
+      const cx = Math.floor(px / cell), cy = Math.floor(py / cell), u = (px % cell) / cell, v = (py % cell) / cell;
+      const warp = (cx + cy) % 2 === 0;                     // over-under
+      // a yarn runs along u (or v): round across it, slightly bulged along it
+      const across = warp ? v : u, along = warp ? u : v;
+      const h = Math.sin(Math.PI * across) * (0.75 + 0.25 * Math.sin(Math.PI * along)) + 0.08 * Math.sin(px * 1.7 + py * 0.9);
+      const i = (py * S + px) * 4;
+      d[i] = d[i + 1] = d[i + 2] = 60 + 150 * h; d[i + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+    return c;
   }
 
   HW.world = {
@@ -152,11 +170,12 @@
       const rt = rugTextures(rng, RW, RH);
       const rugMat = new T.MeshPhysicalMaterial({
         map: tex.three(rt.col, { repeat: 1 }),
-        normalMap: tex.three(tex.normalFrom(rt.hgt, 3.5), { repeat: 1, srgb: false }),
+        normalMap: tex.three(tex.normalFrom(weaveTile(), 1.6), { repeat: 1, srgb: false }),
         roughness: 0.94, metalness: 0,
         sheen: 1.0, sheenRoughness: 0.6, sheenColor: new T.Color(0x8fa6d8),
       });
-      rugMat.normalScale.set(0.8, 0.8);
+      rugMat.normalMap.repeat.set(RW / 4, RH / 4);
+      rugMat.normalScale.set(0.55, 0.55);
       const edgeMat = new T.MeshStandardMaterial({ color: 0xd9ccb0, roughness: 0.95 });
       const rugGeo = new T.BoxGeometry(RW, thick, RH);
       // top face gets the woven texture, the sides a plain binding

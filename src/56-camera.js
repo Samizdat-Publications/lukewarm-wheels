@@ -35,8 +35,33 @@
       C.tmp = { p: new T.Vector3(), q: new T.Quaternion(), m: new T.Matrix4(), look: new T.Vector3(), up: new T.Vector3(0, 1, 0) };
       C.chase = { pos: null, dir: new T.Vector3(0, 0, -1) };
       C.dir = { shot: null, t: 0, len: 0, idx: 0 };
-      C.crash = null;
+      C.crash = null; C.jump = null; C.lastJumpCam = -1e9;
       HW.bus.on('crash', (e) => C.onCrash(e));
+      HW.bus.on('derail', (e) => { if (e.cause === 'jump') C.onJump(e); });
+    },
+
+    // Director: a car leaving a lip gets a side-on tracking shot in slow motion (not every
+    // jump: at most one every 7 s of sim time, so the cut stays an event)
+    onJump(e) {
+      const sim = HW.sim, car = e.car;
+      if (!C.crashCam || C.mode !== 'director' || C.crash || C.jump || sim.time - C.lastJumpCam < 7) return;
+      const T = window.THREE, p = car.pos, v = car.vel, hl = Math.hypot(v.x, v.z) || 1;
+      const t = { x: v.x / hl, z: v.z / hl }, side = { x: -t.z, z: t.x };
+      const reach = Math.min(80, Math.max(25, hl * 0.12));        // about half the flight
+      const mid = { x: p.x + t.x * reach, z: p.z + t.z * reach };
+      // stand on whichever side is clearer of track and furniture
+      const clear = (x, z) => {
+        let d = 1e9;
+        for (const tr of sim.layout.tracks) for (let i = 0; i < tr.N; i += 6) d = Math.min(d, Math.hypot(tr.P.x[i] - x, tr.P.z[i] - z));
+        for (const b of sim.layout.solids) if (b.furniture) d = Math.min(d, Math.max(Math.abs(b.c[0] - x) - b.h[0], Math.abs(b.c[2] - z) - b.h[2]));
+        return d;
+      };
+      const dist = Math.max(40, reach * 1.3);
+      let best = null;
+      for (const sg of [-1, 1]) { const x = mid.x + side.x * dist * sg, z = mid.z + side.z * dist * sg, c = clear(x, z); if (!best || c > best.c) best = { x, z, c }; }
+      C.jump = { car, t0: sim.time, real: 0, dur: 2.6, camPos: new T.Vector3(best.x, Math.max(4, p.y + 4), best.z), look: new T.Vector3(mid.x, p.y, mid.z) };
+      C.lastJumpCam = sim.time;
+      HW.main && HW.main.slowmo && HW.main.slowmo(0.25, 1.9);
     },
 
     setMode(mode, car) {
@@ -86,12 +111,26 @@
         if (C.crash.real > C.crash.dur) C.crash = null;
         else return { pos: C.crash.camPos, look: new T.Vector3(C.crash.pos.x, C.crash.pos.y + 1, C.crash.pos.z), up: new T.Vector3(0, 1, 0), fov: 34, near: 0.2 };
       }
+      if (C.jump) {
+        const J = C.jump, c = J.car;
+        J.real += dt;
+        if (J.real > J.dur || c.mode === 'parked') C.jump = null;
+        else {
+          // pan with the car; the frame widens a touch as it flies away from the camera
+          J.look.lerp(new T.Vector3(c.pos.x, c.pos.y + 0.8, c.pos.z), 1 - Math.exp(-dt * 9));
+          return { pos: J.camPos, look: J.look.clone(), up: new T.Vector3(0, 1, 0), fov: 30, near: 0.3 };
+        }
+      }
       let mode = C.mode;
       if (mode === 'director') return C.director(dt, sim);
       if ((mode === 'chase' || mode === 'onboard') && !car) mode = 'orbit';
       if (mode === 'onboard' && car.mode !== 'track' && car.mode !== 'retrieving') mode = 'chase';
       if (mode === 'orbit') return null;
-      if (mode === 'top') return { pos: new T.Vector3(0, 175, 0.01), look: new T.Vector3(0, 0, 0), up: new T.Vector3(0, 0, -1), fov: 36, near: 1 };
+      if (mode === 'top') {
+        // plan view over the set's middle, high enough for its whole footprint
+        const o = C.view.orbit, h = Math.max(175, (C.view.bound || 40) * 3.1);
+        return { pos: new T.Vector3(o[0], h, o[2] + 0.01), look: new T.Vector3(o[0], 0, o[2]), up: new T.Vector3(0, 0, -1), fov: 36, near: 1 };
+      }
       const q = new T.Quaternion(car.quat.x, car.quat.y, car.quat.z, car.quat.w);
       const fwd = new T.Vector3(0, 0, -1).applyQuaternion(q), up = new T.Vector3(0, 1, 0).applyQuaternion(q);
       const cp = new T.Vector3(car.pos.x, car.pos.y, car.pos.z);

@@ -130,13 +130,20 @@
       U.replayBadge.addEventListener('click', () => HW.replay.stop());
       root.append(U.replayBadge);
       HW.bus.on('replay', (e) => { U.replayBadge.hidden = !e.on; U.replayBtn.classList.toggle('hot', e.on); });
-      HW.bus.on('crash', () => { U.replayBtn.classList.add('fresh'); clearTimeout(U._rpT); U._rpT = setTimeout(() => U.replayBtn.classList.remove('fresh'), 6000); });
+      const fresh = () => { U.replayBtn.classList.add('fresh'); clearTimeout(U._rpT); U._rpT = setTimeout(() => U.replayBtn.classList.remove('fresh'), 6000); };
+      HW.bus.on('crash', fresh);
+      HW.bus.on('jump', (e) => { if (e.air > 0.2) fresh(); });
 
       // speedometer
       U.speedBig = h('div', { class: 'big', html: '0<small>cm/s</small>' });
       U.speedScale = h('div', { class: 'scale', text: '' });
       U.speedName = h('div', { class: 'lbl', text: 'Fastest car' });
-      root.append(h('div', { id: 'speedo', class: 'panel' }, U.speedName, U.speedBig, U.speedScale));
+      // sets with a jump: the last jump and the set's longest landed one
+      U.jumpLine = h('div', { class: 'jumps' });
+      U.jumpLine.hidden = !sim.layout.tracks.some((t) => t.endLink && t.endLink.kind === 'fly');
+      try { U.bestJump = JSON.parse(localStorage.getItem('hw.jump.' + sim.layout.id) || 'null'); } catch (e) { U.bestJump = null; }
+      U.showJumps(null);
+      root.append(h('div', { id: 'speedo', class: 'panel' }, U.speedName, U.speedBig, U.speedScale, U.jumpLine));
 
       // crash banner
       U.toastWord = h('div', { class: 'word', text: 'CRASH!' });
@@ -153,6 +160,7 @@
 
       // events
       HW.bus.on('crash', (e) => U.onCrash(e));
+      HW.bus.on('jump', (e) => U.onJump(e));
       HW.bus.on('switch', () => U.syncSwitch());
       HW.bus.on('camera', (e) => { for (const [k, b] of Object.entries(U.camBtns)) b.setAttribute('aria-pressed', k === e.mode ? 'true' : 'false'); });
       addEventListener('keydown', (e) => U.onKey(e));
@@ -237,11 +245,39 @@
     onCrash(e) {
       U.crashNum.textContent = String(U.sim.crashCount);
       if (e.speed < 150) return;
-      U.toastWord.textContent = CRASH_WORDS[Math.floor(Math.random() * CRASH_WORDS.length)];
-      U.toastWho.textContent = e.a.name + '  ×  ' + e.b.name + '  ·  ' + Math.round(e.speed) + ' cm/s';
-      U.toast.classList.add('show');
+      U.flash(CRASH_WORDS[Math.floor(Math.random() * CRASH_WORDS.length)], e.a.name + '  ×  ' + e.b.name + '  ·  ' + Math.round(e.speed) + ' cm/s');
+    },
+    flash(word, who, cls) {
+      U.toastWord.textContent = word;
+      U.toastWho.textContent = who;
+      U.toast.className = 'show' + (cls ? ' ' + cls : '');
       clearTimeout(U._toastT);
       U._toastT = setTimeout(() => U.toast.classList.remove('show'), 1500);
+      U._toastAt = performance.now();
+    },
+
+    // a jump from a lip: airtime and distance from the lip to the first touch
+    onJump(e) {
+      const fmtJ = (j) => `${j.air.toFixed(2)} s · ${Math.round(j.dist)} cm`;
+      U.lastJump = { air: e.air, dist: e.dist, landed: e.landed, car: e.car.name };
+      let record = false;
+      if (e.landed && e.air > 0.05 && (!U.bestJump || e.dist > U.bestJump.dist)) {
+        record = !!U.bestJump;                        // the very first jump is not news
+        U.bestJump = { dist: e.dist, air: e.air, car: e.car.name };
+        try { localStorage.setItem('hw.jump.' + U.sim.layout.id, JSON.stringify(U.bestJump)); } catch (err) { /* blocked */ }
+      }
+      U.showJumps();
+      // the banner only for news: a record, a wipeout, or a big one (and never back to back)
+      const quiet = U._toastAt && performance.now() - U._toastAt < 3500;
+      if (record) U.flash('RECORD JUMP!', e.car.name + '  ·  ' + fmtJ(e), 'air');
+      else if (quiet) return;
+      else if (!e.landed && e.air > 0.08) U.flash('WIPEOUT!', e.car.name + ' missed the catch', '');
+      else if (e.landed && e.air > 0.24) U.flash(e.dist > 65 ? 'HUGE AIR!' : 'BIG AIR!', e.car.name + '  ·  ' + fmtJ(e), 'air');
+    },
+    showJumps() {
+      const l = U.lastJump, b = U.bestJump;
+      U.jumpLine.textContent = (l ? `Jump ${l.air.toFixed(2)} s · ${Math.round(l.dist)} cm${l.landed ? '' : ' (missed)'}` : 'No jumps yet') +
+        (b ? `  ·  best ${Math.round(b.dist)} cm` : '');
     },
 
     // ---------------------------------------------------------------- tuning drawer

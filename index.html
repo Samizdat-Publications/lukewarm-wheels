@@ -181,9 +181,11 @@
   #speedo .big { font: 800 italic 44px/0.95 var(--label); color: var(--text); font-variant-numeric: tabular-nums; }
   #speedo .big small { font-size: 16px; color: var(--muted); font-style: normal; margin-left: 4px; }
   #speedo .scale { font: 600 13px var(--label); color: var(--flame); letter-spacing: .05em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  #speedo .jumps { font: 600 12px var(--label); color: var(--muted); letter-spacing: .04em; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
 
   #toast { position: absolute; left: 50%; top: 13%; transform: translate(-50%, -50%) scale(.6) rotate(-6deg); opacity: 0; pointer-events: none; text-align: center; transition: opacity .18s, transform .25s cubic-bezier(.2,1.6,.4,1); }
   #toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-6deg); }
+  #toast.air .word { color: #ffd23a; -webkit-text-stroke-color: #6b3a00; text-shadow: 0 5px 0 #6b3a00, 0 0 40px rgba(255,210,58,.5); }
   #toast .word { font: 400 clamp(46px, 9vw, 96px)/0.9 var(--display); color: var(--flame); -webkit-text-stroke: 3px #7a1400; text-shadow: 0 5px 0 #7a1400, 0 0 40px rgba(255,59,47,.6); letter-spacing: .02em; }
   #toast .who { margin-top: 8px; font: 700 15px var(--label); letter-spacing: .12em; text-transform: uppercase; color: var(--text); text-shadow: 0 2px 6px rgba(0,0,0,.8); }
 

@@ -59,7 +59,7 @@
       track = track || this.layout.start.track;
       car.mode = 'track'; car.status = 'running'; car.track = track; car.finished = false;
       car.s = track.wrap(s); car.v = v; car.d = d; car.vd = 0; car.h = 0; car.vh = 0;
-      car.reversed = reversed; car.stallT = 0; car.retrieve = null; car.inNip = null;
+      car.reversed = reversed; car.stallT = 0; car.retrieve = null; car.inNip = null; car.jump = null;
       HW.trackDynamics.pose(car, track);
       // a circuit times laps from the first drop; an open run times every run from its start
       if (car.lapStartT == null || !track.closed) car.lapStartT = this.time;
@@ -67,7 +67,7 @@
 
     park(car) {
       if (car.mode === 'free' && this.fb) HW.freebody.deactivate(this.fb, car);
-      car.mode = 'parked'; car.status = 'parked'; car.retrieve = null;
+      car.mode = 'parked'; car.status = 'parked'; car.retrieve = null; car.jump = null;
       car.pos.y = -1000;
       this.queue = this.queue.filter((q) => q.car !== car);
     }
@@ -210,6 +210,9 @@
       car.freeT = 0; car.restT = 0; car.noRecaptureT = this.cfg.recaptureDelay;
       car.inNip = null; car.Nf = 0; car.Nw = 0;
       if (car.lipSpin) { car.angVel.x += car.lipSpin.x; car.angVel.y += car.lipSpin.y; car.angVel.z += car.lipSpin.z; car.lipSpin = null; }
+      // a jump is scored from the lip to the first touch (airtime, distance, height) and
+      // reported when the car is caught by a lane or picked up by the hand
+      car.jump = cause === 'jump' ? { t0: this.time, p0: V.clone(car.pos), top: car.pos.y, v0: Math.abs(car.v), from: car.track } : null;
       if (this.fb) HW.freebody.activate(this.fb, car);
       this.emit('derail', { car, cause });
     }
@@ -232,14 +235,19 @@
         for (const h of hits) {
           const last = this._impactT.get(h.car) || -1;
           if (this.time - last > 0.06) { this._impactT.set(h.car, this.time); this.emit('impact', { car: h.car, force: h.force, pos: V.clone(h.car.pos) }); }
+          const j = h.car.jump;
+          if (j && !j.t1 && h.car.freeT > 0.05) { j.t1 = this.time; j.p1 = V.clone(h.car.pos); }
         }
       }
+      // off the edge of the world: well outside the set's own footprint (at least the old 160 cm)
+      if (!this._outR) { const b = this.layout.bounds; this._outR = b ? [Math.max(160, Math.abs(b.lo[0]) + 60, Math.abs(b.hi[0]) + 60), Math.max(160, Math.abs(b.lo[2]) + 60, Math.abs(b.hi[2]) + 60)] : [160, 160]; }
       for (const car of free) {
         HW.freebody.read(fb, car);
         car.freeT += dt; car.noRecaptureT -= dt;
+        if (car.jump && !car.jump.t1) car.jump.top = Math.max(car.jump.top, car.pos.y);
         const sp = Math.hypot(car.vel.x, car.vel.y, car.vel.z), wr = Math.hypot(car.angVel.x, car.angVel.y, car.angVel.z);
         if (sp < 4 && wr < 1.2) car.restT += dt; else car.restT = 0;
-        const out = car.pos.y < -20 || Math.abs(car.pos.x) > 160 || Math.abs(car.pos.z) > 160;
+        const out = car.pos.y < -20 || Math.abs(car.pos.x) > this._outR[0] || Math.abs(car.pos.z) > this._outR[1];
         if (car.noRecaptureT <= 0 && this.tryRecapture(car)) continue;
         if (out || (cfg.autoRetrieve && car.restT > cfg.retrieveDelay) || car.freeT > 14) this.startRetrieve(car);
       }
@@ -280,6 +288,7 @@
       car.reversed = al < 0; car.stallT = 0;
       HW.trackDynamics.pose(car, path);
       this.emit('recapture', { car });
+      this.endJump(car, true);
       return true;
     }
 
@@ -317,7 +326,17 @@
 
     // the hand picks a car up and carries it to `to` ({ track, s, hold } or { park: true }),
     // by default back to START HERE (on a race strip: off to the garage)
+    endJump(car, landed) {
+      const j = car.jump;
+      if (!j) return;
+      car.jump = null;
+      const t1 = j.t1 || this.time, p1 = j.p1 || car.pos;
+      this.emit('jump', { car, landed, air: t1 - j.t0, dist: Math.hypot(p1.x - j.p0.x, p1.z - j.p0.z), height: j.top - j.p0.y,
+        v0: j.v0, t0: j.t0, p0: j.p0, p1: V.clone(p1), from: j.from });
+    }
+
     startRetrieve(car, to) {
+      this.endJump(car, false);
       if (car.mode === 'free' && this.fb) HW.freebody.deactivate(this.fb, car);
       car.retrieveTo = to || (this.race ? { park: true } : null);
       car.held = false;

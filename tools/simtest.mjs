@@ -233,11 +233,14 @@ if (mode === 'auto') {
   const counts = {}, causes = {};
   for (const t of ['launch', 'derail', 'recapture', 'gate', 'whack', 'retrieve', 'crash', 'bump', 'buffer', 'stall', 'nudge', 'dropped']) { counts[t] = 0; HW.bus.on(t, () => counts[t]++); }
   HW.bus.on('derail', (e) => { const k = e.cause + '@' + e.car.track.id + ':' + e.car.track.region(e.car.s); causes[k] = (causes[k] || 0) + 1; });
+  const jumps = [];
+  HW.bus.on('jump', (e) => jumps.push(e));
   sim.lineUpAll();
   const h = 1 / sim.cfg.substepHz;
   for (let i = 0; i < secs / h; i++) sim.step(h);
   console.log(`${sim.layout.set.name}, ${n} cars, ${secs} s: ` + JSON.stringify(counts));
   console.log('  derails', JSON.stringify(causes));
+  if (jumps.length) console.log(`  jumps ${jumps.length}, landed ${jumps.filter((j) => j.landed).length}: ` + jumps.slice(0, 12).map((j) => `${j.car.name.split(' ')[0]} ${fmt(j.air, 2)}s ${fmt(j.dist)}cm h${fmt(j.height, 1)} ${j.landed ? 'L' : 'x'}`).join(', '));
   for (const c of sim.cars) console.log(`  ${c.name.padEnd(15)} runs ${c.laps}  best ${fmt(c.bestLap, 2)} s  mode ${c.mode}`);
   process.exit(0);
 }

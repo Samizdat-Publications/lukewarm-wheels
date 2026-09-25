@@ -59,7 +59,11 @@
   const RP = (HW.replay = {
     active: false,
     lastCrash: null,
-    init() { HW.bus.on('crash', (e) => { if (e.speed > 120) RP.lastCrash = { t: e.t, pos: { ...e.pos } }; }); },
+    init() {
+      HW.bus.on('crash', (e) => { if (e.speed > 120) RP.lastCrash = { t: e.t, pos: { ...e.pos }, r: 22 }; });
+      // a jump replays round the middle of its flight, framed wide enough for the whole arc
+      HW.bus.on('jump', (e) => { if (e.air > 0.1) RP.lastCrash = { t: e.t0 + e.air, pos: { x: (e.p0.x + e.p1.x) / 2, y: Math.max(e.p0.y, e.p1.y), z: (e.p0.z + e.p1.z) / 2 }, r: Math.max(26, e.dist * 0.9) }; });
+    },
     available(sim) { return sim.record.buf.length > 90; },
     start(sim, secs = 5, speed = 0.4) {
       if (RP.active || !RP.available(sim)) return;
@@ -75,6 +79,7 @@
       HW.main.paused = true;
       HW.cam.crashCam = false;
       RP.focus = RP.lastCrash && RP.lastCrash.t >= t0 ? RP.lastCrash.pos : null;
+      RP.focusR = RP.focus ? RP.lastCrash.r || 22 : 60;
       HW.cam.startBlend();
       HW.bus.emit('replay', { on: true });
     },
@@ -118,8 +123,8 @@
       const p = RP.focus || { x: 0, y: 5, z: 0 };
       const age = RP.t - RP.t0;
       const a = 0.6 + age * 0.35;
-      const r = RP.focus ? 22 : 60;
-      return { pos: new T.Vector3(p.x + Math.sin(a) * r, p.y + (RP.focus ? 8 : 30), p.z + Math.cos(a) * r), look: new T.Vector3(p.x, p.y + 1, p.z), up: new T.Vector3(0, 1, 0), fov: 36, near: 0.2 };
+      const r = RP.focusR || 60;
+      return { pos: new T.Vector3(p.x + Math.sin(a) * r, p.y + (RP.focus ? 4 + r * 0.25 : 30), p.z + Math.cos(a) * r), look: new T.Vector3(p.x, p.y + 1, p.z), up: new T.Vector3(0, 1, 0), fov: 36, near: 0.2 };
     },
   });
 })(window.HW);
