@@ -1,68 +1,53 @@
-# Hot Wheels Criss Cross Crash — simulation project
+# Hot Wheels Criss Cross Crash - simulation project
 
-**READ `HANDOFF.md` FIRST.** It is the live state of this project: what is built,
-what is in flight, what is next, and which model should do it. Update it at the
-end of every work block (and before context runs low). Any session — Fable,
-Opus, Sonnet — must be able to resume from `HANDOFF.md` alone.
+**READ `HANDOFF.md` FIRST.** It is the live state of this project: what is built, the design
+decisions and why, what is next, and the gotchas. Update it at the end of every work block (and
+before context runs low). Any session must be able to resume from `HANDOFF.md` alone.
 
 ## What this is
-A browser simulation (Three.js + Rapier, no bundler) of the 2010 Hot Wheels
-**Criss Cross Crash** set (Mattel V2791: red motorized hub, four foam booster
-wheels, four banked 270° curves, a `#` crossing with four crash points) running
-the 1999 Criss Cross Crash five-pack of cars. Physics is modelled, not faked:
-battery → DC motor → gear train → foam wheels → cars, with rolling resistance,
-wall scrub, banked curves, rigid collisions and crash detection.
+A browser simulation (Three.js r185 + Rapier 0.20, no bundler) of the 2010 Hot Wheels
+**Criss Cross Crash** set (Mattel V2791: red motorised hub, four foam booster wheels, two tall
+loops, two low banked sweeps, a `#` crossing with four crash points) running the 1999 Criss Cross
+Crash five-pack. v2 (2026-09-24): cars are constrained to the banked track while in the channel
+and become Rapier rigid bodies only when they crash or fall; battery -> motor -> gear train ->
+foam wheels -> cars is modelled throughout. v1 (all rigid bodies) is archived in `legacy/`.
 
-Full design: `docs/SPEC.md`. Grounding facts: `docs/RESEARCH.md`.
-Verified CDN URLs + Rapier API notes: `docs/DEPENDENCIES.md`.
-Task board with owners and status: `docs/PLAN.md`.
-Strategy / phases / asset pipeline for the rest of the project: `docs/ROADMAP.md`.
-The improved build prompt (what we are answering): `PROMPT.md`.
+Grounding facts: `docs/RESEARCH.md`, `docs/REFERENCES.md`, the instruction sheet
+`docs/V2791-instructions.png`, car data `docs/CATALOG-SOURCES.md`. CDN URLs and Rapier notes:
+`docs/DEPENDENCIES.md`. The original brief: `PROMPT.md`.
 
-## Tools available on this machine (per Stewart)
-Blender (ask to confirm install), Godot (not used: we stay on Three.js, see ROADMAP §4),
-Adobe Mixamo (humanoid animation; only for an optional hand), Gemini API keys (image
-generation for tampos/textures), ElevenLabs keys (sound effects). Keys go in `.env`
-(gitignored), never in the repo or in prompts to subagents.
-
-## Budget rules (why the docs are so explicit)
-Stewart is near his weekly Fable 5.1 cap. Fable does architecture, physics
-core and hard debugging only. Everything else (rendering polish, UI, car
-liveries, showroom, build tooling, research) goes to **Opus subagents**
-(`Agent` tool, `model: "opus"`) with self-contained prompts. When Fable runs
-out, Stewart opens a new **Opus 5** session in this folder; that session reads
-`HANDOFF.md` and continues from the task board.
+## Tools on this machine (per Stewart)
+Blender 5.1 (`"C:/Program Files/Blender Foundation/Blender 5.1/blender.exe" -b -P script.py`),
+Godot (not used: this stays on Three.js so it publishes as one artifact), Mixamo. The
+`ELEVENLABS_API_KEY` environment variable is set (`tools/sfx/generate.mjs` uses it and never
+prints it). There is no Gemini key and nothing needs one. Keys never go in the repo or in prompts.
 
 ## Progress archive (keep it up)
-`docs/progress/` is a dated, curated timeline of the build — one image per milestone, oldest
-first, with what the sim could actually DO at that point. It exists so the project can be shown
-as a story later (a GitHub page, a README). **Add a frame whenever something visibly changes**,
-and say what changed and what it could do; `docs/progress/README.md` has the capture recipe
-(WebGL needs a `gl.readPixels` in the same tick as the render, then `POST /__shot`). One image
-per real step — non-milestone working shots go in `docs/screenshots/`.
+`docs/progress/` is a dated, curated timeline of the build: one image per milestone, oldest
+first, with what the sim could actually DO at that point, so the project can be shown as a story
+later (a GitHub page, a README). **Add a frame whenever something visibly changes.** Take it with
+the Playwright MCP browser at 1600x900 (real GPU, runs rAF) straight into `docs/progress/`.
+Working shots go in `docs/screenshots/`.
 
 ## Conventions
-- **Units: cgs.** Lengths in cm, mass in g, time in s, force in dyne, torque in
-  dyne·cm. Gravity = 981 cm/s². Convert SI motor constants at the boundary.
-- **Coordinates:** Y up. +X = east, +Z = south (so north = −Z). Hub centre at
-  origin. Looking down with north at the top of the screen, +X is right.
-  Car-local axes: +X right, +Y up, **−Z forward** (three.js convention). Never
-  build a basis with +Z forward: (right, up, +Z) is left-handed and the
-  quaternion becomes a reflection (this bit us on day 1).
-- **No bundler, no build step for dev.** `index.html` loads an importmap +
-  one `<script type="module">` that imports THREE / OrbitControls / RAPIER,
-  awaits `RAPIER.init()`, sets `window.THREE / RAPIER / OrbitControls`, and
-  fires `hw:libs-ready`. Everything else is a plain classic script that adds to
-  the `window.HW` namespace, listed in load order in `src/manifest.json`.
-  `node tools/build.mjs` inlines them into `dist/index.html` (single file,
-  CDN-only externals, artifact-CSP safe).
-- **Dev server:** `node tools/serve.mjs` → http://localhost:8765/
-- **Self-test:** http://localhost:8765/tools/selftest.html (`node tools/selftest.mjs`
-  prints the URL). Checks run in the page; results on `window.__selftest`.
-- Each `src/*.js` file is an IIFE: `(function(HW){ ... })(window.HW)`. It
-  exposes exactly what `docs/SPEC.md §Interfaces` says, nothing else.
-- All tunable numbers live in `src/10-config.js` (`HW.config`). Never hardcode
-  a physical constant elsewhere. The UI tuning drawer binds to `HW.config`.
-- Keep files under ~400 lines. Split before they grow past that.
-- No git remote yet; commit locally after each task with a message that names
-  the PLAN task id (e.g. `T07: booster contact model`).
+- **Units: cgs.** cm, g, s, dyne, dyne.cm. Gravity 981 cm/s^2. SI motor constants are converted
+  at the boundary in `40-power.js`.
+- **Coordinates:** Y up, +X east, +Z south (north = -Z), hub centre at the origin. Car-local
+  axes: +X right, +Y up, **-Z forward**. Build rotations from (right, up, back) with
+  `HW.Q.fromBasis`; (right, up, forward) is left-handed and gives a reflection.
+- **No bundler, no build step for dev.** `index.html` has an importmap and one module script that
+  loads three.js, its addons and Rapier, sets `window.THREE`, `window.THREEX`, `window.RAPIER`,
+  and fires `hw:libs-ready`. Everything else is a classic script adding to `window.HW`, in the
+  order of `src/manifest.json`; those scripts must not touch THREE at load time.
+  `node tools/build.mjs` inlines them into `dist/index.html` and `dist/artifact.html`.
+- **Dev server:** `node tools/serve.mjs` -> http://localhost:8765/
+- **Physics checks:** `node tools/simtest.mjs <lone|fleet|crashlog|phase|geom|solve>` loads
+  `src/00`..`49` in Node (Rapier from `tools/vendor/rapier.mjs`; `node tools/fetch-rapier.mjs`).
+  Judge multi-car behaviour on several seeds (`CFG='{"seed":N}'`), never one run.
+- Each `src/*.js` is an IIFE `(function(HW){ ... })(window.HW)`.
+- All tunables live in `src/10-config.js` (`HW.config`), tagged [M] measured, [D] derived,
+  [E] estimate. The tuning drawer binds to it.
+- Keep files under ~400 lines where practical (`53-car-models.js` and `60-audio.js` are the
+  known exceptions; split them if they grow).
+- No git remote; commit locally after each meaningful step with a descriptive message.
+- **Never write an em dash** (Stewart's global rule): commas, colons or spaced hyphens instead.

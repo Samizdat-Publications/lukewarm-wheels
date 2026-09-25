@@ -1,6 +1,6 @@
-// 20-catalog.js — the 1999 Criss Cross Crash 5-Pack (Hot Wheels toy #21081).
+// 20-catalog.js - the 1999 Criss Cross Crash 5-Pack (Hot Wheels toy #21081).
 // Colour / tampo / base / window / interior / wheel type are CONFIRMED from the Hot
-// Wheels Wiki page "Criss Cross Crash 5-Pack (1999)" (fetched via the MediaWiki API —
+// Wheels Wiki page "Criss Cross Crash 5-Pack (1999)" (fetched via the MediaWiki API -
 // see docs/CATALOG-SOURCES.md). Dimensions (cm) and masses (g) are ESTIMATES.
 // Field names are load-bearing: the physics (41-cars.js) reads massG, lengthCm, widthCm,
 // heightCm, wheelbaseCm, trackCm, wheelRadiusCm, crr, cgFrac.

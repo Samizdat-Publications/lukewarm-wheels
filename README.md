@@ -1,130 +1,84 @@
-# Criss Cross Crash — a simulation
+# Criss Cross Crash - a simulation
 
-A browser simulation of the 2010 Hot Wheels **Criss Cross Crash** set (Mattel V2791): a red
-motorised hub, four foam booster wheels, four track lobes and a `#` crossing where two independent
-circuits cut across each other. It runs the 1999 Criss Cross Crash five-pack of castings
-(#21081) — Porsche 959, Aeroflash, Ford GT-90, Chevy Stocker, Chevy 1500.
+A browser simulation of the 2010 Hot Wheels **Criss Cross Crash** set (Mattel V2791) running the
+1999 Criss Cross Crash five-pack (#21081): Porsche 959, Aeroflash, Ford GT-90, Chevy Stocker and
+Chevy 1500. A red motorised hub drives four foam booster wheels; one continuous circuit runs
+through two tall loops, two low banked sweeps and a `#` crossing with four crash points.
 
-The physics is **modelled, not faked**. Four D cells with real internal resistance drive a
-280-class brushed DC motor through a gear train to four foam wheels; each foam nip grips a car
-with `mu·N` over a finite contact length and loads the drivetrain back, so the motor bogs when
-several cars launch at once — exactly as the real toy does. Cars are rigid bodies with per-casting
-mass and dimensions, rolling resistance from their wheel type, and they corner by leaning on the
-track walls. Nothing is scripted onto a rail.
+![Over the top](docs/progress/13-2026-09-24-v2-over-the-top.png)
 
-![The set](docs/progress/09-2026-09-10-published.png)
+## What is simulated
 
----
+- **The power train.** Four D cells with internal resistance that rises as they drain, a brushed
+  DC motor with back-EMF, a gear train, and four foam wheels on one flywheel. Every launch loads
+  the same motor, so several cars in the nips at once bog it, and the gauges show it.
+- **The boosters.** Each foam wheel sits between two lanes and pinches passing cars against the
+  far wall: a squeeze force from how much wider the car is than the gap, and a drive force from
+  foam friction that saturates with slip. Wider castings get a harder shove. Eight pushes a lap.
+- **The cars on the track.** Each car is a mass constrained to the banked track surface:
+  gravity, the centripetal demand of every curve, a floor that can only push, walls that can only
+  push, rolling resistance per wheel type, wall scrub, tyre side-slip and air drag. Nothing is
+  scripted. Too slow over a loop top and the floor stops pushing: the car falls off.
+- **Crashes.** At the crossing, cars collide as rigid boxes with restitution and friction. A hard
+  hit throws them out of the channel into a full rigid-body simulation (Rapier), where they
+  tumble until they land upright in a lane and carry on, or lie still until a hand carries them
+  back to START.
+- **The track.** Each lobe is shaped for minimum bending energy, the fairest curve through its
+  apex, and banked by the rule roller-coaster designers use: lean the track into the force a car
+  at design speed needs. The rear lobes come out as true loops that cars ride upside down.
+- **Imperfection.** Track joints clack, every car's wheels drag a little differently, and worn
+  foam grips each pass at a slightly different speed. Without that, the boosters lock the cars in
+  step and they never meet. With it, crashes come "eventually", the way reviewers describe the
+  real set.
 
 ## Running it
 
-No bundler, no build step, no install.
+No install, no build step for development:
 
 ```bash
-node tools/serve.mjs          # -> http://localhost:8765/
+node tools/serve.mjs
 ```
 
-A single-file build, and the same page without the document wrapper for embedding:
+Then open http://localhost:8765/. For a single self-contained file (CDN-only externals, safe to
+publish as a Claude Artifact):
 
 ```bash
-node tools/build.mjs          # -> dist/index.html  and  dist/artifact.html
+node tools/build.mjs
 ```
 
-Automated checks (open the URL it prints; they run in the page):
+Headless physics checks, no browser needed:
 
 ```bash
-node tools/selftest.mjs
+node tools/simtest.mjs lone 20 0
 ```
 
-Every tunable lives in `src/10-config.js` and the page's tuning drawer binds straight to it.
-You can also pin a configuration in the URL, which survives a cold load — this is the real
-2 rings + 2 sweeps shape the instruction sheet shows:
+`fleet`, `crashlog`, `phase`, `geom` and `solve` are the other modes; see `HANDOFF.md`.
 
-```
-http://localhost:8765/index.html#cfg=%7B%22loopTiltDeg%22%3A48%2C%22sweepTiltDeg%22%3A16%7D
-```
+## Playing
+
+Space switches the booster; **Add car** drops the next casting in at START; **Line up all 5** is
+the pile-up. Click a car to follow it. Cameras: Orbit, Chase, Onboard (it goes upside down
+through the loops), Top, and Director, which cuts between shots and to a slow-motion crash cam.
+**Replay** plays the last crash back. The tuning drawer exposes battery charge, motor, foam grip
+and squeeze, wall friction, rolling resistance, track-joint roughness and time scale, live.
 
 ## How it is put together
 
-Plain classic scripts, each an IIFE adding to `window.HW`, listed in load order in
-`src/manifest.json`. Units are **cgs** throughout (cm, g, s, dyne); SI motor constants are
-converted at the boundary. Y is up, +X east, +Z south, and a car's local forward is −Z.
+Plain scripts in `src/`, each adding to `window.HW`, loaded in the order of `src/manifest.json`;
+Three.js r185 and Rapier 0.20 come from jsDelivr. Units are centimetres, grams and seconds.
+`HANDOFF.md` is the living state of the project, including every design decision and why;
+`docs/progress/` is the build told as a story, one frame per milestone. The first version, which
+tried to run everything as free rigid bodies, is kept in `legacy/`.
 
-| file | what it owns |
-|---|---|
-| `10-config.js` | every tunable number, with the measurement behind it in the comment |
-| `30-track-layout.js` | lane geometry — the lobe solve, closure, boosters, gates |
-| `31-track-mesh.js` | ribbon and wall meshes, used as both colliders and visuals |
-| `40-electrical.js` | battery, motor, gear train |
-| `41-booster.js` | the foam nip contact model |
-| `42-vehicle.js` / `44-wheel-model.js` | the car; three interchangeable vehicle models |
-| `43-sim.js` | Rapier world, fixed-step loop, events |
-| `50/51-render-*.js` | scene, hub, gear-train x-ray, castings and liveries |
-| `60-ui.js` | control panel, gauges, placement, tuning drawer |
+## Honesty about the numbers
 
-`docs/SPEC.md` is the design; `docs/RESEARCH.md` and `docs/REFERENCES.md` are the grounding
-facts, with every line tagged MEASURED / OBSERVED / REPORTED / ESTIMATE. `HANDOFF.md` is the
-live state and is the file to read first.
-
-### The lobes are tilted circles
-
-The set's instruction sheet lists **4 × one moulded ~270° arc** and **4 × one adjustable track
-support**, so all four lobes are the same part and only the tilt differs. Each lobe is therefore a
-flat circle **tilted out of the horizontal** about the chord through its two ends — a
-wall-of-death ring, not a loop-the-loop. A tilted circle projects to an ellipse in plan, which is
-why the steep rear lobes have a small footprint and the shallow front ones a large one, and why
-the whole set fits in about 110 cm. Everything else — junction radius, hub-to-chord gap, chord
-height, plan splay — is derived, so the geometry cannot drift out of closure.
-
-## Measuring it
-
-This project is **chaotic at the run level**: `node tools/chaos.mjs` shows a 0.02 mm change in
-starting position swinging a car's speed at a fixed point from 78 to 210 cm/s, and its lap count
-from 0 to 1. No single run means anything. Everything is judged on ensembles.
-
-| tool | question it answers |
-|---|---|
-| `tools/ens.mjs` | does this config lap? (5 castings × N start offsets) |
-| `tools/energy.mjs` | where does the energy go? drag per 10 cm, gravity removed |
-| `tools/coast.mjs` | how much drag really? motor off, deterministic |
-| `tools/attribute.mjs` | what is taking it? splits the loss by wall / wheels-up / clean |
-| `tools/diag.mjs` | what hit the car? contact manifolds with normals and impulses |
-| `tools/audit.mjs` | static geometry audit: exposed wall caps, gaps, surface warp |
-| `tools/geom.mjs` | the derived lobe geometry and a height/lean/curvature profile |
-
-The headless harness needs Rapier vendored once: `node tools/fetch-rapier.mjs`.
-
-## Where it stands
-
-A lone car completes **1–3 laps** and then stalls. The selftest passes 8/8 in Chrome; the
-five-car pile-up produces 5–10 crashes with four of five cars lapping. The real toy circulates
-indefinitely, so this is not finished.
-
-What is known about why, all measured rather than argued:
-
-- It is **not** the physics engine's vehicle controller. A hand-written replacement
-  (`vehicleMode: 'springs'`) loses the same.
-- It is **not** surface warp, and **not** the lack of a banked channel — banking helps a coasting
-  car and hurts a lapping one, because a bank only carries the corner above a speed the car does
-  not hold for most of the lobe.
-- The nip sits at a **two-sided maximum**: both a stronger and a weaker launch make it worse.
-- The four nips are **paired** — two per hub, 17 cm apart, then a 131 cm coast around a whole
-  lobe — and the second nip *brakes* a car the first made faster than the sagging foam surface,
-  at a measured 2.47 g.
-- Cars corner by **skidding**: the wheels can supply about 0.1 g of lateral force against a 3.5 g
-  demand, so the wall does the aiming and charges for it.
-
-`HANDOFF.md` carries the full record, including the dead ends with their numbers, so nobody
-re-runs them.
-
-## Progress
-
-`docs/progress/` is a dated timeline — one image per milestone, each with what the sim could
-actually *do* at that point. Start at
-[`docs/progress/README.md`](docs/progress/README.md).
+The track width (31.75 mm), the four D cells and the topology come from Mattel's instruction
+sheet; the car colours, tampos and wheels from the Hot Wheels Wiki. Car masses, motor constants,
+foam stiffness, wall friction and the lobe shapes are engineering estimates, tagged `[E]` in
+`src/10-config.js`.
 
 ## Credits
 
-Built with [Claude Code](https://claude.com/claude-code). Three.js r185 and Rapier 0.20 from
-jsDelivr; no other dependencies. Hot Wheels and Criss Cross Crash are trademarks of Mattel — this
-is an unaffiliated simulation built for the fun of modelling it.
+Built with [Claude Code](https://claude.com/claude-code). Sound effects partly generated with
+ElevenLabs. Hot Wheels and Criss Cross Crash are trademarks of Mattel; this is an unaffiliated
+simulation built for the fun of modelling it.

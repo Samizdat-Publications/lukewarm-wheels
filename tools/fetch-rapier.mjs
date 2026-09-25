@@ -1,4 +1,4 @@
-// tools/fetch-rapier.mjs — one-time download of the Rapier ESM bundle used by the headless
+// tools/fetch-rapier.mjs - one-time download of the Rapier ESM bundle used by the headless
 // harness (tools/lobetest.mjs). Same version as docs/DEPENDENCIES.md / index.html.
 // Usage: node tools/fetch-rapier.mjs
 import { writeFile, mkdir } from 'node:fs/promises';

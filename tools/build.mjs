@@ -1,11 +1,11 @@
-// tools/build.mjs — single-file build (PLAN T14).
+// tools/build.mjs - single-file build (PLAN T14).
 //
 // Reads index.html and replaces everything between the `<!-- HW:SCRIPTS ... -->` and
 // `<!-- /HW:SCRIPTS -->` markers with the contents of every file listed in
 // src/manifest.json, in order, each wrapped in its own <script> tag. Nothing else is
 // inlined: the importmap and the `<script type="module">` loader are copied verbatim,
 // because their imports are CDN URLs that the Artifact CSP allows
-// (https://cdn.jsdelivr.net/npm/ — see docs/DEPENDENCIES.md).
+// (https://cdn.jsdelivr.net/npm/ - see docs/DEPENDENCIES.md).
 //
 //   node tools/build.mjs            -> dist/index.html  and  dist/artifact.html
 //
@@ -71,7 +71,7 @@ async function main() {
     chunks.push('<script data-hw-file="' + rel + '">\n' + escapeScriptEnd(src).replace(/\s*$/, '') + '\n</script>');
   }
 
-  const banner = '\n<!-- inlined by tools/build.mjs from src/manifest.json — do not edit dist/ by hand -->\n';
+  const banner = '\n<!-- inlined by tools/build.mjs from src/manifest.json - do not edit dist/ by hand -->\n';
   const out = html.slice(0, startEnd) + banner + chunks.join('\n') + '\n' + html.slice(endStart);
 
   // a real attribute, not `data-src=` / `data-hw-file=`
