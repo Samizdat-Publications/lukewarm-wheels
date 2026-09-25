@@ -45,10 +45,16 @@
       if (pc.type === 'gate') { marks.push({ at: segs.length, kind: pc.kind || 'finish', id }); return; }
       // closing a circuit: only when the run really comes back to its start (a real track either
       // meets itself or it does not); otherwise it stays an open run and the builder says why
-      if (pc.id === 'close' && pc.type === 'join') {
+      // (a builder merge back into run 1 obeys the same rule)
+      if ((pc.id === 'close' || pc.id === 'merge') && pc.type === 'join') {
         const t0 = HW.pieces.dirOf(pc.heading, 0), gap = Math.hypot(pc.to[0] - pose.p[0], pc.to[1] - pose.p[1], pc.to[2] - pose.p[2]);
         const ang = Math.acos(Math.max(-1, Math.min(1, t0[0] * pose.t[0] + t0[1] * pose.t[1] + t0[2] * pose.t[2]))) * 180 / Math.PI;
-        if (gap > 60 || ang > 60) { closed = false; (ctx.warnings = ctx.warnings || []).push({ track: ts.id, kind: 'close', text: `the run ends ${gap.toFixed(0)} cm and ${ang.toFixed(0)} deg away from its start: too far to close` }); return; }
+        if (gap > 60 || ang > 60) {
+          closed = false;
+          if (pc.id === 'merge') ts.end = 'stop';
+          (ctx.warnings = ctx.warnings || []).push({ track: ts.id, kind: pc.id, text: `the run ends ${gap.toFixed(0)} cm and ${ang.toFixed(0)} deg away from ${pc.id === 'merge' ? 'the start of run 1' : 'its start'}: too far to ${pc.id === 'merge' ? 'merge' : 'close'}` });
+          return;
+        }
       }
       const make = HW.pieces.types[pc.type];
       if (!make) throw new Error('unknown piece type ' + pc.type + ' in track ' + ts.id);

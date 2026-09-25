@@ -3,7 +3,8 @@
 // thing an artifact link can carry (letters, digits, . _ ~ -).
 //
 //   code  = start run0 ( '.' runN )*
-//   start = L (spring launcher) | T (drop tower) | P (plain: the hand flicks the car in)
+//   start = L[1-9] (spring launcher; the digit fixes its strength, 1 = 20% .. 9 = 100%;
+//           no digit = a random pull each shot) | T (drop tower) | P (the hand flicks the car in)
 //   run   = piece*  [~]          ~ closes the run back on its own start (a circuit)
 //
 // Pieces (all fixed sizes, so they snap together like real track and stay on the grid):
@@ -14,6 +15,9 @@
 //   H h   spiral down, left / right          B booster  F finish gate   K brake + end
 //   J jump: kicker + lip; the NEXT run is the catch ramp across the gap
 //   Y splitter: the NEXT TWO runs are its left and right branches
+//   M merge: the run joins back into the start of run 1 (hand start only), so a splitter's
+//     branches can come back together and the car goes round again
+//   X hammer: a straight with a hammer swinging across it   W paddle wheel beside a straight
 (function (HW) {
   const R = 22, PIECE = 30.5;
   const PIECES = {
@@ -38,25 +42,30 @@
     K: { name: 'Brake + end', make: () => [{ type: 'brake', len: 40 }], ends: true },
     J: { name: 'Jump', make: () => [{ type: 'pitch', angle: 22, radius: 30 }, { type: 'straight', len: 8 }], ends: true, children: 1 },
     Y: { name: 'Splitter', make: () => [], ends: true, children: 2 },
+    M: { name: 'Merge back', make: () => [], ends: true },
+    X: { name: 'Hammer', make: () => [{ type: 'straight', len: PIECE }], hazard: { type: 'hammer', period: 2.2, amp: 40, arm: 16 } },
+    W: { name: 'Paddle wheel', make: () => [{ type: 'straight', len: PIECE }], hazard: { type: 'paddle', period: 1.6 } },
   };
   const STARTS = { L: 'Launcher', T: 'Drop tower', P: 'Hand start' };
-  const VALID = /^[LTP][A-Za-z~.]*$/;
+  const VALID = /^(?:L[1-9]?|T|P)[A-Za-z~.]*$/;
 
   // "LSSOJ.SlBF" -> { start: 'L', runs: [['S','S','O','J'], ['S','l','B','F']], closed: [false,false] }
   function decode(code) {
     code = String(code || '').trim();
     if (!VALID.test(code)) return null;
-    const start = code[0], parts = code.slice(1).split('.');
+    const start = code[0], power = /\d/.test(code[1]) ? +code[1] : null;
+    const parts = code.slice(power == null ? 1 : 2).split('.');
     const runs = [], closed = [];
     for (const p of parts) {
       const c = p.endsWith('~');
       runs.push([...(c ? p.slice(0, -1) : p)].filter((ch) => PIECES[ch]));
       closed.push(c);
     }
-    return { start, runs, closed };
+    return { start, power, runs, closed };
   }
   function encode(m) {
-    return m.start + m.runs.map((r, i) => r.join('') + (m.closed[i] ? '~' : '')).join('.');
+    const pw = m.start === 'L' && m.power ? String(m.power) : '';
+    return m.start + pw + m.runs.map((r, i) => r.join('') + (m.closed[i] ? '~' : '')).join('.');
   }
 
   // which runs hang off which piece: children are assigned in order of appearance
@@ -78,12 +87,16 @@
     const miss = tree(m).missing;
     for (let k = 0; k < miss; k++) { m.runs.push([]); m.closed.push(false); }
     const T2 = tree(m);
+    const hazards = [];
     const tracks = m.runs.map((run, i) => {
       const id = 'r' + i, pieces = [];
       let from, vIn = 0, start = 'stop';
       const par = T2.parent[i];
       if (i === 0) {
-        if (m.start === 'L') { from = { at: [-80, 1.2, 0], heading: 90 }; pieces.push({ type: 'launcher', len: 14, id: 'launcher' }); vIn = 330; }
+        if (m.start === 'L') {
+          from = { at: [-80, 1.2, 0], heading: 90 }; vIn = 330;
+          pieces.push(Object.assign({ type: 'launcher', len: 14, id: 'launcher' }, m.power ? { strength: (m.power + 1) / 10, vary: false } : {}));
+        }
         else if (m.start === 'T') { from = { at: [-80, 40, 0], heading: 90, pitch: -45 }; pieces.push({ type: 'straight', len: 22, id: 'tower' }, { type: 'pitch', angle: 45, radius: 30, id: 'swoop' }); }
         else { from = { at: [-80, 1.2, 0], heading: 90 }; vIn = 250; }
       } else if (par && par.kind === 'J') {
@@ -100,8 +113,14 @@
         made.forEach((pc, j) => { pc.id = 'p' + k + (made.length > 1 ? String.fromCharCode(97 + j) : ''); pc.code = ch; pieces.push(pc); });
         if (ch === 'J') end = 'fly';
         if (ch === 'Y') end = { split: T2.kids[i].map((c) => 'r' + c), policy: 'alternate' };
+        if (PIECES[ch].hazard) hazards.push(Object.assign({ track: id, piece: pieces[pieces.length - 1].id }, PIECES[ch].hazard));
+        if (ch === 'M' && m.start === 'P' && i > 0) {
+          // round again: join the start of run 1 (the same pose a closed loop comes back to)
+          pieces.push({ type: 'join', to: [-80, 1.2, 0], heading: 90, pitch: 0, id: 'merge' });
+          end = { to: 'r0', s: 0 };
+        }
       });
-      const closed = !!m.closed[i] && i === 0 && m.start === 'P';
+      const closed = (!!m.closed[i] || run.includes('M')) && i === 0 && m.start === 'P';
       if (closed) pieces.push({ type: 'join', to: from.at, heading: from.heading, pitch: 0, id: 'close' });
       return { id, name: 'run ' + (i + 1), from, vIn, pieces, start, end, closed };
     });
@@ -109,7 +128,7 @@
       id: 'custom', name: 'My Track', year: 2026, floor: 'rug', code: encode(m),
       tag: 'built in the Track Builder · ' + encode(m),
       blurb: 'A track from the Track Builder. Share it with its code: the link carries the whole track.',
-      tracks, startV: m.start === 'P' ? 250 : 0,
+      tracks, hazards, startV: m.start === 'P' ? 250 : 0,
       start: m.start === 'L' ? { launcher: 'launcher' } : { track: 'r0', s: m.start === 'T' ? 2 : 4 },
       autoStart: { cars: 3, every: 2.5 }, custom: true,
     };
@@ -122,7 +141,7 @@
     m.runs.forEach((run, i) => {
       const last = run[run.length - 1];
       if (m.closed[i]) return;
-      if (last && (PIECES[last].ends)) return;
+      if (last && PIECES[last].ends && !(last === 'M' && m.start !== 'P')) return;
       out.push(i);
     });
     return out;
@@ -130,7 +149,7 @@
 
   // Drive one car down a custom track, headless, and say what happened and where: the
   // builder's live check ("falls off the loop", "stops on the up ramp", "finishes in 2.3 s").
-  function testRun(set, RAPIER, carIdx = 0, strength = 0.85) {
+  function testRun(set, RAPIER, carIdx = 0, strength = null) {
     HW.sets.__test = Object.assign({}, set, { id: '__test' });
     const L = HW.layout.build(HW.config, '__test');
     const bus = HW.makeBus();                             // silent: the page never hears a test drive
@@ -140,7 +159,8 @@
     for (let i = 0; i < 0.4 / h; i++) sim.step(h);
     sim.placeOnTrack(car, L.start.s, set.startV || 0, 0, false, L.start.track);
     const ln = L.launchers[0];
-    if (ln) { ln.car = car; HW.stunts.fire(sim, ln, strength); }
+    // a launcher with a fixed strength fires at it; a random one is tested at a firm pull
+    if (ln) { ln.car = car; HW.stunts.fire(sim, ln, strength != null ? strength : ln.vary ? 0.85 : ln.strength); }
     const where = (c) => { const tr = c.track || L.start.track, reg = tr.region(c.s) || ''; const m = /^p(\d+)/.exec(reg); return { run: tr.index, piece: m ? +m[1] : -1, region: reg, pos: [c.pos.x, c.pos.y, c.pos.z] }; };
     const res = { ok: false, events: [], top: 0 };
     const off = [];
@@ -148,9 +168,14 @@
     on('derail', (e) => { res.events.push(Object.assign({ kind: e.cause }, where(car))); if (!res.fail && e.cause !== 'jump') res.fail = Object.assign({ kind: e.cause }, where(car)); });
     on('recapture', () => res.events.push(Object.assign({ kind: 'caught' }, where(car))));
     on('gate', (e) => { if (e.gate.kind === 'finish' && !res.ok) { res.ok = true; res.time = car.lastLap; } });
-    let n = 0;
+    let n = 0, lastRun = 0;
+    const t0 = sim.time;
     while (n++ < 14 / h) {
       sim.step(h);
+      // a merge brings it back to run 1: once round is a pass
+      const ri = car.track ? car.track.index : lastRun;
+      if (ri === 0 && lastRun > 0 && car.mode === 'track' && !res.ok) { res.ok = true; res.back = true; res.time = sim.time - t0; break; }
+      lastRun = ri;
       res.top = Math.max(res.top, car.speed);
       if (car.mode === 'retrieving') { if (!res.fail) res.fail = Object.assign({ kind: res.events.some((e) => e.kind === 'jump') ? 'missed the catch' : 'off the track' }, res.events.length ? res.events[res.events.length - 1] : where(car)); break; }
       if (car.mode === 'track' && Math.abs(car.v) < 3 && car.stallT > 0.6) {

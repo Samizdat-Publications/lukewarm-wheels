@@ -16,7 +16,7 @@
   };
   const GROUPS = [
     ['Straights', 'Ss'], ['Curves', 'lrqpuv'], ['Banked', 'bd'], ['Hills', 'UD'],
-    ['Stunts', 'OCHhJ'], ['Parts', 'BYFK'],
+    ['Stunts', 'OCHhJ'], ['Hazards', 'XW'], ['Parts', 'BYMFK'],
   ];
   const FAIL = { lift: 'falls off', drift: 'drifts out of the lane', hit: 'crashes', hazard: 'is knocked off', stopped: 'runs out of speed', 'missed the catch': 'misses the catch', 'off the track': 'leaves the track', 'still going': 'is still going after 14 s', laps: 'keeps lapping' };
 
@@ -42,6 +42,10 @@
     build() {
       const root = document.getElementById('ui');
       B.startBtns = Object.entries(C.STARTS).map(([k, name]) => h('button', { 'aria-pressed': 'false', onclick: () => { B.model.start = k; B.refresh(); } }, name));
+      // the launcher's pull: random each shot, or fixed (it rides in the code as L1..L9)
+      B.power = h('select', { id: 'b-power', 'aria-label': 'Launcher strength' },
+        h('option', { value: '', text: 'random pull' }), [...'123456789'].map((d) => h('option', { value: d, text: (+d + 1) * 10 + '% pull' })));
+      B.power.addEventListener('change', () => { B.model.power = B.power.value ? +B.power.value : null; B.refresh(); });
       B.tabs = h('div', { class: 'tabs', role: 'tablist' });
       B.strip = h('div', { class: 'strip', 'aria-label': 'Pieces in this run' });
       B.status = h('div', { class: 'status', role: 'status' });
@@ -52,7 +56,7 @@
         h('div', { class: 'keys' }, [...keys].map((k) => h('button', { class: 'pc', title: C.PIECES[k].name + ' (' + k + ')', onclick: () => B.add(k) }, h('b', { text: k }), ' ', C.PIECES[k].name)))));
       B.panel = h('div', { id: 'builder', class: 'panel' },
         h('div', { class: 'row' }, h('span', { class: 'lbl', text: 'Track Builder' }), h('button', { class: 'close iconbtn', 'aria-label': 'Leave the builder', onclick: B.close, text: '×' })),
-        h('div', { class: 'row seg' }, h('span', { class: 'lbl', text: 'Start' }), B.startBtns),
+        h('div', { class: 'row seg' }, h('span', { class: 'lbl', text: 'Start' }), B.startBtns, B.power),
         B.tabs, B.strip,
         h('div', { class: 'row' },
           h('button', { onclick: () => B.remove(), title: 'Remove the selected piece (Backspace)' }, 'Remove'),
@@ -79,8 +83,10 @@
       const run = B.model.runs[B.run];
       const at = B.sel == null ? run.length : B.sel + 1;
       // a jump or a splitter ends its run: nothing may follow it
-      if (at > 0 && C.PIECES[run[at - 1]] && C.PIECES[run[at - 1]].children) return B.flash('A ' + C.PIECES[run[at - 1]].name.toLowerCase() + ' ends the run: add to its own run instead.');
-      if (C.PIECES[k].children && at < run.length) return B.flash('A ' + C.PIECES[k].name.toLowerCase() + ' can only go at the end of a run.');
+      const last = (ch) => C.PIECES[ch] && (C.PIECES[ch].children || ch === 'M');
+      if (at > 0 && last(run[at - 1])) return B.flash('A ' + C.PIECES[run[at - 1]].name.toLowerCase() + ' ends the run' + (run[at - 1] === 'M' ? '.' : ': add to its own run instead.'));
+      if (last(k) && at < run.length) return B.flash('A ' + C.PIECES[k].name.toLowerCase() + ' can only go at the end of a run.');
+      if (k === 'M' && (B.model.start !== 'P' || B.run === 0)) return B.flash(B.run === 0 ? 'Run 1 goes round with Close the loop; Merge back is for the runs after it.' : 'Merge back needs the hand start: a launcher or a drop tower is in the way.');
       run.splice(at, 0, k);
       if (C.PIECES[k].children) for (let j = 0; j < C.PIECES[k].children; j++) { B.model.runs.push([]); B.model.closed.push(false); }
       B.sel = B.sel == null ? null : at;
@@ -116,6 +122,8 @@
       B.code.value = code;
       B.startBtns.forEach((b, i) => b.setAttribute('aria-pressed', Object.keys(C.STARTS)[i] === m.start ? 'true' : 'false'));
       B.closeBtn.disabled = m.start !== 'P';
+      B.power.hidden = m.start !== 'L';
+      B.power.value = m.power ? String(m.power) : '';
       B.closeBtn.setAttribute('aria-pressed', m.closed[0] ? 'true' : 'false');
       B.tabs.replaceChildren(...m.runs.map((r, i) => {
         const p = T.parent[i], label = i === 0 ? 'Run 1' : `Run ${i + 1} (${p ? (p.kind === 'J' ? 'catch' : p.branch ? 'right branch' : 'left branch') : 'loose'})`;
@@ -154,6 +162,7 @@
         s.position.set(f.px, f.py + 1, f.pz);
         g.add(s);
       }
+      if (B.model.start !== 'P' && B.model.runs.some((r) => r[r.length - 1] === 'M')) lines.push({ warn: true, text: 'Merge back only works with the hand start: a launcher or drop tower sits where the runs would come back in.' });
       if (dead.length) lines.push({ warn: true, text: `Open end on ${dead.map((i) => 'run ' + (i + 1)).join(', ')}: finish it with Brake + end, a jump, a splitter, or close the loop.` });
       for (const w of L.warnings) lines.push({ warn: true, text: 'Run ' + (1 + +w.track.slice(1)) + ': ' + w.text + '.' });
       scene.add(g);
@@ -167,7 +176,7 @@
       clearTimeout(B.testT);
       B.showStatus(lines, { pending: true });
       B.testT = setTimeout(() => {
-        const res = C.testRun(set, window.RAPIER || null, 0, 0.85);
+        const res = C.testRun(set, window.RAPIER || null, 0);
         if (res.fail && res.fail.pos) {
           const mk = new T.Mesh(new T.OctahedronGeometry(2.2), new T.MeshBasicMaterial({ color: 0xffa21a }));
           mk.position.set(res.fail.pos[0], res.fail.pos[1] + 5, res.fail.pos[2]);
@@ -181,7 +190,9 @@
     showStatus(lines, res) {
       const out = [];
       if (res.pending) out.push(h('p', { text: 'Test-driving…' }));
-      else if (res.ok) out.push(h('p', { class: 'ok', text: res.laps ? `A test car laps it: ${res.laps} laps in 6 s, top ${Math.round(res.top)} cm/s.` : `A test car makes it: ${res.time != null ? res.time.toFixed(2) + ' s, ' : ''}top ${Math.round(res.top)} cm/s.` }));
+      else if (res.ok) out.push(h('p', { class: 'ok', text: res.laps ? `A test car laps it: ${res.laps} laps in 6 s, top ${Math.round(res.top)} cm/s.`
+        : res.back ? `A test car comes back round to the start in ${res.time.toFixed(2)} s, top ${Math.round(res.top)} cm/s.`
+        : `A test car makes it: ${res.time != null ? res.time.toFixed(2) + ' s, ' : ''}top ${Math.round(res.top)} cm/s.` }));
       else if (res.fail) {
         const run = B.model.runs[res.fail.run] || [], k = run[res.fail.piece];
         const where = k ? `the ${C.PIECES[k].name.toLowerCase()} (run ${res.fail.run + 1}, piece ${res.fail.piece + 1})` : `run ${res.fail.run + 1}`;
