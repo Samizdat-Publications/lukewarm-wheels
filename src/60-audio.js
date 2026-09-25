@@ -457,6 +457,19 @@
     dropped(e) { play(pick('s:drop', 'drop', 0.75), { when: when(e.t), pos: posOf(e.car), gain: P.drop, rate: rr(0.94, 1.06) }); },
     lap(e) { if (P.lap > 0) play('tick', { when: when(e.t), pos: posOf(e.car), gain: P.lap, rate: rr(1.1, 1.2) }); },
     nudge(e) { play('nudge', { when: when(e.t), pos: posOf(e.car), gain: P.nudge, rate: rr(0.9, 1.1) }); },
+    // stunt parts: the plunger's thwack, a hazard's whack, a car into an end buffer, a finish line
+    launch(e) {
+      const pos = posOf(e.car), t = when(e.t), x = clamp(e.strength || 0.8, 0.3, 1);
+      play('nudge', { when: t, pos, gain: P.nudge * (0.8 + 0.8 * x), rate: rr(0.7, 0.8) });
+      play(pick('s:knock', 'bump', 0.5), { when: t + 0.004, pos, gain: P.land * 0.7 * x, rate: rr(1.1, 1.3), maxDur: 0.08 });
+    },
+    whack(e) {
+      const pos = posOf(e.car), t = when(e.t), x = clamp((e.speed || 100) / 250, 0.3, 1.2);
+      play('bump', { when: t, pos, gain: 0.5 * x, rate: rr(0.75, 0.9) });
+      play(pick('s:knock', 'wall', 0.6), { when: t + 0.003, pos, gain: 0.45 * x, rate: rr(0.8, 0.95) });
+    },
+    buffer(e) { play(pick('s:knock', 'wall', 0.5), { when: when(e.t), pos: posOf(e.car), gain: clamp((e.speed || 60) / 300, 0.08, 0.45), rate: rr(0.85, 1.0), maxDur: 0.1 }); },
+    gate(e) { if (e.gate && e.gate.kind === 'finish') play('tick', { when: when(e.t), pos: posOf(e.car), gain: Math.max(P.lap, 0.2), rate: rr(1.3, 1.4) }); },
   };
   let subscribed = false;
   function subscribe() {

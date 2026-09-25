@@ -209,5 +209,28 @@
    "foam": 491.964
   },
   "hash": "f98e3b7f2d233e18"
+ },
+ "leap3-s2": {
+  "name": "leap3-s2",
+  "summary": {
+   "counts": {
+    "crash": 1,
+    "bump": 1,
+    "derail": 21,
+    "recapture": 11,
+    "retrieve": 15,
+    "stall": 0,
+    "dropped": 18,
+    "lap": 9
+   },
+   "laps": [
+    4,
+    3,
+    2
+   ],
+   "crashes": 1,
+   "foam": 383.974
+  },
+  "hash": "c9f09bafc7b5ae48"
  }
 }

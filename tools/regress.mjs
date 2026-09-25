@@ -32,6 +32,7 @@ const SCENARIOS = {
   'fleet3-s4': { cars: 3, secs: 40, seed: 4, rapier: true },
   'fleet5-s7': { cars: 5, secs: 25, seed: 7, rapier: true },
   'drop3-s2':  { set: 'dropJump', cars: 3, secs: 20, seed: 2, rapier: true },
+  'leap3-s2':  { set: 'loopLeap', cars: 3, secs: 30, seed: 2, rapier: true },
 };
 
 const mode = process.argv[2] || 'check';
