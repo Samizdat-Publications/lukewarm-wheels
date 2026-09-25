@@ -88,18 +88,23 @@ else = oriented-box SAT + rigid-body impulse (`42-collide.js`), and a hard hit d
   corner (v2 first try) they poked into the car's path at the inverted apex.
 - **Aeroflash height is 1.5 cm** (was 1.35) so its 1 cm wheels fit under fenders.
 
-## Next moves (Stewart's call; none are needed for the thing to work)
+## Next moves: read `docs/ROADMAP.md`
 
-1. **Showroom tab** (v1 had one): turntable + collector card per casting. `tools/cars.html`
-   already has the turntable, close-up and underside views; it needs a UI home.
-2. **Gear-train x-ray** (v1 had one): hub cut-away with the idler and satellites turning at the
-   right ratios. The idler is already modelled under the dome in `54-render-hub.js`.
-3. **Car models, round two:** the lofts read well at game distance; close up the Aeroflash nose
-   and the pickup cab could be sharper. `53-car-models.js` SHAPES table is the place.
-4. **A hand** for retrieval (currently a warm glow ring under the carried car).
-5. **Tired batteries demo:** set Battery charge to ~15 % in the drawer and watch cars start
-   falling off the loop tops. A "drain faster" toggle (`cfg.drainScale`) exists but has no UI.
-6. **HD build** (legacy ROADMAP): glTF from Blender, HDRI. Probably unnecessary now.
+Stewart (2026-09-24) wants new tracks next, borrowed from Hot Wheels or invented. The plan:
+
+1. **Phase 1, engine to platform:** a track set becomes a data file, the single closed path
+   becomes a track graph (splitters, merges, catch nets, finish gates), and Criss Cross Crash
+   becomes set #1 with no change in look or behaviour (regression with `tools/simtest.mjs`).
+2. **Phase 2, Stunt Pack:** drop tower, spring launcher, jump ramp + catch ramp (jumps are where
+   this engine is unique), corkscrew, kinematic hazards; set #2 "Loop & Leap".
+3. **Phase 3, Race Day:** 4-lane gravity drag strip with a timing gate, car tuner, tournament,
+   physics overlays.
+4. **Phase 4, Track Builder:** snap-together pieces, shareable `#token` track codes.
+5. **Phase 5, "Kitchen Table Grand Prix":** an original mega-set running over furniture.
+
+Start with Phase 1, proving it with a tiny second set (drop tower -> jump -> catch -> finish).
+Smaller items (showroom, gear-train x-ray, a hand model, car models round two, a listening pass on
+the audio) are listed at the end of the roadmap. Published artifact is at version 2.
 
 ## Gotchas (each cost time)
 
