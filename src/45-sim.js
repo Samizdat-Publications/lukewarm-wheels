@@ -27,7 +27,9 @@
       this.record = { buf: [], every: 1 / 60, t: 0, max: 60 * 12 };
       this._obbA = null; this._obbB = null;
       this.rng = HW.rng(cfg.seed == null ? (Date.now() & 0xffff) : cfg.seed);
+      HW.tune.load();
       for (const e of catalog) this.addCar(e);
+      this.race = this.layout.set.race ? new HW.Race(this) : null;
     }
 
     emit(type, data) {
@@ -43,6 +45,7 @@
       car.CdA = this.cfg.airCd * entry.widthCm * (entry.heightCm - car.clear);
       // no two real cars roll alike: axle burrs, a bent axle, a hair on a wheel
       car.crrMul = HW.math.clamp(1 + this.cfg.wheelSpread * this.rng.gauss(), 0.8, 1.25);
+      HW.tune.apply(null, car);                  // coins and wheel swaps from the tuner
       this.cars.push(car);
       if (this.fb) HW.freebody.addCar(this.fb, car);
       return car;
@@ -133,6 +136,7 @@
       this.contacts();
       // hazards and launchers
       if (this.layout.hazards.length || this.layout.launchers.length) HW.stunts.step(this, h);
+      if (this.race) this.race.step(h);
       // rigid bodies
       this.sub++;
       const ratio = Math.max(1, Math.round(cfg.substepHz / cfg.physHz));
@@ -150,9 +154,9 @@
       if (sp < 3 && !car.inNip) {
         car.stallT += h;
         // at rest after the finish, or stuck on an open run: the hand takes it back to the start
-        if (cfg.autoRetrieve && ((car.finished && car.stallT > 0.5) || (!car.track.closed && car.stallT > cfg.stallTime))) { this.startRetrieve(car); return; }
+        if (cfg.autoRetrieve && !this.race && ((car.finished && car.stallT > 0.5) || (!car.track.closed && car.stallT > cfg.stallTime))) { this.startRetrieve(car); return; }
         if (car.stallT > cfg.stallTime && car.status !== 'stalled') { car.status = 'stalled'; this.emit('stall', { car }); }
-        if (cfg.autoNudge && car.stallT > cfg.stallTime + 0.8) this.nudge(car);
+        if (cfg.autoNudge && car.track.closed && car.stallT > cfg.stallTime + 0.8) this.nudge(car);
       } else if (sp > 8) {
         car.stallT = 0;
         if (car.status === 'stalled' || car.status === 'crashed') car.status = 'running';
@@ -309,8 +313,12 @@
       return true;
     }
 
-    startRetrieve(car) {
+    // the hand picks a car up and carries it to `to` ({ track, s, hold } or { park: true }),
+    // by default back to START HERE (on a race strip: off to the garage)
+    startRetrieve(car, to) {
       if (car.mode === 'free' && this.fb) HW.freebody.deactivate(this.fb, car);
+      car.retrieveTo = to || (this.race ? { park: true } : null);
+      car.held = false;
       car.mode = 'retrieving'; car.status = 'retrieving';
       car.retrieve = { t: 0, dur: 1.25, p0: V.clone(car.pos), q0: { ...car.quat }, wait: 0 };
       this.emit('retrieve', { car });
@@ -318,8 +326,9 @@
 
     // a smooth hand-carry: lift, arc over to START HERE, turn to face the lane, set down
     advanceRetrieve(car, h) {
-      const L = this.layout, path = L.start.track, r = car.retrieve;
-      const f = path.frame(L.startS, {});
+      const L = this.layout, r = car.retrieve, to = car.retrieveTo;
+      const path = to && to.track ? to.track : L.start.track, s0 = to && to.track ? to.s : L.startS;
+      const f = path.frame(to && to.park ? 0 : s0, {});
       const target = { x: f.px, y: f.py, z: f.pz };
       const qT = Q.fromBasis({ x: f.rx, y: f.ry, z: f.rz }, { x: f.ux, y: f.uy, z: f.uz }, { x: -f.tx, y: -f.ty, z: -f.tz });
       r.t += h;
@@ -335,11 +344,16 @@
       car.pos.z = a * a * a * r.p0.z + 3 * a * a * e * p1.z + 3 * a * e * e * p2.z + e * e * e * target.z;
       Q.slerp(r.q0, qT, M.smoothstep(0.15, 0.85, u), car.quat);
       car.vel.x = car.vel.y = car.vel.z = 0;
+      if (u >= 1 && to && to.park) { car.retrieveTo = null; this.park(car); this.emit('parked', { car }); return; }
       if (u >= 1) {
         // wait until the drop zone is clear, hovering just above it
-        const zoneFree = !this.cars.some((c) => c !== car && c.mode === 'track' && c.track === path && Math.abs(path.delta(c.s, L.startS)) < 9);
-        const clear = zoneFree && (r.wait > 2.5 || this.dropClear(car));
-        if (clear) { this.placeOnTrack(car, L.startS, 0, 0, false, path); this.emit('dropped', { car, waited: r.wait }); }
+        const zoneFree = !this.cars.some((c) => c !== car && c.mode === 'track' && c.track === path && Math.abs(path.delta(c.s, s0)) < 9);
+        const clear = zoneFree && (r.wait > 2.5 || (to ? true : this.dropClear(car)));
+        if (clear) {
+          this.placeOnTrack(car, s0, 0, 0, false, path);
+          if (to) { car.held = !!to.hold; car.retrieveTo = null; }
+          this.emit('dropped', { car, waited: r.wait });
+        }
         else { car.pos.y = target.y + 3 + Math.sin(this.time * 6) * 0.4; r.wait += h; }
       }
     }

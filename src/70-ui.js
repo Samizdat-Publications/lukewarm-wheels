@@ -113,12 +113,14 @@
         });
       }
 
-      // action bar
+      // action bar (a race strip stages its own cars, so it has no add / line up / nudge)
       U.slowBtn = h('button', { id: 'btn-slow', onclick: () => U.toggleSlow(), title: 'Slow motion (S)' }, 'Slow-mo');
+      const racing = !!sim.race;
       root.append(h('div', { id: 'actions', class: 'panel' },
-        h('button', { id: 'btn-add', class: 'hot', onclick: () => U.addCar(), title: 'Drop the next car in (A)' }, 'Add car'),
-        h('button', { id: 'btn-lineup', onclick: () => sim.lineUpAll(), title: 'Line up all five (L)' }, 'Line up all 5'),
-        h('button', { id: 'btn-nudge', onclick: () => sim.nudge(), title: 'Flick stalled cars (N)' }, 'Nudge'),
+        racing ? '' : h('button', { id: 'btn-add', class: 'hot', onclick: () => U.addCar(), title: 'Drop the next car in (A)' }, 'Add car'),
+        racing ? '' : h('button', { id: 'btn-lineup', onclick: () => sim.lineUpAll(), title: 'Line up all five (L)' }, 'Line up all 5'),
+        racing ? '' : h('button', { id: 'btn-nudge', onclick: () => sim.nudge(), title: 'Flick stalled cars (N)' }, 'Nudge'),
+        h('button', { id: 'btn-forces', 'aria-pressed': 'false', onclick: () => HW.uiRace.toggleOverlay(), title: 'Show the forces on each car (O)' }, 'Forces'),
         U.slowBtn,
         (U.replayBtn = h('button', { id: 'btn-replay', onclick: () => U.toggleReplay(), title: 'Instant replay of the last crash (R)' }, 'Replay')),
         h('button', { id: 'btn-reset', onclick: () => U.reset(), title: 'Take every car off the track' }, 'Clear track')));
@@ -208,9 +210,10 @@
       else if (k === 's') U.toggleSlow();
       else if (k === 'n') U.sim.nudge();
       else if (k === 'f') U.fire();
+      else if (k === 'o') HW.uiRace.toggleOverlay();
       else if (k === 'r') U.toggleReplay();
-      else if (k === 'a') U.addCar();
-      else if (k === 'l') U.sim.lineUpAll();
+      else if (k === 'a' && !U.sim.race) U.addCar();
+      else if (k === 'l' && !U.sim.race) U.sim.lineUpAll();
       else if (k === 'm') U.toggleSound();
       else if (k === 't') U.toggleDrawer();
       else if (k === 'h' || k === '?') U.toggleHelp();

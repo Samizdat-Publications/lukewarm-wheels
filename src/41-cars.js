@@ -175,6 +175,7 @@
       car.energy.air += Fair * av * h;
       car.energy.boost += Fdrive * v * h;
       car.Nf = Nf; car.Nw = Nw; car.wallSide = wallSide;
+      car.Fdrive = Fdrive; car.dragF = fric + Fair;                 // for the force overlay
       // track joints between sOld and the new s: a small random clack
       const J = path.joints;
       for (let k = 0; k < J.length; k++) {
@@ -197,7 +198,7 @@
         if (!(vNew > 0 && sOld < gs && car.s >= gs) || car.finished) continue;
         if (GT[k].kind === 'finish' || GT[k].kind === 'lap') lap(car, sim);
         if (GT[k].kind === 'finish') car.finished = true;
-        sim.emit('gate', { car, gate: GT[k] });
+        sim.emit('gate', { car, gate: GT[k], tCross: sim.time + h * (gs - sOld) / (car.s - sOld) });
       }
       // laps: a forward wrap past s=0 counts, unless it only undoes an earlier backward wrap
       if (path.closed && !GT.length) {

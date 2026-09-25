@@ -126,6 +126,17 @@
     api.bodies.set(car, { body, colliders, wheels, park, active: false });
   };
 
+  // a tuned car (coins taped under it) is heavier: keep the rigid body's mass in step
+  HW.freebody.setMass = function (api, car) {
+    const rec = api.bodies.get(car);
+    if (!rec) return;
+    const bh = car.boxHalf;
+    try {
+      rec.colliders[0].setMassProperties(car.m, { x: 0, y: car.cgH - car.boxCy, z: 0 },
+        { x: car.m / 3 * (bh.y * bh.y + bh.z * bh.z), y: car.m / 3 * (bh.x * bh.x + bh.z * bh.z), z: car.m / 3 * (bh.x * bh.x + bh.y * bh.y) }, { x: 0, y: 0, z: 0, w: 1 });
+    } catch (e) { /* older Rapier: the mass set at creation stands */ }
+  };
+
   // derail: make the body dynamic at the car's current pose and velocity
   HW.freebody.activate = function (api, car) {
     const R = api.R, rec = api.bodies.get(car);

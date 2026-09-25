@@ -293,7 +293,7 @@
   // ---------------------------------------------------------------- materials
   const TINT = { clear: 0x1b232c, blue: 0x1c3056, smoke: 0x24262b, black: 0x07080a };
   function mats(e) {
-    const T = window.THREE, k = e.id;
+    const T = window.THREE, k = e.id + (e.color || '');
     if (cache.mat[k]) return cache.mat[k];
     const lv = livery(e);
     const paint = new T.MeshPhysicalMaterial({ map: tex(lv.body), metalness: 0.28, roughness: 0.34, clearcoat: 1, clearcoatRoughness: 0.07 });
@@ -438,7 +438,7 @@
       lamp(M.tail, s * tailW * 0.66, tailY + 0.08, sh.zOf(0.992));
     }
     // body-colour parts without the livery texture
-    const plain = cache.mat[e.id + '-plain'] || (cache.mat[e.id + '-plain'] = new T.MeshPhysicalMaterial({ color: e.color, metalness: 0.28, roughness: 0.34, clearcoat: 1, clearcoatRoughness: 0.07 }));
+    const plain = cache.mat[e.id + e.color + '-plain'] || (cache.mat[e.id + e.color + '-plain'] = new T.MeshPhysicalMaterial({ color: e.color, metalness: 0.28, roughness: 0.34, clearcoat: 1, clearcoatRoughness: 0.07 }));
     if (S.wing) {
       const wz = sh.zOf(S.wing.x), span = S.wing.span * sh.W, deck = sh.H * sh.topC(S.wing.x);
       if (S.wing.blade) {

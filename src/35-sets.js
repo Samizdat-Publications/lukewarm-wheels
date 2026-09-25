@@ -134,4 +134,33 @@
     start: { launcher: 'launcher' },
     autoStart: { cars: 3, every: 3.0 },
   };
+
+  // ---------------------------------------------------------------- #4 Race Day
+  // A four-lane gravity drag strip, like the Hot Wheels drag race sets and a Pinewood Derby
+  // track: a start gate on a steep hill, a long flat, a timing gate with a light per lane, a
+  // brake run. Nothing drives the cars but gravity, so what separates them is what the model
+  // already knows about each casting: its wheels' rolling resistance, its mass against its
+  // frontal area, and how straight it runs.
+  const lane = (i) => ({
+    id: 'lane' + (i + 1), name: 'lane ' + (i + 1), vIn: 0,
+    from: { at: [-120, 42, -8.25 + 5.5 * i], heading: 90, pitch: -40 },
+    pieces: [
+      { type: 'straight', len: 12, id: 'startGate' },
+      { type: 'straight', len: 30, id: 'hill' },
+      { type: 'pitch', angle: 40, radius: 60, id: 'dip' },
+      { type: 'straight', len: 183, id: 'flat' },
+      { type: 'gate', kind: 'finish' },
+      { type: 'brake', len: 50, mu: 0.4, id: 'brake' },
+    ],
+    start: 'stop', end: 'stop',
+  });
+  S.dragStrip = {
+    id: 'dragStrip', name: 'Race Day', year: 2026, floor: 'rug',
+    tag: '4-lane gravity drag strip · timing gate · tuner · knockout',
+    blurb: 'A four-lane gravity drag strip. Nothing drives the cars but gravity: the start gate drops, they roll down the hill and across the timing gate. What separates them is what the model knows about each casting: how freely its wheels roll, its mass against its frontal area (air drag), and how straight it runs. After each heat the stats card says why the winner won. Tune a car (coins for weight, other wheels, paint) and run a knockout.',
+    tracks: [lane(0), lane(1), lane(2), lane(3)],
+    start: { track: 'lane1', s: 4 },
+    race: { lanes: ['lane1', 'lane2', 'lane3', 'lane4'], hold: 4 },
+    view: { camera: [-150, 60, 90], orbit: [-20, 8, 0], look: [-20, 10, 0] },
+  };
 })(window.HW);

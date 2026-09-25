@@ -232,5 +232,30 @@
    "foam": 383.974
   },
   "hash": "c9f09bafc7b5ae48"
+ },
+ "race-s3": {
+  "name": "race-s3",
+  "summary": {
+   "counts": {
+    "crash": 0,
+    "bump": 0,
+    "derail": 0,
+    "recapture": 0,
+    "retrieve": 8,
+    "stall": 8,
+    "dropped": 8,
+    "lap": 8
+   },
+   "laps": [
+    2,
+    2,
+    1,
+    2,
+    1
+   ],
+   "crashes": 0,
+   "foam": 0
+  },
+  "hash": "558cc44c75788d9a"
  }
 }

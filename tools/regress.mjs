@@ -33,6 +33,7 @@ const SCENARIOS = {
   'fleet5-s7': { cars: 5, secs: 25, seed: 7, rapier: true },
   'drop3-s2':  { set: 'dropJump', cars: 3, secs: 20, seed: 2, rapier: true },
   'leap3-s2':  { set: 'loopLeap', cars: 3, secs: 30, seed: 2, rapier: true },
+  'race-s3':   { set: 'dragStrip', cars: 5, secs: 24, seed: 3, rapier: true, race: true },
 };
 
 const mode = process.argv[2] || 'check';
@@ -67,7 +68,8 @@ if (mode === 'one') {
       sim.setSwitch(true);
       for (let i = 0; i < 0.6 * 1920; i++) sim.step(1 / 1920);
       sim.placeOnTrack(sim.cars[0], sim.layout.startS, 0);
-    } else sim.lineUpAll();
+    } else if (sc.race) sim.race.stage();
+    else sim.lineUpAll();
     const h = 1 / sim.cfg.substepHz, every = Math.round(0.5 / h), n = Math.round(sc.secs / h);
     const buf = new Float64Array(8);
     for (let i = 1; i <= n; i++) {

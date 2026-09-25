@@ -29,15 +29,18 @@
     HW.renderTrack.build(HW.render.scene, sim.layout);
     HW.renderHub.build(HW.render.scene, sim.layout);
     HW.renderProps.build(HW.render.scene, sim);
+    HW.renderRace.build(HW.render.scene, sim);
     HW.renderCars.build(HW.render.scene, sim);
     HW.cam.init(HW.render.camera, canvas, sim.layout.view);
     HW.fx.init(HW.render.scene);
     HW.replay.init();
     HW.ui.init(sim);
+    HW.overlay.build(HW.render.scene, sim);
+    HW.uiRace.init(sim, document.getElementById('ui'));
     setupPicking(canvas, sim);
 
-    // open running: booster on, a few cars dropped in one after another
-    if (HW.config.autoStart) {
+    // open running: booster on, a few cars dropped in one after another (a race strip stages its own)
+    if (HW.config.autoStart && !sim.race) {
       sim.setSwitch(true);
       const as = sim.layout.set.autoStart || { cars: 3, every: 0.9 };
       let k = 0;
@@ -71,10 +74,13 @@
     HW.fx.update(dt);
     HW.renderHub.update(dt, sim);
     HW.renderProps.update(dt, sim);
+    HW.renderRace.update(dt, sim);
+    HW.overlay.update(dt, sim);
     HW.renderCars.update(dt, sim, HW.ui.followed);
     HW.cam.update(dt, sim);
     HW.render.render(dt);
     HW.ui.update(dt, sim);
+    HW.uiRace.update(dt, sim);
     if (HW.audio && HW.audio.update) {
       try {
         const c = HW.render.camera;

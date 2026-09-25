@@ -16,6 +16,7 @@
     "src/43-freebody.js",
     "src/44-stunts.js",
     "src/45-sim.js",
+    "src/46-race.js",
     "src/50-render-core.js",
     "src/51-render-world.js",
     "src/52-render-track.js",
@@ -25,9 +26,11 @@
     "src/56-camera.js",
     "src/57-fx.js",
     "src/58-render-props.js",
+    "src/59-render-race.js",
     "src/60-audio.js",
     "src/61-audio-assets.js",
     "src/70-ui.js",
+    "src/71-ui-race.js",
     "src/90-main.js"
   ]
 }

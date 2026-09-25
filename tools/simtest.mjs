@@ -167,6 +167,29 @@ if (mode === 'sweep') {
   process.exit(0);
 }
 
+if (mode === 'race') {
+  // node tools/simtest.mjs race [heats] [knockout] : Race Day heats, times, and the explanation
+  HW.config.set = 'dragStrip';
+  const heats = +(process.argv[3] || 4), ko = process.argv[4] === 'knockout';
+  if (process.env.TUNE) HW.tune.all = JSON.parse(process.env.TUNE);     // e.g. {"chevystocker":{"wheels":"GRAPHITE","coins":2}}
+  const R = await rapier();
+  const sim = new HW.Sim({ RAPIER: R });
+  const race = sim.race;
+  const h = 1 / sim.cfg.substepHz;
+  let done = 0;
+  HW.bus.on('raceDone', (e) => {
+    done++;
+    const r = e.result;
+    console.log(`heat ${done}: ` + r.entries.slice().sort((a, b) => (a.time ?? 9) - (b.time ?? 9)).map((x) => `${x.name} L${x.lane + 1} ${x.time != null ? x.time.toFixed(3) + 's ' + fmt(x.v) + 'cm/s' : x.dnf}`).join(' | '));
+    for (const l of r.why.lines) console.log('   ' + l);
+  });
+  HW.bus.on('raceChampion', (e) => console.log('CHAMPION', e.car.name));
+  if (ko) race.knockout(); else race.stage();
+  let n = 0;
+  while (done < heats && n++ < 200 / h) sim.step(h);
+  process.exit(0);
+}
+
 if (mode === 'auto') {
   // node tools/simtest.mjs auto <setId> [secs] [cars] : the set running by itself; what happened
   HW.config.set = process.argv[3] || 'loopLeap';

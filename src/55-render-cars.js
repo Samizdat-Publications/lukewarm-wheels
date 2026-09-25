@@ -37,7 +37,7 @@
       this.scene = scene;
       this.items = sim.cars.map((car) => {
         let model = null;
-        try { if (HW.carModels) model = HW.carModels.build(car.entry, { quality: HW.render.quality === 'low' ? 'low' : 'high' }); }
+        try { if (HW.carModels) model = HW.carModels.build(this.entryOf(car), { quality: HW.render.quality === 'low' ? 'low' : 'high' }); }
         catch (e) { console.error('[cars] model failed for', car.name, e); }
         if (!model) model = placeholder(T, car.entry);
         model.visible = false;
@@ -68,12 +68,22 @@
       scene.add(this.marker);
     },
 
-    // replace placeholders once real models are available (hot reload during development)
-    rebuildModels(sim) {
+    // a car's catalog entry, repainted if the tuner gave it a paint job (the model's caches
+    // key on id + colour, so the two paints never mix)
+    entryOf(car) {
+      const p = car.tuned && car.tuned.paint;
+      return p ? Object.assign({}, car.entry, { color: p }) : car.entry;
+    },
+
+    // replace placeholders once real models are available (hot reload during development),
+    // or one car's model after a paint job
+    rebuildModels(sim, only) {
       if (!HW.carModels) return;
       for (const it of this.items) {
-        const m = HW.carModels.build(it.car.entry, {});
+        if (only && it.car !== only) continue;
+        const m = HW.carModels.build(this.entryOf(it.car), {});
         m.userData.car = it.car; m.traverse((o) => { o.userData.carId = it.car.id; });
+        m.visible = it.model.visible; m.position.copy(it.model.position); m.quaternion.copy(it.model.quaternion);
         this.scene.remove(it.model); this.scene.add(m); it.model = m;
       }
     },
