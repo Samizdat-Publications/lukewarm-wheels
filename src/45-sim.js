@@ -325,7 +325,7 @@
         const J = (1 + e) * mr * mf / (mr + mf) * closing;
         rear.v -= J / mr; front.v += J / mf;
         // the rear car's nose rides up the front car's tail a little: a hard hit hops it
-        rear.vh += 0.12 * closing * (0.7 + 0.6 * Math.random());
+        rear.vh += 0.12 * closing * (0.7 + 0.6 * this.rng());
         if (rear.h <= 0) rear.h = 1e-4;
         const lost = 0.5 * mr * mf / (mr + mf) * closing * closing * (1 - e * e);
         rear.energy.impact += lost / 2; front.energy.impact += lost / 2;
