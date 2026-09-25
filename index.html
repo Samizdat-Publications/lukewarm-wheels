@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Criss Cross Crash</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='13' width='28' height='6' rx='2' fill='%23ff6a13'/%3E%3Crect x='13' y='2' width='6' height='28' rx='2' fill='%23ff6a13'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23c8141c'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Racing+Sans+One&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,700;1,800&family=Barlow:wght@400;500;600&display=swap">
@@ -154,17 +155,37 @@
   }
   @media (max-width: 720px) {
     :root { --gut: 10px; }
-    #brand .logo { font-size: 24px; }
+    /* top: camera modes across the full width, icons and the logo on the row below */
+    #cambar { left: var(--gut); right: var(--gut); top: calc(8px + env(safe-area-inset-top, 0px)); flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+    #cambar .seg { flex: 1 1 100%; }
+    #cambar .seg button { flex: 1; padding: 8px 0; font-size: 11px; letter-spacing: .04em; }
+    .iconbtn { width: 34px; height: 34px; }
+    #brand { top: calc(54px + env(safe-area-inset-top, 0px)); }
+    #brand .logo { font-size: 22px; }
     #brand .tag, #hint { display: none; }
-    #cambar .seg button { padding: 7px 7px; font-size: 11px; }
-    #garage { top: auto; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); right: var(--gut); left: var(--gut); width: auto; max-height: 30%; }
-    #garage .carrow { grid-template-columns: 40px 1fr auto; padding: 5px; }
-    #power { padding: 8px 10px; gap: 8px 12px; }
-    .gauges { grid-template-columns: repeat(3, auto); gap: 2px 10px; }
+    /* bottom: a strip of cars, the actions, then the power panel */
+    #power { left: var(--gut); right: var(--gut); padding: 8px 10px; gap: 6px 12px; grid-template-columns: auto 1fr; }
+    .switch { width: 80px; height: 40px; }
+    .switch i { width: 36px; height: 28px; }
+    .switch[aria-checked="true"] i { left: 38px; }
+    .gauges { grid-template-columns: repeat(3, 1fr); gap: 2px 8px; }
+    #g-rpm, #g-soc, #g-load { font-size: 16px; }
+    .num { font-size: 17px; }
     #speedo { display: none; }
-    #actions { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
-    #actions button { padding: 8px 9px; font-size: 11px; }
-    #drawer { left: var(--gut); right: var(--gut); width: auto; }
+    #actions { left: var(--gut); right: var(--gut); max-width: none; transform: none; bottom: calc(var(--gut) + 104px + env(safe-area-inset-bottom, 0px));
+      flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; padding: 6px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    #actions button { padding: 8px 10px; font-size: 11px; flex: 0 0 auto; }
+    #garage { top: auto; left: var(--gut); right: var(--gut); width: auto; bottom: calc(var(--gut) + 158px + env(safe-area-inset-bottom, 0px));
+      max-height: none; padding: 6px 8px; flex-direction: row; overflow-x: auto; scrollbar-width: none; }
+    #garage .head { display: none; }
+    #garage .list { display: flex; gap: 6px; }
+    #garage .carrow { grid-template-columns: 42px auto; grid-template-rows: auto; padding: 4px 6px; flex: 0 0 auto; gap: 6px; }
+    #garage .carrow .thumb { width: 42px; height: 21px; }
+    #garage .carrow .meta, #garage .carrow .act { display: none; }
+    #garage .carrow .name { font-size: 12px; }
+    #drawer, #help { left: var(--gut); right: var(--gut); width: auto; top: calc(96px + env(safe-area-inset-top, 0px)); transform: none; max-height: calc(100% - 300px); }
+    #toast { top: 24%; }
+    #replay-badge { top: calc(100px + env(safe-area-inset-top, 0px)); }
   }
   @media (prefers-reduced-motion: reduce) { #toast { transition: none; } .switch i { transition: none; } }
 </style>

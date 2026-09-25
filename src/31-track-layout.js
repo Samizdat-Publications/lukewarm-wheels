@@ -154,7 +154,7 @@
 
   // ---------------------------------------------------------- supports
   // Each loop hangs from a TRACK SUPPORT tower at its apex (instruction sheet, step 2): a
-  // post from the floor to the lowest corner of the channel there, with a clip. Each sweep's
+  // post standing just outside the loop, bracketed to the channel. Each sweep's
   // far end rests on a low stepped block. Shared by the renderer and the Rapier colliders.
   function computeSupports(L, cfg) {
     const path = L.path, f = {}, out = [];
@@ -165,11 +165,16 @@
       path.frame(s, f);
       // the four outer corners of the channel's cross-section at the apex
       const corners = [[-a, -ft], [a, -ft], [-a, wh], [a, wh]].map(([r, u]) => [f.px + f.rx * r + f.ux * u, f.py + f.ry * r + f.uy * u, f.pz + f.rz * r + f.uz * u]);
-      corners.sort((p, q) => p[1] - q[1]);
-      const low = corners[0];
       if (lobe.kind === 'loop') {
-        out.push({ lobe: name, kind: 'post', x: low[0], z: low[2], top: low[1], s, half: 0.6 });
+        // The car rides the inside of the loop, so the tower must stand OUTSIDE it: just
+        // beyond the corner of the channel furthest from the hub, gripping it with a clip.
+        const ol = Math.hypot(f.px, f.pz) || 1, ox = f.px / ol, oz = f.pz / ol;
+        corners.sort((p, q) => (q[0] * ox + q[2] * oz) - (p[0] * ox + p[2] * oz));
+        const far = corners[0];
+        out.push({ lobe: name, kind: 'post', x: far[0] + ox * 1.1, z: far[2] + oz * 1.1, top: far[1], s, half: 0.6, clip: far });
       } else {
+        corners.sort((p, q) => p[1] - q[1]);
+        const low = corners[0];
         out.push({ lobe: name, kind: 'block', x: f.px, z: f.pz, top: Math.max(0.15, low[1]), s, half: 1.7 });
       }
     }

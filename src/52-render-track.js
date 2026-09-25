@@ -147,10 +147,18 @@
             r.position.set(sp.x, y, sp.z);
             g.add(r);
           }
-          // clip that grips the channel
-          const clip = new T.Mesh(new X.RoundedBoxGeometry(2.2, 1.2, 2.2, 2, 0.2), mat);
-          clip.position.set(sp.x, h + 0.1, sp.z);
-          g.add(clip);
+          // head of the tower and a bracket reaching across to grip the channel
+          const head = new T.Mesh(new X.RoundedBoxGeometry(1.8, 1.0, 1.8, 2, 0.2), mat);
+          head.position.set(sp.x, h, sp.z);
+          g.add(head);
+          if (sp.clip) {
+            const a = new T.Vector3(sp.x, h, sp.z), b = new T.Vector3(sp.clip[0], sp.clip[1], sp.clip[2]);
+            const len = a.distanceTo(b) + 0.6;
+            const arm = new T.Mesh(new X.RoundedBoxGeometry(0.9, 0.5, len, 2, 0.12), mat);
+            arm.position.copy(a).lerp(b, 0.5);
+            arm.lookAt(b);
+            g.add(arm);
+          }
         } else {
           const h = Math.max(0.3, sp.top);
           for (let k = 0; k < 3; k++) {

@@ -5,7 +5,7 @@
 // more than the lights.
 (function (HW) {
   const QUALITY = {
-    high:   { pr: 2,   shadow: 4096, ao: true,  bloom: true, samples: 4 },
+    high:   { pr: 2,   shadow: 4096, ao: false, bloom: true, samples: 4 },   // GTAO darkened the thin track overall; soft shadows ground things better
     medium: { pr: 1.5, shadow: 2048, ao: false, bloom: true, samples: 4 },
     low:    { pr: 1,   shadow: 1024, ao: false, bloom: false, samples: 0 },
   };

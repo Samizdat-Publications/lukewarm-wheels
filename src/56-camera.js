@@ -8,6 +8,13 @@
 // Mode changes blend over ~0.7 s instead of cutting, except the crash cam, which cuts.
 (function (HW) {
   const V = HW.V, M = HW.math;
+  // In portrait the horizontal field shrinks; widen the vertical one so the set still fits.
+  const fit = (fov) => {
+    const a = (HW.render && HW.render.camera && HW.render.camera.aspect) || 1.6;
+    if (a >= 1.25) return fov;
+    const k = Math.min(2.2, Math.pow(1.25 / a, 0.85));
+    return 2 * Math.atan(Math.tan(fov * Math.PI / 360) * k) * 180 / Math.PI;
+  };
   const C = (HW.cam = {
     mode: 'orbit', car: null, crashCam: true,
     init(camera, dom) {
@@ -119,12 +126,14 @@
         return { pos: new T.Vector3(Math.sin(a) * r, h, Math.cos(a) * r), look: new T.Vector3(0, 7, 0), up: new T.Vector3(0, 1, 0), fov: 36, near: 0.5 };
       }
       if (d.shot === 'loop') {
-        const lb = sim.layout.supports.find((s) => s.kind === 'post');
-        const ap = new T.Vector3(lb.x, lb.top * 0.72, lb.z);
+        // hero shot: across the hub at one of the tall loops, face-on, tower behind it
+        const posts = sim.layout.supports.filter((s) => s.kind === 'post');
+        const lb = posts[(d.idx >> 1) % posts.length];
         const out = new T.Vector3(lb.x, 0, lb.z).normalize();
         const side = new T.Vector3(-out.z, 0, out.x);
-        const pos = ap.clone().addScaledVector(out, 34).addScaledVector(side, 22 - tt * 2.5).add(new T.Vector3(0, -8, 0));
-        return { pos, look: ap.clone().addScaledVector(out, -6), up: new T.Vector3(0, 1, 0), fov: 40, near: 0.3 };
+        const centre = new T.Vector3(lb.x, lb.top * 0.55, lb.z).addScaledVector(out, -9);
+        const pos = centre.clone().addScaledVector(out, -58).addScaledVector(side, 14 - tt * 3).setY(15 + tt * 0.6);
+        return { pos, look: centre, up: new T.Vector3(0, 1, 0), fov: 36, near: 0.4 };
       }
       if (d.shot === 'cross') {
         const a = 3.9 + tt * 0.05;
@@ -146,7 +155,8 @@
         // orbit mode: OrbitControls owns the camera
         C.controls.update();
         if (C.blend) C.applyBlend(dt, null);
-        if (cam.near !== 0.5) { cam.near = 0.5; cam.updateProjectionMatrix(); }
+        const want = fit(38);
+        if (!C.blend && (Math.abs(cam.fov - want) > 0.05 || cam.near !== 0.5)) { cam.fov = want; cam.near = 0.5; cam.updateProjectionMatrix(); }
         return;
       }
       // compose the target orientation
@@ -160,6 +170,7 @@
         cam.position.lerp(des.pos, 1 - Math.exp(-dt * 10));
         cam.quaternion.slerp(q, 1 - Math.exp(-dt * 8));
       }
+      des.fov = fit(des.fov);
       const fov = C.blend ? cam.fov : des.fov;
       if (Math.abs(cam.fov - fov) > 0.01 || cam.near !== des.near) { cam.fov = C.blend ? cam.fov : M.lerp(cam.fov, fov, 1 - Math.exp(-dt * 6)); cam.near = des.near; cam.updateProjectionMatrix(); }
     },
@@ -173,7 +184,7 @@
         const tp = cam.position.clone(), tq = cam.quaternion.clone();
         cam.position.copy(b.p).lerp(tp, e);
         cam.quaternion.copy(b.q).slerp(tq, e);
-        cam.fov = HW.math.lerp(b.fov, 38, e); cam.updateProjectionMatrix();
+        cam.fov = HW.math.lerp(b.fov, fit(38), e); cam.updateProjectionMatrix();
         if (u >= 1) { C.blend = null; }
         return;
       }
