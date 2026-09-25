@@ -1,5 +1,7 @@
-// 30-track-path.js - a closed track centreline, resampled uniformly by arc length, with a
-// banked frame (T forward, U up out of the running surface, R = T x U to the right).
+// 30-track-path.js - a track centreline, resampled uniformly by arc length, with a banked
+// frame (T forward, U up out of the running surface, R = T x U to the right). A path is
+// either CLOSED (a circuit: s wraps) or OPEN (a run with two ends: s is clamped, and what
+// happens at an end is up to the track graph, see 32-track-build.js).
 //
 // The circuit is a chain of segments: exact straight lines (the hub lanes) and clamped
 // cubic B-splines (the lobes). A clamped B-spline whose first three control points are
@@ -114,11 +116,13 @@
   }
 
   // ---------------------------------------------------------------- build
-  // segments: array of line()/bspline(), end-to-end, closing back on the first.
-  // opts.ds: target sample spacing (cm). opts.bank(i, info): per-sample bank spec
-  //   { flat: bool, vNom: cm/s, gain: 0..1, maxDeg } - see computeFrames.
+  // segments: array of line()/bspline()/quintic(), end-to-end; a closed path closes back
+  // on the first. opts.closed (default true). opts.ds: target sample spacing (cm).
+  // opts.bank(i, info): per-sample bank spec { flat, vNom: cm/s, gain: 0..1, maxDeg,
+  //   roll: radians (an explicit roll about T from no-bank, overrides the heartline) }.
   function build(segments, opts = {}) {
     const dsTarget = opts.ds || 0.2;
+    const closed = opts.closed !== false;
     const p = [0, 0, 0], d1 = [0, 0, 0], d2 = [0, 0, 0];
     // 1. fine arc-length table per segment
     const tables = [];
@@ -147,8 +151,9 @@
       total += acc;
     }
     // 2. uniform resample
-    const N = Math.max(8, Math.round(total / dsTarget));
-    const ds = total / N;
+    // closed: N samples, the last one ds short of the first; open: N samples, both ends included
+    const N = closed ? Math.max(8, Math.round(total / dsTarget)) : Math.max(2, Math.round(total / dsTarget)) + 1;
+    const ds = closed ? total / N : total / (N - 1);
     const A = (n) => new Float64Array(n);
     const P = { x: A(N), y: A(N), z: A(N) }, T = { x: A(N), y: A(N), z: A(N) }, K = { x: A(N), y: A(N), z: A(N) };
     const segIdx = new Int16Array(N);
@@ -170,7 +175,7 @@
       K.x[i] = (d2[0] - dd * tx) / k2; K.y[i] = (d2[1] - dd * ty) / k2; K.z[i] = (d2[2] - dd * tz) / k2;
       segIdx[i] = ti;
     }
-    const path = { N, ds, length: total, P, T, K, segIdx, segments, tables };
+    const path = { N, ds, length: total, P, T, K, segIdx, segments, tables, closed };
     checkJoints(path);
     computeFrames(path, opts.bank || (() => ({ flat: true })), opts);
     attachLookup(path);
@@ -180,7 +185,7 @@
   function checkJoints(path) {
     const segs = path.segments, p = [0, 0, 0], a = [0, 0, 0], b = [0, 0, 0], q = [0, 0, 0], c = [0, 0, 0], d = [0, 0, 0];
     path.jointErrors = [];
-    for (let i = 0; i < segs.length; i++) {
+    for (let i = 0; i < segs.length - (path.closed ? 0 : 1); i++) {
       const s1 = segs[i], s2 = segs[(i + 1) % segs.length];
       s1.point(s1.t1, p, a, b); s2.point(s2.t0, q, c, d);
       const gap = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
@@ -208,6 +213,11 @@
       if (fl > 0.05) { fx /= fl; fy /= fl; fz /= fl; } else { fx = px; fy = py; fz = pz; }
       if (spec.flat) {
         ux = fx; uy = fy; uz = fz; flat[i] = 1;
+      } else if (spec.roll != null) {
+        // an explicit roll about T, measured from no-bank (a corkscrew, a banked curve by hand)
+        const c = Math.cos(spec.roll), sn = Math.sin(spec.roll);
+        ux = fx * c + (ty * fz - tz * fy) * sn; uy = fy * c + (tz * fx - tx * fz) * sn; uz = fz * c + (tx * fy - ty * fx) * sn;
+        gain[i] = 1;
       } else {
         const v2 = spec.vNom * spec.vNom;
         // required specific force  f = v^2 kappa - gvec = v^2 kappa + g*Y
@@ -249,14 +259,16 @@
     // frame (double reflection, Wang et al. 2008), which is defined even where the track is
     // vertical. Two passes: a slew limit on the twist rate (a rigid car can only follow so
     // much warp), then diffusion with the flat samples held fixed, so the bank always leaves
-    // a flat lane continuously instead of stepping.
+    // a flat lane continuously instead of stepping. On a closed path sample N is sample 0
+    // come round again; on an open path the last sample is N-1 and both ends are held.
+    const last = path.closed ? N : N - 1;
     const Nr = { x: new Float64Array(N + 1), y: new Float64Array(N + 1), z: new Float64Array(N + 1) };
     {
       let rx = Ux[0], ry = Uy[0], rz = Uz[0];
       const d0 = rx * T.x[0] + ry * T.y[0] + rz * T.z[0]; rx -= d0 * T.x[0]; ry -= d0 * T.y[0]; rz -= d0 * T.z[0];
       let l0 = Math.hypot(rx, ry, rz) || 1; rx /= l0; ry /= l0; rz /= l0;
       Nr.x[0] = rx; Nr.y[0] = ry; Nr.z[0] = rz;
-      for (let i = 0; i < N; i++) {
+      for (let i = 0; i < last; i++) {
         const j = (i + 1) % N;
         const v1x = P.x[j] - P.x[i], v1y = P.y[j] - P.y[i], v1z = P.z[j] - P.z[i];
         const c1 = v1x * v1x + v1y * v1y + v1z * v1z || 1e-12;
@@ -274,7 +286,7 @@
       }
     }
     const th = new Float64Array(N + 1);
-    for (let i = 0; i <= N; i++) {
+    for (let i = 0; i <= last; i++) {
       const k = i % N, tx = T.x[k], ty = T.y[k], tz = T.z[k];
       const nx = Nr.x[i], ny = Nr.y[i], nz = Nr.z[i], ux = Ux[k], uy = Uy[k], uz = Uz[k];
       const cx = ny * uz - nz * uy, cy = nz * ux - nx * uz, cz = nx * uy - ny * ux;
@@ -282,16 +294,16 @@
       if (i > 0) { while (a - th[i - 1] > Math.PI) a -= 2 * Math.PI; while (a - th[i - 1] < -Math.PI) a += 2 * Math.PI; }
       th[i] = a;
     }
-    const fixed = (i) => i === N || flat[i];
+    const fixed = (i) => i === last || flat[i];
     const maxRate = ((opts.maxTwistDegPerCm == null ? 7 : opts.maxTwistDegPerCm) * Math.PI / 180) * path.ds;
-    for (let i = 1; i <= N; i++) if (!fixed(i)) th[i] = M.clamp(th[i], th[i - 1] - maxRate, th[i - 1] + maxRate);
-    for (let i = N - 1; i >= 1; i--) if (!fixed(i)) th[i] = M.clamp(th[i], th[i + 1] - maxRate, th[i + 1] + maxRate);
+    for (let i = 1; i <= last; i++) if (!fixed(i)) th[i] = M.clamp(th[i], th[i - 1] - maxRate, th[i - 1] + maxRate);
+    for (let i = last - 1; i >= 1; i--) if (!fixed(i)) th[i] = M.clamp(th[i], th[i + 1] - maxRate, th[i + 1] + maxRate);
     const sigma = (opts.smoothCm == null ? 2.5 : opts.smoothCm) / path.ds;
     const passes = Math.round(2 * sigma * sigma);
     const tmp = new Float64Array(N + 1);
     for (let p2 = 0; p2 < passes; p2++) {
       tmp.set(th);
-      for (let i = 1; i < N; i++) if (!fixed(i)) th[i] = 0.25 * tmp[i - 1] + 0.5 * tmp[i] + 0.25 * tmp[i + 1];
+      for (let i = 1; i < last; i++) if (!fixed(i)) th[i] = 0.25 * tmp[i - 1] + 0.5 * tmp[i] + 0.25 * tmp[i + 1];
     }
     const R = { x: new Float64Array(N), y: new Float64Array(N), z: new Float64Array(N) };
     for (let i = 0; i < N; i++) {
@@ -317,10 +329,20 @@
   function attachLookup(path) {
     const { N, ds, P, T, U, R, K } = path;
     // f = frame object reused by callers: { px,py,pz, tx.., ux.., rx.., kx.., i, frac }
+    const closed = path.closed;
     path.frame = function (s, f) {
-      s = ((s % path.length) + path.length) % path.length;
-      const x = s / ds; let i = Math.floor(x); const a = x - i; if (i >= N) i = N - 1;
-      const j = i + 1 < N ? i + 1 : 0, b = 1 - a;
+      let i, a, j;
+      if (closed) {
+        s = ((s % path.length) + path.length) % path.length;
+        const x = s / ds; i = Math.floor(x); a = x - i; if (i >= N) i = N - 1;
+        j = i + 1 < N ? i + 1 : 0;
+      } else {
+        s = s < 0 ? 0 : s > path.length ? path.length : s;
+        const x = s / ds; i = Math.floor(x); if (i > N - 2) i = N - 2;
+        a = x - i; if (a > 1) a = 1;
+        j = i + 1;
+      }
+      const b = 1 - a;
       f = f || {};
       f.i = i; f.frac = a; f.s = s;
       f.px = P.x[i] * b + P.x[j] * a; f.py = P.y[i] * b + P.y[j] * a; f.pz = P.z[i] * b + P.z[j] * a;
@@ -338,7 +360,8 @@
       if (hintS != null) {
         const w = Math.ceil((windowCm || 20) / ds), c = Math.round(hintS / ds);
         for (let k = -w; k <= w; k++) {
-          const i = (((c + k) % N) + N) % N;
+          const i = closed ? (((c + k) % N) + N) % N : c + k;
+          if (i < 0 || i >= N) continue;
           const d = (P.x[i] - x) ** 2 + (P.y[i] - y) ** 2 + (P.z[i] - z) ** 2;
           if (d < bd) { bd = d; best = i; }
         }
@@ -364,8 +387,11 @@
       let s = best * ds;
       const tx = T.x[best], ty = T.y[best], tz = T.z[best];
       s += (x - P.x[best]) * tx + (y - P.y[best]) * ty + (z - P.z[best]) * tz;
-      return { i: best, s: ((s % path.length) + path.length) % path.length, dist: Math.sqrt(bd) };
+      return { i: best, s: closed ? ((s % path.length) + path.length) % path.length : M.clamp(s, 0, path.length), dist: Math.sqrt(bd), track: path };
     };
+    // signed distance a - b along the track (the short way round on a circuit)
+    path.delta = closed ? (a, b) => M.loopDelta(a, b, path.length) : (a, b) => a - b;
+    path.wrap = closed ? (s) => M.wrap(s, path.length) : (s) => s;
     // spatial hash for global nearest queries
     const cell = 3, map = new Map();
     for (let i = 0; i < N; i++) {

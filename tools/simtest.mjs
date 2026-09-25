@@ -30,11 +30,11 @@ const mode = process.argv[2] || 'lone';
 const fmt = (x, d = 0) => (x == null ? '-' : (+x).toFixed(d));
 
 if (mode === 'solve') {
-  // re-solve both lobe shapes from scratch and print the handle lengths for 10-config.js
+  // re-solve both V2791 lobe shapes from scratch and print the handle lengths for 35-sets.js
+  const P = HW.sets.crissCross.params;
   for (const k of ['loop', 'sweep']) {
-    const g = Object.assign({}, HW.config[k]); delete g.q;
-    HW.layout.build(HW.config);
-    const r = HW.layout.solveHalf(g);
+    const g = Object.assign({}, P[k]); delete g.q;
+    const r = HW.v2791.solveHalf(g, P);
     console.log(k + '.q =', JSON.stringify(r.q.map((v) => +v.toFixed(4))), ' minR', r.minR.toFixed(2), ' half length', r.len.toFixed(1));
   }
   process.exit(0);

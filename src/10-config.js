@@ -8,18 +8,7 @@
     wallT: 0.16,         // [E] wall thickness
     wallH: 0.95,         // [E] wall height above the running surface
     floorT: 0.2,         // [E] track floor thickness
-    hubLane: 3.0,        // [E] lane centreline offset from the hub axes (lanes 6 cm apart)
-    hubHalf: 14.5,       // [E] hub arm half-length: lanes leave the hub at +-14.5 cm
-    deckH: 4.5,          // [E] height of the hub lane deck above the floor
-    nipGap: 2.0,         // [E] gap between foam surface and far wall; a car narrower than this is not driven
-    boosterAt: 7.7,      // [E] booster wheel centre, distance from the hub centre along its arm
-    // lobes: each is two quintic-Hermite halves meeting at an apex (see 31-track-layout.js)
-    // q = the solved handle lengths (node tools/simtest.mjs solve); delete q to re-solve at load
-    loop:  { ux: 30, yx: 26.0, beta: 70, Rt: 11, floorY: 0.8, q: [27.4072, 13.233, 163.4464, -319.8317] },  // rear pair: tall loops, inverted at the apex
-    sweep: { ux: 34, yx: 2.0, beta: 0, Rt: 14, floorY: 1.5, q: [23.628, 16.5105, 48.7158, -170.9126] },     // front pair: low banked sweeps near the floor
-    bankVRef: 380,       // [E] design speed (cm/s) at the lobe entry for the heartline bank
-    bankLossG: 0.06,     // [E] assumed mean drag (g) along a lobe when estimating the design speed
-    sweepMaxBank: 62,    // [E] bank cap on the front sweeps (deg); the rest is carried by the outer wall
+    // set-specific geometry (hub size, lobe shapes, their bank rule) lives in the set: 35-sets.js
     bankSmoothCm: 2.5,   // [E] Gaussian sigma for smoothing the roll schedule (limits twist rate)
     sampleDs: 0.2,       // path sample spacing
 
@@ -37,6 +26,7 @@
     jointHop: 5,         // [E] cm/s max hop at a joint
     wheelSpread: 0.07,   // [E] car-to-car spread (sd) in rolling resistance
     seed: null,          // RNG seed; null = different every load
+    set: null,           // track set id (35-sets.js); null = Criss Cross Crash
 
     // ------------------------------------------------------------ booster nip
     foamK: 1.2e6,        // [E] dyne/cm of squeeze (a 0.45 cm squeeze -> 5.4 N)
