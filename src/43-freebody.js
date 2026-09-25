@@ -19,7 +19,8 @@
       world.timestep = 1 / cfg.physHz;
       // cgs: lengths are ~cm, so keep the default length unit (the legacy notes: 100 sank cars)
       try { world.lengthUnit = 1; } catch (e) { /* older builds */ }
-      const api = { R, world, bodies: new Map(), statics: [], foam: [], wheelRay: new R.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 }) };
+      const api = { R, world, bodies: new Map(), byCollider: new Map(), statics: [], foam: [], wheelRay: new R.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 }),
+        events: new R.EventQueue(true) };
       buildStatic(api, layout, cfg);
       return api;
     },
@@ -63,48 +64,14 @@
       }
     }
 
-    // --- hub moulding: a plus-shaped deck with lane walls, a centre island, housings
-    const armW = p + W / 2 + wallT + 0.6;                 // half width of an arm
+    // --- hub moulding (boxes shared with the renderer, see layout.hub)
+    const hub = L.hub, armW = hub.armW;
     fixedBox(api, 0, h0 / 2 - 0.01, 0, armW, h0 / 2, Lh, null, { friction: 0.3 });
     fixedBox(api, 0, h0 / 2 - 0.01, 0, Lh, h0 / 2, armW, null, { friction: 0.3 });
-    const gapHalf = W / 2 + wallT, bAt = cfg.boosterAt, fr = L.foamR;
-    // walls along a lane at lateral offset `off` from its centreline, skipping [a,b] intervals
-    const laneWalls = (ln, off, skips) => {
-      const Ln = L.lanes[ln], dir = Ln.dir, a = Ln.from;
-      const right = [-dir[2], 0, dir[0]];                   // T x U for a horizontal lane
-      let cuts = [[-Lh, Lh]];
-      for (const [s0, s1] of skips) {
-        const next = [];
-        for (const [u0, u1] of cuts) {
-          if (s1 <= u0 || s0 >= u1) { next.push([u0, u1]); continue; }
-          if (s0 > u0) next.push([u0, s0]);
-          if (s1 < u1) next.push([s1, u1]);
-        }
-        cuts = next;
-      }
-      const cx0 = a[0] + dir[0] * Lh, cz0 = a[2] + dir[2] * Lh;  // lane midpoint (hub centre line)
-      for (const [u0, u1] of cuts) {
-        if (u1 - u0 < 0.3) continue;
-        const um = (u0 + u1) / 2, half = (u1 - u0) / 2;
-        const x = cx0 + dir[0] * um + right[0] * off, z = cz0 + dir[2] * um + right[2] * off;
-        const hx = dir[0] !== 0 ? half : wallT / 2, hz = dir[2] !== 0 ? half : wallT / 2;
-        fixedBox(api, x, h0 + (wallH + 0.3) / 2 - 0.3, z, hx, (wallH + 0.3) / 2, hz, null, { friction: 0.25 });
-      }
-    };
-    // crossings are at lane coordinate +-p; boosters at +-bAt on the RIGHT (inner) wall
-    for (const ln of ['C', 'A', 'D', 'B']) {
-      const cross = [[-p - gapHalf, -p + gapHalf], [p - gapHalf, p + gapHalf]];
-      laneWalls(ln, -(W / 2 + wallT / 2), cross);                                   // left / outer wall
-      laneWalls(ln, W / 2 + wallT / 2, cross.concat([[-bAt - fr, -bAt + fr], [bAt - fr, bAt + fr]]));  // right / inner
+    for (const b of [...hub.walls, hub.island, ...hub.housings, hub.battery]) {
+      fixedBox(api, b.c[0], b.c[1], b.c[2], b.h[0], b.h[1], b.h[2], null, { friction: b.kind === 'wall' ? 0.25 : 0.4 });
     }
-    // centre island (idler housing) and the four booster housings' covers
-    const isl = p - W / 2 - wallT;
-    fixedBox(api, 0, h0 + 0.9, 0, isl, 0.9, isl, null);
-    for (const w of L.wheels) {
-      fixedBox(api, w.pos[0], h0 + 1.9, w.pos[2], w.pos[0] === 0 ? isl : fr + 0.4, 0.35, w.pos[2] === 0 ? isl : fr + 0.4, null);
-    }
-    // battery / motor box in the north-east quadrant
-    fixedBox(api, armW + 5.2, 3.6, -(armW + 5.2), 5.0, 3.6, 5.0, null, { friction: 0.4 });
+    const fr = L.foamR;
 
     // foam wheels: kinematic cylinders (axis = world Y), spun every step by the sim
     for (const w of L.wheels) {
@@ -114,25 +81,9 @@
       api.foam.push(b);
     }
 
-    // loop support posts (vertical boxes under each loop's apex) and sweep blocks
-    L.supports = [];
-    for (const name in L.lobes) {
-      const lobe = L.lobes[name];
-      const best = (lobe.s0 + lobe.s1) / 2;                  // the apex: the two halves are mirror images
-      path.frame(best, f);
-      const by = f.py;
-      if (lobe.kind === 'loop') {
-        // the post stands just outside the apex, on the side away from the hub
-        const out = V.norm({ x: f.px, y: 0, z: f.pz });
-        const bx = f.px + out.x * 2.2, bz = f.pz + out.z * 2.2, top = by + 0.8;
-        fixedBox(api, bx, top / 2, bz, 0.55, top / 2, 0.55, null);
-        L.supports.push({ lobe: name, kind: 'post', x: bx, z: bz, top, apexS: best });
-      } else {
-        // the sweep's far end rests on a stepped block
-        const lowest = by;
-        L.supports.push({ lobe: name, kind: 'block', x: f.px, z: f.pz, top: Math.max(0.2, f.py - floorT), apexS: best });
-        if (lowest - floorT > 0.3) fixedBox(api, f.px, (f.py - floorT) / 2, f.pz, 1.6, (f.py - floorT) / 2, 1.6, null);
-      }
+    // loop support towers and sweep blocks (layout.supports)
+    for (const sp of L.supports) {
+      if (sp.top > 0.2) fixedBox(api, sp.x, sp.top / 2, sp.z, sp.half, sp.top / 2, sp.half, null, { friction: 0.4 });
     }
   }
 
@@ -151,6 +102,10 @@
         { x: 0, y: 0, z: 0, w: 1 })
       .setCollisionGroups(0);
     const colliders = [api.world.createCollider(box, body)];
+    // report hard contacts (floor, track, other cars) so the audio can clatter
+    colliders[0].setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS);
+    colliders[0].setContactForceEventThreshold(car.m * HW.units.G * 6);
+    api.byCollider.set(colliders[0].handle, car);
     const rw = e.wheelRadiusCm, tx = e.trackCm / 2, wz = e.wheelbaseCm / 2;
     const wheels = [];
     for (const [x, z] of [[-tx, -wz], [tx, -wz], [-tx, wz], [tx, wz]]) {
@@ -225,6 +180,18 @@
       b.applyImpulseAtPoint({ x: right.x * j, y: right.y * j, z: right.z * j }, { x: t.x + wp.x, y: t.y + wp.y, z: t.z + wp.z }, true);
     }
     return touching;
+  };
+
+  // step the world and report contact-force events as { car, force } (force in dyne)
+  HW.freebody.stepWorld = function (api, dt) {
+    api.world.timestep = dt;
+    api.world.step(api.events);
+    const out = [];
+    api.events.drainContactForceEvents((ev) => {
+      const car = api.byCollider.get(ev.collider1()) || api.byCollider.get(ev.collider2());
+      if (car) out.push({ car, force: ev.totalForceMagnitude() });
+    });
+    return out;
   };
 
   HW.freebody.spinFoam = function (api, omegaW) {

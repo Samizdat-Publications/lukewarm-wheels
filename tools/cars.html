@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Car turntable - Criss Cross Crash 5-Pack</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; height: 100%; background: #1d1611; overflow: hidden; font: 13px/1.35 system-ui, sans-serif; color: #f3e9dc; }
+  canvas#view { display: block; width: 100%; height: 100%; }
+  #hud { position: fixed; left: 12px; top: 10px; pointer-events: none; text-shadow: 0 1px 2px #000; }
+  #hud b { font-size: 15px; }
+  #keys { position: fixed; left: 12px; bottom: 10px; opacity: 0.7; pointer-events: none; text-shadow: 0 1px 2px #000; }
+  #thumbs { position: fixed; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; }
+  #thumbs canvas { width: 128px; height: 64px; background: rgba(255,255,255,0.06); border-radius: 6px; cursor: pointer; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+} }
+</script>
+<script src="../src/00-core.js"></script>
+<script src="../src/20-catalog.js"></script>
+<script src="../src/53-car-models.js"></script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="hud"></div>
+<div id="thumbs"></div>
+<div id="keys">drag: orbit &middot; wheel: zoom &middot; 1-5: close-up &middot; 0: all &middot; space: pause turntable &middot; w: spin wheels &middot; b: wheel blur speed &middot; u: underside</div>
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+  import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+  window.THREE = THREE;
+  window.THREEX = { RoundedBoxGeometry };
+
+  // URL: ?car=2&close=1  one car close up  | &view=side|front|rear|top|under|q34
+  //      &rot=deg (fixed turntable angle)  | &spin=radPerSec  | &quality=low
+  const Q = new URLSearchParams(location.search);
+  const state = {
+    close: Q.get('close') === '1', car: Math.max(1, Math.min(5, +(Q.get('car') || 1))),
+    paused: Q.has('rot'), rot: THREE.MathUtils.degToRad(+(Q.get('rot') || 0)),
+    spin: +(Q.get('spin') || 0), view: Q.get('view') || 'q34', quality: Q.get('quality') || 'high',
+  };
+
+  const canvas = document.getElementById('view');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 0.95;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x2a2018);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.6;
+
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 2000);
+  const controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+
+  // key light: warm, upper left, soft shadows
+  const key = new THREE.DirectionalLight(0xffe3c4, 2.5);
+  key.position.set(-40, 60, 25);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  const sc = key.shadow.camera; sc.left = -30; sc.right = 30; sc.top = 30; sc.bottom = -30; sc.near = 1; sc.far = 200;
+  key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02; key.shadow.radius = 4;
+  scene.add(key);
+  scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x6b4a2f, 0.55));
+
+  // warm wooden floor (procedural planks)
+  function woodTexture() {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+    const g = c.getContext('2d'); const rnd = HW.rng(7);
+    for (let p = 0; p < 8; p++) {
+      const y = p * 64, base = 150 + rnd() * 40;
+      g.fillStyle = `rgb(${base}, ${base * 0.62 | 0}, ${base * 0.36 | 0})`; g.fillRect(0, y, 512, 64);
+      for (let k = 0; k < 90; k++) {
+        const yy = y + rnd() * 64, a = 0.05 + rnd() * 0.08;
+        g.strokeStyle = rnd() < 0.5 ? `rgba(60,30,10,${a})` : `rgba(255,220,170,${a * 0.6})`;
+        g.lineWidth = 0.5 + rnd() * 1.5; g.beginPath(); g.moveTo(0, yy);
+        g.bezierCurveTo(170, yy + rnd() * 6 - 3, 340, yy + rnd() * 6 - 3, 512, yy + rnd() * 4 - 2); g.stroke();
+      }
+      g.fillStyle = 'rgba(30,15,5,0.55)'; g.fillRect(0, y, 512, 2);
+      g.fillRect((rnd() * 512) | 0, y, 2, 64);
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return t;
+  }
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(240, 240),
+    new THREE.MeshStandardMaterial({ map: woodTexture(), roughness: 0.62, metalness: 0 }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+  // turntable disc
+  const table = new THREE.Group(); scene.add(table);
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.3, 96),
+    new THREE.MeshPhysicalMaterial({ color: 0x1b1c20, roughness: 0.35, metalness: 0.2, clearcoat: 0.6, clearcoatRoughness: 0.2 }));
+  disc.position.y = 0.15; disc.receiveShadow = true; disc.castShadow = true; table.add(disc);
+
+  const cars = [];
+  function layout() {
+    for (const c of cars) table.remove(c);
+    cars.length = 0;
+    const list = state.close ? [HW.catalog[state.car - 1]] : HW.catalog;
+    const R = state.close ? 6 : 13;
+    disc.scale.set(R, 1, R);
+    list.forEach((entry, i) => {
+      const g = HW.carModels.build(entry, { quality: state.quality });
+      if (state.close) g.position.set(0, 0.3, 0);
+      else { const a = (i / list.length) * Math.PI * 2 + Math.PI / 2; g.position.set(Math.cos(a) * 7.5, 0.3, Math.sin(a) * 7.5); g.rotation.y = -a + Math.PI / 2; }
+      table.add(g); cars.push(g);
+    });
+    let tris = 0; cars[0].traverse((o) => { if (o.isMesh) { const gg = o.geometry; tris += (gg.index ? gg.index.count : gg.attributes.position.count) / 3; } });
+    const e = list[0];
+    document.getElementById('hud').innerHTML = state.close
+      ? `<b>${e.name}</b><br>${e.livery.tampo}<br>${e.wheelCode} wheels &middot; ${e.tint} glass &middot; ${e.interior} interior &middot; base: ${e.base}<br>${tris | 0} triangles (${state.quality})`
+      : `<b>Criss Cross Crash 5-Pack (1999, #21081)</b><br>${cars.length} cars &middot; ${state.quality} &middot; first car ${tris | 0} tris`;
+    setView(state.view);
+  }
+
+  function setView(v) {
+    state.view = v;
+    const d = state.close ? 11 : 30, t = new THREE.Vector3(0, state.close ? 1.0 : 0.8, 0);
+    const P = { side: [-d, 1.2, 0], front: [0, 2.0, -d], rear: [0, 2.2, d], top: [0, d * 1.2, 0.01], under: [0.01, -d, 0.01],
+                q34: [-d * 0.72, d * 0.32, -d * 0.62], low: [-d * 0.8, 0.9, -d * 0.45] }[v] || [-d * 0.72, d * 0.32, -d * 0.62];
+    camera.position.set(P[0], P[1] + t.y, P[2]); controls.target.copy(t); controls.update();
+    floor.visible = v !== 'under'; disc.visible = v !== 'under';
+  }
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize); resize();
+
+  window.addEventListener('keydown', (ev) => {
+    if (ev.key >= '1' && ev.key <= '5') { state.close = true; state.car = +ev.key; layout(); }
+    else if (ev.key === '0') { state.close = false; layout(); }
+    else if (ev.key === ' ') state.paused = !state.paused;
+    else if (ev.key === 'w') state.spin = state.spin ? 0 : 6;
+    else if (ev.key === 'b') state.spin = state.spin > 100 ? 0 : 800;
+    else if (ev.key === 'u') setView(state.view === 'under' ? 'q34' : 'under');
+  });
+
+  // roster thumbnails
+  const th = document.getElementById('thumbs');
+  HW.catalog.forEach((e, i) => {
+    const c = HW.carModels.thumbnail(e); c.title = e.name;
+    c.onclick = () => { state.close = true; state.car = i + 1; layout(); };
+    th.appendChild(c);
+  });
+
+  let spinAngle = 0, last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!state.paused) state.rot += dt * 0.25;
+    table.rotation.y = state.rot;
+    spinAngle += state.spin * dt;
+    for (const c of cars) HW.carModels.setWheelSpin(c, spinAngle, state.spin);
+    controls.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  layout();
+  requestAnimationFrame(frame);
+
+  // Screenshot helper: await __cars.shot('cars-x.png', 1600, 900) -> docs/screenshots/
+  window.__cars = {
+    THREE, renderer, scene, camera, controls, state, layout, setView, cars,
+    async shot(name, w = 1600, h = 900) {
+      renderer.setPixelRatio(1); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+      renderer.render(scene, camera);
+      const gl = renderer.getContext(), W = gl.drawingBufferWidth, H = gl.drawingBufferHeight, px = new Uint8Array(W * H * 4);
+      gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const ctx = cv.getContext('2d'), img = ctx.createImageData(W, H);
+      for (let y = 0; y < H; y++) img.data.set(px.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+      ctx.putImageData(img, 0, 0);
+      const r = await fetch('/__shot?name=' + encodeURIComponent(name), { method: 'POST', body: cv.toDataURL('image/png') });
+      resize();
+      return r.text();
+    },
+  };
+</script>
+</body>
+</html>

@@ -56,6 +56,11 @@
       return s.E + 2 * s.J + (s.ymin < floorY ? (floorY - s.ymin) ** 2 * 100 : 0);
     };
     const d0 = Math.hypot(X[0] - A[0], X[1] - A[1], X[2] - A[2]);
+    // a solved result stored with the geometry (tools/simtest.mjs solve) skips the search
+    if (g.q && g.q.length === 4 && !seed) {
+      const st = stats(g.q, 600);
+      return { A, X, q: g.q, ctrl: ctrlOf(g.q[0], g.q[1], g.q[2], g.q[3]), minR: 1 / st.kmax, len: st.L, ymin: st.ymin };
+    }
     const starts = seed ? [seed] : [[d0, d0, 0, 0], [1.5 * d0, 1.2 * d0, 0, 0], [0.8 * d0, 1.5 * d0, 10, -10], [2 * d0, 0.7 * d0, -20, 20]];
     let best = null;
     for (const s0 of starts) {
@@ -103,12 +108,81 @@
     ];
   }
 
+  // ---------------------------------------------------------- hub moulding
+  // Axis-aligned boxes {c:[x,y,z], h:[hx,hy,hz], kind}. The lanes run on the deck top
+  // (y = deckH). Each lane has an outer (left) wall and an inner (right) wall; walls stop
+  // at the # crossings (the crossing lane passes through) and the inner wall opens where
+  // the foam wheel reaches into the lane.
+  function buildHub(cfg, lanes, wheels, foamR) {
+    const p = cfg.hubLane, Lh = cfg.hubHalf, h0 = cfg.deckH, W = cfg.laneW, wt = cfg.wallT, wh = cfg.wallH;
+    const armW = p + W / 2 + wt + 0.6;
+    const gapHalf = W / 2 + wt, bAt = cfg.boosterAt;
+    const walls = [];
+    const laneWalls = (L, off, skips) => {
+      const dir = L.dir, right = [-dir[2], 0, dir[0]];
+      const mid = [(L.from[0] + L.to[0]) / 2, 0, (L.from[2] + L.to[2]) / 2];
+      let cuts = [[-Lh, Lh]];
+      for (const [s0, s1] of skips) {
+        const next = [];
+        for (const [u0, u1] of cuts) {
+          if (s1 <= u0 || s0 >= u1) { next.push([u0, u1]); continue; }
+          if (s0 > u0) next.push([u0, s0]);
+          if (s1 < u1) next.push([s1, u1]);
+        }
+        cuts = next;
+      }
+      for (const [u0, u1] of cuts) {
+        if (u1 - u0 < 0.3) continue;
+        const um = (u0 + u1) / 2, half = (u1 - u0) / 2;
+        const x = mid[0] + dir[0] * um + right[0] * off, z = mid[2] + dir[2] * um + right[2] * off;
+        walls.push({ c: [x, h0 + wh / 2, z], h: [dir[0] !== 0 ? half : wt / 2, wh / 2, dir[2] !== 0 ? half : wt / 2], kind: 'wall', lane: L.name });
+      }
+    };
+    for (const k of ['C', 'A', 'D', 'B']) {
+      const cross = [[-p - gapHalf, -p + gapHalf], [p - gapHalf, p + gapHalf]];
+      laneWalls(lanes[k], -(W / 2 + wt / 2), cross);
+      laneWalls(lanes[k], W / 2 + wt / 2, cross.concat([[-bAt - foamR, -bAt + foamR], [bAt - foamR, bAt + foamR]]));
+    }
+    const isl = p - W / 2 - wt;                                  // half-width of the strip between an arm's lanes
+    const island = { c: [0, h0 + 0.9, 0], h: [isl, 0.9, isl], kind: 'island' };
+    const housings = [];                                         // the booster wheels sit open, as on the real hub
+    // battery box + motor in the north-east corner between the N and E arms
+    const bx = (armW + Lh) / 2 + 0.1, bh = (Lh - armW) / 2 - 0.35;
+    const battery = { c: [bx, 3.4, -bx], h: [bh, 3.4, bh], kind: 'battery' };
+    return { armW, deckH: h0, isl, walls, island, housings, battery, foamR, wheelTop: h0 + 1.35 };
+  }
+
+  // ---------------------------------------------------------- supports
+  // Each loop hangs from a TRACK SUPPORT tower at its apex (instruction sheet, step 2): a
+  // post from the floor to the lowest corner of the channel there, with a clip. Each sweep's
+  // far end rests on a low stepped block. Shared by the renderer and the Rapier colliders.
+  function computeSupports(L, cfg) {
+    const path = L.path, f = {}, out = [];
+    const a = cfg.laneW / 2 + cfg.wallT, wh = cfg.wallH, ft = cfg.floorT;
+    for (const name in L.lobes) {
+      const lobe = L.lobes[name];
+      const s = (lobe.s0 + lobe.s1) / 2;
+      path.frame(s, f);
+      // the four outer corners of the channel's cross-section at the apex
+      const corners = [[-a, -ft], [a, -ft], [-a, wh], [a, wh]].map(([r, u]) => [f.px + f.rx * r + f.ux * u, f.py + f.ry * r + f.uy * u, f.pz + f.rz * r + f.uz * u]);
+      corners.sort((p, q) => p[1] - q[1]);
+      const low = corners[0];
+      if (lobe.kind === 'loop') {
+        out.push({ lobe: name, kind: 'post', x: low[0], z: low[2], top: low[1], s, half: 0.6 });
+      } else {
+        out.push({ lobe: name, kind: 'block', x: f.px, z: f.pz, top: Math.max(0.15, low[1]), s, half: 1.7 });
+      }
+    }
+    return out;
+  }
+
   // ---------------------------------------------------------- build
   HW.layout = {
     cache: {},
     build(cfg = HW.config) {
       const p = cfg.hubLane, Lh = cfg.hubHalf, h0 = cfg.deckH, W = cfg.laneW;
       const key = (g) => JSON.stringify([g, p, Lh, h0]);
+      this.solveHalf = (g) => solveHalf(g, p, Lh, h0, null);
       const solve = (g) => {
         const k = key(g);
         if (!this.cache[k]) this.cache[k] = solveHalf(g, p, Lh, h0, g.seed || null);
@@ -225,8 +299,11 @@
       // START HERE: lane C, south arm, just before the S booster (instruction sheet)
       const startS = boosters.find((b) => b.lane === 'C' && b.wheel === 'S').s - 4.2;
 
+      // ---- the hub moulding, as boxes shared by the renderer and the Rapier colliders
+      const hub = buildHub(cfg, lanes, wheels, foamR);
+
       const layout = {
-        path, lanes, laneS, lobes, boosters, wheels, crossings, gaps, joints, startS, foamR,
+        path, lanes, laneS, lobes, boosters, wheels, crossings, gaps, joints, startS, foamR, hub,
         halves: { loop: hl, sweep: hs },
         dims: { p, Lh, h0, W, wallT: cfg.wallT, wallH: cfg.wallH, floorT: cfg.floorT },
         stats: {
@@ -236,6 +313,7 @@
           footprint: 0,
         },
       };
+      layout.supports = computeSupports(layout, cfg);
       let ext = 0; for (let i = 0; i < path.N; i++) ext = Math.max(ext, Math.abs(path.P.x[i]), Math.abs(path.P.z[i]));
       layout.stats.footprint = 2 * (ext + W / 2 + cfg.wallT);
       return layout;

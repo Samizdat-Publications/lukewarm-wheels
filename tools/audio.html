@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audio Audition</title>
+<style>
+  :root { --bg: #131519; --panel: #1b1e24; --line: #2a2f38; --text: #e7e9ec; --dim: #97a0ab; --accent: #ff6a1a; --ok: #56c26a; --warn: #e6b23a; --bad: #e5534b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  h1 { font-size: 15px; margin: 0; font-weight: 650; }
+  h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin: 0 0 10px; font-weight: 600; }
+  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 12px; padding: 12px 16px 48px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+  section.wide { grid-column: 1 / -1; }
+  button { background: #262b33; color: var(--text); border: 1px solid #373e49; border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #140a02; font-weight: 650; }
+  button:disabled { opacity: .4; cursor: default; }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .dim { color: var(--dim); }
+  a { color: var(--accent); }
+  label.row { display: grid; grid-template-columns: 100px 1fr 64px; gap: 8px; align-items: center; margin: 4px 0; color: var(--dim); font-size: 13px; }
+  label.row output { color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+  label.chk { display: flex; gap: 6px; align-items: center; color: var(--dim); font-size: 13px; margin: 6px 0; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  select { background: #0f1114; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; font: inherit; }
+  .meter { display: grid; grid-template-columns: 64px 1fr 72px; gap: 8px; align-items: center; margin: 5px 0; font-size: 13px; color: var(--dim); }
+  .meter span:last-child { color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { height: 8px; background: #0d0f12; border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--ok); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 8px; }
+  td { padding: 3px 4px; border-bottom: 1px solid var(--line); }
+  td:first-child { color: var(--dim); }
+  td:last-child { text-align: right; }
+  .params { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 14px; }
+  .params label { display: flex; justify-content: space-between; align-items: center; gap: 6px; color: var(--dim); font-size: 12px; }
+  .params input { width: 72px; background: #0f1114; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; font: 12px ui-monospace, Consolas, monospace; }
+  #status { font-size: 13px; }
+  @media (max-width: 520px) { label.row { grid-template-columns: 84px 1fr 56px; } }
+</style>
+<script>
+  // Test hook: count AudioContext constructions. 60-audio.js must make none before the click.
+  window.__acCount = 0;
+  (function () {
+    var AC = window.AudioContext;
+    if (!AC || typeof Proxy === 'undefined') return;
+    window.AudioContext = new Proxy(AC, { construct: function (t, a) { window.__acCount++; return Reflect.construct(t, a); } });
+  })();
+</script>
+</head>
+<body>
+<header>
+  <h1>Criss Cross Crash: audio audition</h1>
+  <button id="start" class="primary">Start audio</button>
+  <label class="chk"><input type="checkbox" id="enabled" checked> enabled</label>
+  <label class="chk">volume <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8" style="width:120px"></label>
+  <span id="status" class="dim">No AudioContext yet: it is created on the first click.</span>
+  <a id="abLink" href="?nosamples">synth only (no samples)</a>
+</header>
+<main>
+  <section>
+    <h2>Output</h2>
+    <div class="meter"><span>peak</span><div class="bar"><i id="barPeak"></i></div><span id="vPeak">-</span></div>
+    <div class="meter"><span>RMS</span><div class="bar"><i id="barRms"></i></div><span id="vRms">-</span></div>
+    <div class="meter"><span>limiter</span><div class="bar"><i id="barRed"></i></div><span id="vRed">-</span></div>
+    <table id="info"></table>
+  </section>
+  <section>
+    <h2>Motor</h2>
+    <div class="btns"><button data-ev="switchOn">Switch on</button><button data-ev="switchOff">Switch off</button></div>
+    <label class="chk"><input type="checkbox" id="mManual"> drive from the sliders (otherwise a DC-motor model)</label>
+    <label class="row">rpm <input type="range" id="mRpm" min="0" max="17000" step="50" value="16000"><output></output></label>
+    <label class="row">current A <input type="range" id="mI" min="0" max="7" step="0.05" value="0.2"><output></output></label>
+    <p class="dim" id="motorInfo"></p>
+  </section>
+  <section>
+    <h2>Test car (when no race is running)</h2>
+    <label class="row">mode <select id="cMode"><option>parked</option><option selected>track</option><option>free</option></select><output></output></label>
+    <label class="row">speed cm/s <input type="range" id="cSpeed" min="0" max="600" step="5" value="0"><output></output></label>
+    <label class="row">floor load g <input type="range" id="cNf" min="0" max="13" step="0.1" value="1"><output></output></label>
+    <label class="row">wall load g <input type="range" id="cNw" min="0" max="8" step="0.1" value="0"><output></output></label>
+    <label class="row">x position cm <input type="range" id="cX" min="-40" max="40" step="1" value="10"><output></output></label>
+    <label class="chk"><input type="checkbox" id="cAir"> airborne (rolling stops)</label>
+    <p class="dim">"free" puts the car on the floor: a derailed car sliding on wood.</p>
+  </section>
+  <section>
+    <h2>Listener</h2>
+    <label class="row">distance cm <input type="range" id="lDist" min="10" max="200" step="1" value="60"><output></output></label>
+    <label class="row">orbit deg <input type="range" id="lAz" min="-180" max="180" step="1" value="0"><output></output></label>
+    <label class="row">elevation deg <input type="range" id="lEl" min="5" max="85" step="1" value="35"><output></output></label>
+    <label class="chk"><input type="checkbox" id="lOnboard"> onboard: ride car 1 during the race</label>
+  </section>
+  <section>
+    <h2>Events (HW.bus)</h2>
+    <div class="btns">
+      <button data-ev="nip">nip</button><button data-ev="nipSlow">nip, slow car</button>
+      <button data-ev="wallSoft">wall soft</button><button data-ev="wallHard">wall hard</button>
+      <button data-ev="joint">joint</button><button data-ev="land">land</button><button data-ev="bump">bump</button>
+      <button data-ev="crashSoft">crash 140</button><button data-ev="crashMed">crash 350</button><button data-ev="crashHard">crash 750</button>
+      <button data-ev="impactSoft">impact floor soft</button><button data-ev="impactHard">impact floor hard</button><button data-ev="impactTrack">impact track</button>
+      <button data-ev="derailLift">derail lift</button><button data-ev="derailDrift">derail drift</button><button data-ev="recapture">recapture</button>
+      <button data-ev="retrieve">retrieve</button><button data-ev="dropped">dropped</button><button data-ev="lap">lap</button>
+      <button data-ev="nudge">nudge</button><button data-ev="stall">stall (silent)</button>
+    </div>
+  </section>
+  <section>
+    <h2>Race</h2>
+    <div class="btns"><button id="race" class="primary">Simulate a race (30 s)</button><button id="stopRace">Stop</button><button id="levels">Measure levels</button></div>
+    <p class="dim">Five fake cars on a cloverleaf: 8 nips and 16 joints a lap, loops, scraping sweeps, bumps, crashes every few seconds, tumbles, the hand.</p>
+    <table id="raceTable"></table>
+  </section>
+  <section class="wide">
+    <h2>HW.audio.params (live; panner distances apply to new sounds)</h2>
+    <div class="params" id="params"></div>
+  </section>
+</main>
+<script src="../src/00-core.js"></script>
+<script src="../src/60-audio.js"></script>
+<script src="../src/61-audio-assets.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const A = HW.audio, P = A.params, G = 981;
+  const rr = (a, b) => a + (b - a) * Math.random();
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const db = (x) => (x > 1e-6 ? 20 * Math.log10(x) : -120);
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const nosamples = /[?&]nosamples\b/.test(location.search);
+  if (nosamples) { delete HW.audioAssets; $('abLink').href = '?'; $('abLink').textContent = 'with samples'; }
+
+  for (const el of document.querySelectorAll('label.row input')) {
+    const out = el.parentElement.querySelector('output'), show = () => { out.textContent = el.value; };
+    el.addEventListener('input', show); show();
+  }
+  const setv = (id, v) => { const el = $(id); if (el.type === 'checkbox') el.checked = !!v; else el.value = v; el.dispatchEvent(new Event('input')); };
+
+  // ------------------------------------------------------------ DC motor model (constants as in 10-config.js)
+  const MC = { V0: 6.3, R: 1.12, K: 0.0036, J: 1.3e-6, fric: 0.0006, gear: 10.3, foamR: 2.0 };
+  const M = { on: false, w: 0, I: 0, pulses: [] };
+  function motorStep(dt, now) {
+    let tau = 0;
+    M.pulses = M.pulses.filter((p) => p.until > now);
+    for (const p of M.pulses) tau += p.tau;
+    for (let i = 0, h = dt / 4; i < 4; i++) {
+      M.I = M.on ? (MC.V0 - MC.K * M.w) / MC.R : 0;
+      M.w = Math.max(0, M.w + (MC.K * M.I - tau - (M.w > 1 ? MC.fric : 0) - 1e-7 * M.w) / MC.J * h);
+    }
+  }
+  function telemetry() {
+    const man = $('mManual').checked, rpm = man ? +$('mRpm').value : M.w * 30 / Math.PI, I = man ? +$('mI').value : M.I;
+    return { on: man ? rpm > 0 : M.on, V: MC.V0 - I * 0.32, I, rpmMotor: rpm, rpmWheel: rpm / MC.gear, foamSpeed: rpm * Math.PI / 30 / MC.gear * MC.foamR, loadNm: 0 };
+  }
+
+  // ------------------------------------------------------------ fake cars on a cloverleaf around the hub
+  const L = 360, START_S = 1;
+  const WHEELS = { N: [0, 4.5, -7.7], E: [7.7, 4.5, 0], S: [0, 4.5, 7.7], W: [-7.7, 4.5, 0] };
+  function mkCar(id, m, wb, r) {
+    return {
+      id, m, entry: { wheelRadiusCm: r, wheelbaseCm: wb }, mode: 'parked', s: 0, v: 0, vEntry: 0, lapT: 0, sc: null,
+      pos: { x: 0, y: -1000, z: 0 }, vel: { x: 0, y: 0, z: 0 }, Nf: 0, Nw: 0, inNip: null, airborne: false,
+      get speed() { return this.mode === 'track' ? Math.abs(this.v) : Math.hypot(this.vel.x, this.vel.y, this.vel.z); },
+    };
+  }
+  const cars = [[44, 4.6, 0.5], [37, 4.9, 0.5], [39, 4.7, 0.5], [42, 4.8, 0.55], [46, 5.0, 0.5]].map((a, i) => mkCar(i + 1, a[0], a[1], a[2]));
+  const testCar = mkCar(9, 40, 4.8, 0.5);
+  const lobe = (s) => { const q = (((s % L) + L) % L) / (L / 4), k = Math.floor(q) % 4, u = q - Math.floor(q); return { k, u, apex: Math.pow(Math.sin(Math.PI * u), 2), loop: k < 2 }; };
+  function pathPos(s, out) {         // lobes 0,1 are tall loops (north), 2,3 low sweeps (south)
+    const f = lobe(s), th = Math.PI / 4 + f.k * Math.PI / 2 + (f.u - 0.5) * 1.3, r = 4 + 28 * Math.sin(Math.PI * f.u);
+    out.x = r * Math.cos(th); out.z = -r * Math.sin(th); out.y = 4.5 * (1 - f.apex) + (f.loop ? 26 : 1.5) * f.apex;
+    return out;
+  }
+  const JOINTS = [], NIPS = [];
+  for (let k = 0; k < 4; k++) {
+    for (const u of [0.14, 0.38, 0.62, 0.86]) JOINTS.push((k + u) * L / 4);
+    NIPS.push({ s: (k + 0.03) * L / 4, wheel: 'NESW'[k] }, { s: (k + 0.97) * L / 4, wheel: 'NESW'[(k + 1) % 4] });
+  }
+
+  // ------------------------------------------------------------ the race
+  const R = { running: false, on: false, end: 0, parkAt: 0, next: 0, nextLift: 0, pending: [], st: null };
+  let simTime = 0;
+  function emit(type, data, t) {
+    data.t = t; HW.bus.emit(type, data);
+    if (R.st) { R.st.events++; R.st.types[type] = (R.st.types[type] || 0) + 1; }
+  }
+  const later = (t, type, data) => R.pending.push({ t, type, data });
+  function trackStep(c, dt, t0, tel) {
+    const s0 = c.s, f0 = lobe(s0);
+    c.vEntry = Math.max(0, c.vEntry - (tel.on ? 22 : 160) * dt);
+    c.v = c.vEntry * (f0.loop ? 1 - 0.38 * f0.apex : 1 - 0.1 * f0.apex);
+    const s1 = s0 + c.v * dt, span = s1 - s0 || 1e-9, at = (m) => t0 + dt * clamp((m - s0) / span, 0, 1);
+    for (const m of JOINTS) for (const mm of [m, m + L]) if (s0 < mm && mm <= s1) {
+      const t = at(mm); emit('joint', { car: c, speed: c.v }, t);
+      if (Math.random() < 0.03) later(t + 0.03, 'land', { car: c, speed: rr(10, 45) });
+    }
+    for (const n of NIPS) for (const mm of [n.s, n.s + L]) if (s0 < mm && mm <= s1) {
+      const t = at(mm), slip = clamp((tel.foamSpeed - c.v) / 200, 0, 1);
+      emit('nip', { car: c, booster: { wheel: n.wheel, lane: 'C', wheelPos: WHEELS[n.wheel] } }, t);
+      if (tel.foamSpeed > c.vEntry) c.vEntry = tel.foamSpeed * rr(0.93, 0.98);
+      M.pulses.push({ until: t + 0.012 + 0.1 * slip, tau: 0.02 * slip });
+      later(t + rr(0.02, 0.04), 'wall', { car: c, speed: rr(15, 70), side: -1 });
+    }
+    if (s1 >= L) { const t = at(L); c.s = s1 - L; emit('lap', { car: c, time: t - c.lapT }, t); c.lapT = t; } else c.s = s1;
+    const f = lobe(c.s), W = c.m * G;
+    c.Nf = W * (f.loop ? 1 + 12 * Math.sin(Math.PI * f.apex) : 1 + 1.2 * f.apex);
+    c.Nw = f.loop ? 0 : W * 3.5 * f.apex * f.apex;
+    if (!f.loop && Math.random() < dt * 6 * f.apex) emit('wall', { car: c, speed: rr(8, 50), side: 1 }, t0 + dt * Math.random());
+    const p = pathPos(c.s, {});
+    c.vel = { x: (p.x - c.pos.x) / dt, y: (p.y - c.pos.y) / dt, z: (p.z - c.pos.z) / dt }; c.pos = p;
+  }
+  const surfaceY = (p) => (Math.hypot(p.x, p.z) < 12 ? 4.5 : 0.4);     // hub deck, else the wooden floor
+  function derail(c, t, cause, vel) {
+    c.mode = 'free'; c.Nf = 0; c.Nw = 0; c.vel = vel; c.pos = { x: c.pos.x, y: c.pos.y, z: c.pos.z };
+    c.sc = { ph: 'fly', n: 0, rest: 0, recap: cause === 'hit' && Math.random() < 0.2 };
+    emit('derail', { car: c, cause }, t);
+  }
+  function scriptStep(c, dt, t0) {
+    const sc = c.sc, t = t0 + dt;
+    if (sc.ph === 'wait') { if (t >= sc.t) c.sc = { ph: 'carry', t, from: { x: -6, y: 45, z: 55 } }; }
+    else if (sc.ph === 'fly') {
+      c.vel.y -= G * dt; c.pos.x += c.vel.x * dt; c.pos.y += c.vel.y * dt; c.pos.z += c.vel.z * dt;
+      const floor = surfaceY(c.pos);
+      if (c.pos.y <= floor && c.vel.y < 0) {
+        const vy = -c.vel.y;
+        c.pos.y = floor; sc.n++;
+        emit('impact', { car: c, force: c.m * vy * 1.35 * 480, pos: { x: c.pos.x, y: c.pos.y, z: c.pos.z } }, t);
+        c.vel.y = vy * 0.35; c.vel.x *= 0.55; c.vel.z *= 0.55;
+        if (sc.recap && sc.n >= 2 && floor > 1) {
+          c.sc = null; c.mode = 'track'; c.s = (Math.floor(rr(0, 4)) * L / 4 + 0.5) % L; c.vEntry = c.v = 150; c.pos = pathPos(c.s, {});
+          emit('recapture', { car: c }, t); return;
+        }
+        if (vy < 30) { sc.ph = 'rest'; sc.rest = t; c.vel = { x: 0, y: 0, z: 0 }; }
+      }
+    } else if (sc.ph === 'rest') {
+      if (t - sc.rest > 0.8) { emit('retrieve', { car: c }, t); c.mode = 'retrieving'; c.sc = { ph: 'carry', t, from: { x: c.pos.x, y: c.pos.y, z: c.pos.z } }; }
+    } else if (sc.ph === 'carry') {
+      const k = clamp((t - sc.t) / 1.1, 0, 1), e = k * k * (3 - 2 * k), to = pathPos(START_S, {});
+      c.pos = { x: sc.from.x + (to.x - sc.from.x) * e, y: sc.from.y + (to.y - sc.from.y) * e + 14 * Math.sin(Math.PI * k), z: sc.from.z + (to.z - sc.from.z) * e };
+      if (k >= 1) { c.sc = null; c.mode = 'track'; c.s = START_S; c.vEntry = c.v = 70; c.pos = to; emit('dropped', { car: c }, t); }
+    }
+  }
+  function crash(t) {
+    const on = cars.filter((c) => c.mode === 'track' && c.v > 80);
+    if (on.length < 2) return;
+    const a = on.splice((Math.random() * on.length) | 0, 1)[0], b = on[(Math.random() * on.length) | 0];
+    const sp = Math.random() < 0.3 ? rr(90, 260) : rr(260, 750), pos = { x: rr(-3, 3), y: 4.6, z: rr(-3, 3) };
+    emit('crash', { a, b, pos, speed: sp, impulse: 40 * sp * 0.7 }, t);
+    for (const c of [a, b]) {
+      const dir = Math.random() * Math.PI * 2, hs = Math.min(260, sp * rr(0.3, 0.6));
+      c.pos = { x: pos.x + rr(-1, 1), y: pos.y, z: pos.z + rr(-1, 1) };
+      derail(c, t, 'hit', { x: Math.cos(dir) * hs, y: rr(40, 40 + sp * 0.25), z: Math.sin(dir) * hs });
+    }
+  }
+  function lift(t) {                   // a slow car falls off the top of a loop
+    const c = cars.find((x) => x.mode === 'track' && lobe(x.s).loop && lobe(x.s).apex > 0.7);
+    if (!c) { R.nextLift = t + 1; return; }
+    derail(c, t, 'lift', { x: rr(-40, 40), y: rr(-10, 20), z: rr(-40, 40) });
+  }
+  function bumps(t) {
+    const on = cars.filter((c) => c.mode === 'track');
+    for (const a of on) for (const b of on) {
+      if (a === b) continue;
+      const ds = (((b.s - a.s) % L) + L) % L;
+      if (ds > 0 && ds < 6.5 && a.v > b.v + 25) {
+        const dv = a.v - b.v;
+        emit('bump', { a, b, speed: dv, pos: { x: (a.pos.x + b.pos.x) / 2, y: (a.pos.y + b.pos.y) / 2, z: (a.pos.z + b.pos.z) / 2 } }, t);
+        a.vEntry = Math.max(0, a.vEntry - dv * 0.6); b.vEntry += dv * 0.5;
+      }
+    }
+  }
+  function park(c) { c.mode = 'parked'; c.sc = null; c.pos = { x: 0, y: -1000, z: 0 }; c.vEntry = c.v = 0; }
+  function raceStep(dt) {
+    const t0 = simTime, t1 = simTime + dt, tel = telemetry();
+    R.pending.sort((a, b) => a.t - b.t);
+    while (R.pending.length && R.pending[0].t <= t1) { const p = R.pending.shift(); emit(p.type, p.data, Math.max(p.t, t0)); }
+    for (const c of cars) { if (c.mode === 'track') trackStep(c, dt, t0, tel); else if (c.sc) scriptStep(c, dt, t0); }
+    bumps(t1);
+    if (R.on && t1 >= R.next) { R.next = t1 + rr(2.5, 6); crash(t1); }
+    if (R.on && t1 >= R.nextLift) { R.nextLift = t1 + rr(8, 16); lift(t1); }
+    if (R.on && t1 >= R.end) { R.on = false; M.on = false; HW.bus.emit('switch', false); R.parkAt = t1 + 3.5; }
+    if (!R.on && R.parkAt && t1 >= R.parkAt) { R.parkAt = 0; cars.forEach(park); R.running = false; if (R.st) R.st.t1 = performance.now(); }
+  }
+  function startRace(sec) {
+    if (!A.ready) return false;
+    stopRace();
+    Object.assign(R, { running: true, on: true, end: simTime + (sec || 30), parkAt: 0, next: simTime + rr(2, 4), nextLift: simTime + rr(6, 10), pending: [] });
+    R.st = { t0: performance.now(), events: 0, types: {}, peak: 0, prePeak: 0, ss: 0, n: 0, maxVoices: 0, voiceSum: 0, maxRed: 0, clipped: 0 };
+    setv('mManual', false);
+    M.on = true; HW.bus.emit('switch', true);
+    cars.forEach((c, i) => { park(c); c.mode = 'retrieving'; c.pos = { x: -6, y: 45, z: 55 }; c.lapT = simTime; c.sc = { ph: 'wait', t: simTime + 0.35 + 0.55 * i }; });
+    return true;
+  }
+  function stopRace() {
+    if (!R.running) return;
+    R.running = false; R.on = false; R.parkAt = 0; R.pending = [];
+    if (R.st && !R.st.t1) R.st.t1 = performance.now();
+    if (M.on) { M.on = false; HW.bus.emit('switch', false); }
+    cars.forEach(park);
+  }
+  setInterval(() => {                  // sample the meters while the race runs
+    if (!R.running || !R.st || !A.ready) return;
+    const m = A.meter(), s = A.stats(), q = R.st;
+    q.peak = Math.max(q.peak, m.out.peak); q.prePeak = Math.max(q.prePeak, m.pre.peak);
+    q.ss += m.out.rms * m.out.rms; q.n++; if (m.out.peak >= 0.99) q.clipped++;
+    q.maxVoices = Math.max(q.maxVoices, s.voices); q.voiceSum += s.voices; q.maxRed = Math.min(q.maxRed, s.reduction);
+  }, 25);
+  function raceStats() {
+    const q = R.st; if (!q) return null;
+    const secs = ((q.t1 || performance.now()) - q.t0) / 1000, s = A.stats(), f = (x) => +x.toFixed(1);
+    return {
+      seconds: f(secs), running: R.running, events: q.events, eventsPerSec: f(q.events / Math.max(secs, 0.1)), types: q.types,
+      peakOutDb: f(db(q.peak)), peakPreLimiterDb: f(db(q.prePeak)), rmsOutDb: f(db(Math.sqrt(q.ss / Math.max(1, q.n)))),
+      maxLimiterDb: f(q.maxRed), clippedReads: q.clipped, maxVoices: q.maxVoices, meanVoices: f(q.voiceSum / Math.max(1, q.n)),
+      voicesNow: s.voices, started: s.started, dropped: s.dropped, gated: s.gated, errors: s.errors,
+    };
+  }
+
+  // ------------------------------------------------------------ manual mode, listener, frame loop
+  function manualStep() {
+    const c = testCar, W = c.m * G, mode = $('cMode').value;
+    c.mode = mode; c.v = +$('cSpeed').value; c.Nf = +$('cNf').value * W; c.Nw = +$('cNw').value * W; c.airborne = $('cAir').checked;
+    c.pos = { x: +$('cX').value, y: mode === 'free' ? 0.4 : 2, z: 10 }; c.vel = { x: c.v, y: 0, z: 0 };
+  }
+  function listener() {
+    if ($('lOnboard').checked && R.running && cars[0].mode === 'track') {
+      const c = cars[0], v = c.vel, n = Math.hypot(v.x, v.y, v.z) || 1;
+      return { pos: { x: c.pos.x, y: c.pos.y + 1.5, z: c.pos.z }, fwd: { x: v.x / n, y: v.y / n, z: v.z / n }, up: { x: 0, y: 1, z: 0 } };
+    }
+    const d = +$('lDist').value, az = +$('lAz').value * Math.PI / 180, el = +$('lEl').value * Math.PI / 180;
+    const pos = { x: d * Math.cos(el) * Math.sin(az), y: d * Math.sin(el), z: d * Math.cos(el) * Math.cos(az) };
+    const f = { x: -pos.x / d, y: -pos.y / d, z: -pos.z / d }, rn = Math.hypot(f.z, f.x) || 1, r = { x: -f.z / rn, z: f.x / rn };
+    return { pos, fwd: f, up: { x: -r.z * f.y, y: r.z * f.x - r.x * f.z, z: r.x * f.y } };
+  }
+  let last = performance.now();
+  function frame(now) {
+    const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
+    try {
+      if (R.running) raceStep(dt); else manualStep();
+      simTime += dt;
+      if (!$('mManual').checked) motorStep(dt, simTime);
+      A.update(dt, { time: simTime, cfg: { timeScale: 1 }, power: { telemetry }, cars: R.running ? cars : [testCar] }, listener());
+    } catch (e) { console.error(e); }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ------------------------------------------------------------ event buttons
+  const tc = () => (R.running ? cars[0] : testCar);
+  const ev = (type, data) => { data.t = simTime; HW.bus.emit(type, data); };
+  const hub = () => ({ x: rr(-3, 3), y: 4.6, z: rr(-3, 3) });
+  const PRE = {
+    switchOn: () => { M.on = true; HW.bus.emit('switch', true); },
+    switchOff: () => { M.on = false; HW.bus.emit('switch', false); },
+    nip: () => ev('nip', { car: tc(), booster: { wheel: 'S', lane: 'C', wheelPos: WHEELS.S } }),
+    nipSlow: () => { const c = tc(), v = c.v, vel = c.vel; c.v = 30; c.vel = { x: 30, y: 0, z: 0 }; ev('nip', { car: c, booster: { wheel: 'E', lane: 'A', wheelPos: WHEELS.E } }); c.v = v; c.vel = vel; },
+    wallSoft: () => ev('wall', { car: tc(), speed: 20, side: 1 }),
+    wallHard: () => ev('wall', { car: tc(), speed: 110, side: -1 }),
+    joint: () => ev('joint', { car: tc(), speed: +$('cSpeed').value || 350 }),
+    land: () => ev('land', { car: tc(), speed: 40 }),
+    bump: () => ev('bump', { a: tc(), b: cars[1], speed: 90, pos: hub() }),
+    crashSoft: () => ev('crash', { a: tc(), b: cars[1], pos: hub(), speed: 140, impulse: 3900 }),
+    crashMed: () => ev('crash', { a: tc(), b: cars[1], pos: hub(), speed: 350, impulse: 9800 }),
+    crashHard: () => ev('crash', { a: tc(), b: cars[1], pos: hub(), speed: 750, impulse: 21000 }),
+    impactSoft: () => ev('impact', { car: tc(), force: 40 * G * 10, pos: { x: 25, y: 0.4, z: 18 } }),
+    impactHard: () => ev('impact', { car: tc(), force: 40 * G * 200, pos: { x: -22, y: 0.4, z: 20 } }),
+    impactTrack: () => ev('impact', { car: tc(), force: 40 * G * 80, pos: { x: 4, y: 4.5, z: -3 } }),
+    derailLift: () => ev('derail', { car: tc(), cause: 'lift' }),
+    derailDrift: () => ev('derail', { car: tc(), cause: 'drift' }),
+    recapture: () => ev('recapture', { car: tc() }),
+    retrieve: () => ev('retrieve', { car: tc() }),
+    dropped: () => ev('dropped', { car: tc() }),
+    lap: () => ev('lap', { car: tc(), time: 1.1 }),
+    nudge: () => ev('nudge', { car: tc() }),
+    stall: () => ev('stall', { car: tc() }),
+  };
+  document.querySelectorAll('[data-ev]').forEach((b) => b.addEventListener('click', () => PRE[b.dataset.ev]()));
+
+  // ------------------------------------------------------------ level measurement (also used by the Playwright check)
+  async function measure(ms) {
+    const r = { peak: 0, pre: 0, ss: 0, n: 0, voices: 0, red: 0 }, t0 = performance.now();
+    while (performance.now() - t0 < ms) {
+      const m = A.meter(), s = A.stats();
+      r.peak = Math.max(r.peak, m.out.peak); r.pre = Math.max(r.pre, m.pre.peak); r.ss += m.out.rms * m.out.rms; r.n++;
+      r.voices = Math.max(r.voices, s.voices); r.red = Math.min(r.red, s.reduction);
+      await wait(20);
+    }
+    const f = (x) => +x.toFixed(1);
+    return { peakDb: f(db(r.peak)), rmsDb: f(db(Math.sqrt(r.ss / Math.max(1, r.n)))), prePeakDb: f(db(r.pre)), maxVoices: r.voices, limiterDb: f(r.red) };
+  }
+  async function levels() {
+    if (!A.ready) return null;
+    stopRace(); M.on = false;
+    const out = {};
+    setv('mManual', true); setv('mRpm', 0); setv('mI', 0); setv('cMode', 'parked'); setv('cSpeed', 0); setv('lDist', 60); setv('lOnboard', false);
+    await wait(700); out.silence = await measure(400);
+    setv('mRpm', 16200); setv('mI', 0.17); await wait(500); out.motorIdle = await measure(1500);
+    setv('mRpm', 9000); setv('mI', 3.5); await wait(300); out.motorLaunch = await measure(1000);
+    setv('mRpm', 0); setv('mI', 0); setv('cMode', 'track'); setv('cSpeed', 400); setv('cNf', 1); setv('cNw', 0); setv('cX', 15);
+    await wait(700); out.rollFlat = await measure(1200);
+    setv('cNf', 13); await wait(300); out.rollLoop = await measure(1000);
+    setv('cNf', 2); setv('cNw', 4); await wait(300); out.rollScrape = await measure(1000);
+    setv('cNw', 0); setv('cNf', 1); setv('cMode', 'parked'); await wait(500);
+    let p = measure(1200); for (let i = 0; i < 12; i++) { PRE.joint(); await wait(90); } out.joints = await p;
+    setv('mRpm', 16200); setv('mI', 0.2); setv('cSpeed', 300); await wait(400);
+    out.motorForNips = await measure(500);
+    p = measure(700); PRE.nip(); out.nipFast = await p;
+    p = measure(700); PRE.nipSlow(); out.nipSlow = await p;
+    setv('mRpm', 0); setv('mI', 0); setv('cSpeed', 0); await wait(500);
+    p = measure(1000); PRE.crashSoft(); out.crashSoft = await p;
+    p = measure(1400); PRE.crashHard(); out.crashHard = await p;
+    p = measure(700); PRE.impactHard(); out.impactHard = await p;
+    p = measure(800); PRE.retrieve(); out.retrieve = await p;
+    setv('mManual', false); setv('cMode', 'track'); setv('cSpeed', 0);
+    return out;
+  }
+  window.__race = { start: startRace, stop: stopRace, stats: raceStats };
+  window.__levels = levels;
+
+  // ------------------------------------------------------------ controls, params, readouts
+  const btns = [...document.querySelectorAll('button')].filter((b) => b.id !== 'start');
+  btns.forEach((b) => { b.disabled = true; });
+  $('start').addEventListener('click', () => {
+    A.init().then((ok) => { btns.forEach((b) => { b.disabled = !ok; }); $('start').textContent = ok ? 'Audio running' : 'Audio failed'; $('start').disabled = ok; });
+  });
+  $('enabled').addEventListener('change', (e) => A.setEnabled(e.target.checked));
+  $('volume').addEventListener('input', (e) => A.setVolume(+e.target.value));
+  $('race').addEventListener('click', () => startRace(30));
+  $('stopRace').addEventListener('click', stopRace);
+  $('levels').addEventListener('click', async () => {
+    const b = $('levels'); b.disabled = true;
+    const r = await levels(); b.disabled = false; R.st = null;
+    $('raceTable').innerHTML = Object.keys(r || {}).map((k) => '<tr><td>' + k + '</td><td>peak ' + r[k].peakDb + ' / rms ' + r[k].rmsDb + ' dBFS</td></tr>').join('');
+  });
+  for (const k of Object.keys(P)) {
+    if (typeof P[k] !== 'number') continue;
+    const lab = document.createElement('label'), inp = document.createElement('input');
+    lab.textContent = k; inp.type = 'number'; inp.step = 'any'; inp.value = P[k];
+    inp.addEventListener('change', () => { const v = parseFloat(inp.value); if (isFinite(v)) P[k] = v; });
+    lab.appendChild(inp); $('params').appendChild(lab);
+  }
+  const bar = (id, frac, col) => { const el = $(id); el.style.width = clamp(frac, 0, 1) * 100 + '%'; el.style.background = col; };
+  const rows = (o) => Object.keys(o).map((k) => '<tr><td>' + k + '</td><td>' + o[k] + '</td></tr>').join('');
+  setInterval(() => {
+    const s = A.stats(), tel = telemetry();
+    $('motorInfo').textContent = 'rpm ' + tel.rpmMotor.toFixed(0) + ', ' + tel.I.toFixed(2) + ' A, foam ' + tel.foamSpeed.toFixed(0) + ' cm/s';
+    $('status').textContent = 'AudioContext: ' + s.state + ' (created ' + window.__acCount + ')' + (nosamples ? ', synth only' : '');
+    const m = A.meter();
+    if (m) {
+      const pk = db(m.out.peak), rm = db(m.out.rms);
+      bar('barPeak', (pk + 60) / 60, pk > -1 ? 'var(--bad)' : pk > -6 ? 'var(--warn)' : 'var(--ok)'); $('vPeak').textContent = pk.toFixed(1) + ' dB';
+      bar('barRms', (rm + 60) / 60, 'var(--ok)'); $('vRms').textContent = rm.toFixed(1) + ' dB';
+      bar('barRed', -s.reduction / 12, 'var(--warn)'); $('vRed').textContent = s.reduction.toFixed(1) + ' dB';
+    }
+    const banks = Object.keys(s.banks).filter((k) => k.startsWith('s:')).map((k) => k.slice(2) + ' ' + s.banks[k]).join(', ');
+    $('info').innerHTML = rows({
+      'one-shot voices': s.voices, 'rolling voices': s.rollVoices, started: s.started, 'dropped / gated': s.dropped + ' / ' + s.gated,
+      'samples decoded': s.samples + (s.sampleErrors ? ' (' + s.sampleErrors + ' failed)' : ''), 'sample banks': banks || 'none',
+      'synth variants pending': s.banksPending, errors: s.errors + (s.broken ? ' (broken)' : ''),
+    });
+    const q = raceStats();
+    if (q) {
+      $('raceTable').innerHTML = rows({
+        time: q.seconds + ' s' + (q.running ? '' : ' (done)'), 'events / s': q.eventsPerSec, 'voices now / mean / max': q.voicesNow + ' / ' + q.meanVoices + ' / ' + q.maxVoices,
+        'peak out / pre-limiter': q.peakOutDb + ' / ' + q.peakPreLimiterDb + ' dBFS', 'RMS out': q.rmsOutDb + ' dBFS', 'max limiter': q.maxLimiterDb + ' dB',
+        'clipped reads': q.clippedReads, 'dropped / gated': q.dropped + ' / ' + q.gated,
+      });
+    }
+  }, 150);
+})();
+</script>
+</body>
+</html>

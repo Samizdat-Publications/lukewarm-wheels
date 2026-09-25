@@ -172,8 +172,14 @@
       HW.freebody.spinFoam(fb, this.power.omegaW);
       if (!free.length) return;
       for (const car of free) HW.freebody.tyres(fb, car, dt, cfg.muSide);
-      fb.world.timestep = dt;
-      fb.world.step();
+      const hits = HW.freebody.stepWorld(fb, dt);
+      if (hits.length) {
+        this._impactT = this._impactT || new Map();
+        for (const h of hits) {
+          const last = this._impactT.get(h.car) || -1;
+          if (this.time - last > 0.06) { this._impactT.set(h.car, this.time); this.emit('impact', { car: h.car, force: h.force, pos: V.clone(h.car.pos) }); }
+        }
+      }
       for (const car of free) {
         HW.freebody.read(fb, car);
         car.freeT += dt; car.noRecaptureT -= dt;

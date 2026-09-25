@@ -37,7 +37,7 @@
 
     { id: 'aeroflash', name: 'Aeroflash', year: 1999, color: '#149c46', accent: '#d9261c',
       wheelCode: '3SP', base: 'metal, black', tint: 'clear', interior: 'black',
-      massG: 37, lengthCm: 7.0, widthCm: 2.35, heightCm: 1.35, wheelbaseCm: 4.9, trackCm: 2.15,
+      massG: 37, lengthCm: 7.0, widthCm: 2.35, heightCm: 1.5, wheelbaseCm: 4.9, trackCm: 2.15,
       body: { style: 'wedge', cabin: { x0: 0.36, x1: 0.70, height: 0.34 }, rakeF: 0.46, rakeR: 0.10,
               hoodDrop: 0.34, spoiler: true, bed: false },
       livery: { style: 'number', text: '3', sub: 'AEROFLASH',

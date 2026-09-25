@@ -14,8 +14,9 @@
     nipGap: 2.0,         // [E] gap between foam surface and far wall; a car narrower than this is not driven
     boosterAt: 7.7,      // [E] booster wheel centre, distance from the hub centre along its arm
     // lobes: each is two quintic-Hermite halves meeting at an apex (see 31-track-layout.js)
-    loop:  { ux: 30, yx: 26.0, beta: 70, Rt: 11, floorY: 0.8 },   // rear pair: tall loops, inverted at the apex
-    sweep: { ux: 34, yx: 2.0, beta: 0, Rt: 14, floorY: 1.5 },      // front pair: low banked sweeps near the floor
+    // q = the solved handle lengths (node tools/simtest.mjs solve); delete q to re-solve at load
+    loop:  { ux: 30, yx: 26.0, beta: 70, Rt: 11, floorY: 0.8, q: [27.4072, 13.233, 163.4464, -319.8317] },  // rear pair: tall loops, inverted at the apex
+    sweep: { ux: 34, yx: 2.0, beta: 0, Rt: 14, floorY: 1.5, q: [23.628, 16.5105, 48.7158, -170.9126] },     // front pair: low banked sweeps near the floor
     bankVRef: 380,       // [E] design speed (cm/s) at the lobe entry for the heartline bank
     bankLossG: 0.06,     // [E] assumed mean drag (g) along a lobe when estimating the design speed
     sweepMaxBank: 62,    // [E] bank cap on the front sweeps (deg); the rest is carried by the outer wall
