@@ -157,7 +157,7 @@
         normalMap: tex.three(tex.normalFrom(wf.hgt, 2.2), { repeat: size / tile, srgb: false }),
         roughnessMap: tex.three(wf.rough, { repeat: size / tile, srgb: false }),
         // satin varnish: a low, soft clearcoat (a strong one turned the rim light into a white haze)
-        roughness: 0.66, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.32, specularIntensity: 0.5,
+        roughness: 0.7, metalness: 0, clearcoat: 0.18, clearcoatRoughness: 0.5, specularIntensity: 0.35,
       });
       floorMat.normalScale.set(0.6, 0.6);
       const floor = new T.Mesh(new T.PlaneGeometry(size, size), floorMat);

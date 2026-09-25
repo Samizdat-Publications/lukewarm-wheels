@@ -161,7 +161,7 @@
     tracks: [lane(0), lane(1), lane(2), lane(3)],
     start: { track: 'lane1', s: 4 },
     race: { lanes: ['lane1', 'lane2', 'lane3', 'lane4'], hold: 4 },
-    view: { camera: [-150, 60, 90], orbit: [-20, 8, 0], look: [-20, 10, 0] },
+    view: { camera: [-200, 85, 140], orbit: [30, 10, 0], look: [30, 10, 0] },
   };
 
   // ---------------------------------------------------------------- #5 Kitchen Table Grand Prix
