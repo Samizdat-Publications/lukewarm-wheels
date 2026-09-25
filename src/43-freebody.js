@@ -78,10 +78,14 @@
 
     // foam wheels: kinematic cylinders (axis = world Y), spun every step by the sim
     for (const w of L.wheels) {
-      const b = api.world.createRigidBody(R.RigidBodyDesc.kinematicVelocityBased().setTranslation(w.pos[0], w.pos[1] + 0.7, w.pos[2]));
+      // a booster on a slope turns about the track's up; the hub's four turn about the vertical
+      const ax = w.axis || [0, 1, 0];
+      const desc = R.RigidBodyDesc.kinematicVelocityBased().setTranslation(w.pos[0] + ax[0] * 0.7, w.pos[1] + ax[1] * 0.7, w.pos[2] + ax[2] * 0.7);
+      if (w.axis) desc.setRotation(HW.Q.fromTo({ x: 0, y: 1, z: 0 }, { x: ax[0], y: ax[1], z: ax[2] }));
+      const b = api.world.createRigidBody(desc);
       api.world.createCollider(R.ColliderDesc.cylinder(0.65, fr).setFriction(1.1).setRestitution(0.05)
         .setCollisionGroups(groups(GROUP_WORLD, GROUP_CAR)), b);
-      api.foam.push(b); b.spinSign = w.spin || 1;
+      api.foam.push(b); b.spinSign = w.spin || 1; b.axis = ax;
     }
 
     // loop support towers and sweep blocks (layout.supports)
@@ -216,6 +220,6 @@
 
   HW.freebody.spinFoam = function (api, omegaW) {
     // all four wheels turn clockwise seen from above: negative angular velocity about +Y
-    for (const b of api.foam) b.setAngvel({ x: 0, y: -omegaW * b.spinSign, z: 0 }, true);
+    for (const b of api.foam) { const w = -omegaW * b.spinSign, a = b.axis; b.setAngvel({ x: a[0] * w, y: a[1] * w, z: a[2] * w }, true); }
   };
 })(window.HW);

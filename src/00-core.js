@@ -99,6 +99,13 @@
       out.x = x / l; out.y = y / l; out.z = z / l; out.w = w / l;
       return out;
     },
+    // the shortest rotation taking unit vector a to unit vector b
+    fromTo(a, b) {
+      const d = a.x * b.x + a.y * b.y + a.z * b.z;
+      if (d < -0.999999) { const ax = Math.abs(a.x) < 0.9 ? { x: 0, y: -a.z, z: a.y } : { x: a.z, y: 0, z: -a.x }, l = Math.hypot(ax.x, ax.y, ax.z); return { x: ax.x / l, y: ax.y / l, z: ax.z / l, w: 0 }; }
+      const x = a.y * b.z - a.z * b.y, y = a.z * b.x - a.x * b.z, z = a.x * b.y - a.y * b.x, w = 1 + d, l = Math.hypot(x, y, z, w);
+      return { x: x / l, y: y / l, z: z / l, w: w / l };
+    },
     rotate(q, v, out) {
       const ix = q.w * v.x + q.y * v.z - q.z * v.y, iy = q.w * v.y + q.z * v.x - q.x * v.z;
       const iz = q.w * v.z + q.x * v.y - q.y * v.x, iw = -q.x * v.x - q.y * v.y - q.z * v.z;

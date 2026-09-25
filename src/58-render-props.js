@@ -26,6 +26,53 @@
       const yellow = new T.MeshStandardMaterial({ color: 0xffc21a, roughness: 0.5 });
       const place = (m, b) => { m.position.set(b.c[0], b.c[1], b.c[2]); if (b.q) m.quaternion.set(b.q.x, b.q.y, b.q.z, b.q.w); return m; };
 
+      // furniture: the room the set is built through (37-furniture.js places it)
+      const woodTex = (base, dark, seed) => {
+        const c = HW.tex.canvas(512, 256), x = c.getContext('2d'), r = HW.rng(seed);
+        x.fillStyle = base; x.fillRect(0, 0, 512, 256);
+        for (let i = 0; i < 90; i++) {
+          x.strokeStyle = `rgba(${dark},${0.05 + r() * 0.12})`; x.lineWidth = 0.6 + r() * 2.2;
+          const y0 = r() * 256; x.beginPath(); x.moveTo(0, y0);
+          for (let k = 0; k <= 512; k += 32) x.lineTo(k, y0 + Math.sin(k * 0.012 + i) * 5 + Math.sin(k * 0.05 + i * 3) * 1.5);
+          x.stroke();
+        }
+        return HW.tex.three(c, { srgb: true });
+      };
+      const FURN = {
+        tabletop: new T.MeshPhysicalMaterial({ map: woodTex('#b98652', '92,52,22', 5), roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.25 }),
+        tableleg: new T.MeshPhysicalMaterial({ map: woodTex('#9c6b3d', '70,38,14', 6), roughness: 0.5, clearcoat: 0.3 }),
+        chair: new T.MeshPhysicalMaterial({ color: 0x7fa38a, roughness: 0.48, clearcoat: 0.35 }),
+        cardboard: new T.MeshStandardMaterial({ color: 0xb58a55, roughness: 0.92 }),
+        tape: new T.MeshStandardMaterial({ color: 0xc9a46a, roughness: 0.4 }),
+        pages: new T.MeshStandardMaterial({ color: 0xefe6cf, roughness: 0.85 }),
+        mug: new T.MeshPhysicalMaterial({ color: 0xf2efe8, roughness: 0.18, clearcoat: 0.8 }),
+        coffee: new T.MeshStandardMaterial({ color: 0x2a160b, roughness: 0.15 }),
+      };
+      for (const b of L.solids || []) {
+        if (!b.furniture) continue;
+        let m;
+        if (b.look === 'book') {
+          // cover colour on the boards and the spine, cream page edges on the other three sides
+          const cover = new T.MeshPhysicalMaterial({ color: new T.Color().setHSL(b.hue, 0.45 + 0.3 * ((b.hue * 7) % 1), 0.32 + 0.2 * ((b.hue * 13) % 1)), roughness: 0.55, clearcoat: 0.2 });
+          m = new T.Mesh(new X.RoundedBoxGeometry(b.h[0] * 2, b.h[1] * 2, b.h[2] * 2, 2, 0.12), [FURN.pages, cover, cover, cover, FURN.pages, FURN.pages]);
+        } else if (b.look === 'mug') {
+          m = new T.Group();
+          const cup = new T.Mesh(new T.CylinderGeometry(b.h[0], b.h[0] * 0.92, b.h[1] * 2, 32, 1, true), FURN.mug);
+          const base = new T.Mesh(new T.CircleGeometry(b.h[0] * 0.92, 32), FURN.mug); base.rotation.x = Math.PI / 2; base.position.y = -b.h[1];
+          const coffee = new T.Mesh(new T.CircleGeometry(b.h[0] * 0.95, 32), FURN.coffee); coffee.rotation.x = -Math.PI / 2; coffee.position.y = b.h[1] * 0.7;
+          const handle = new T.Mesh(new T.TorusGeometry(b.h[1] * 0.45, 0.45, 10, 24, Math.PI), FURN.mug); handle.rotation.z = -Math.PI / 2; handle.position.x = b.h[0];
+          m.add(cup, base, coffee, handle);
+        } else {
+          m = new T.Mesh(new X.RoundedBoxGeometry(b.h[0] * 2, b.h[1] * 2, b.h[2] * 2, 2, b.look === 'cardboard' ? 0.05 : 0.3), FURN[b.look] || FURN.chair);
+          if (b.label) {
+            const tape = new T.Mesh(new T.BoxGeometry(3.2, 0.06, b.h[2] * 2 + 0.2), FURN.tape);
+            tape.position.y = b.h[1] + 0.03;
+            m.add(tape);
+          }
+        }
+        g.add(place(m, b));
+      }
+
       // booster housings, decks and foam wheels
       for (const b of L.solids || []) {
         if (b.kind === 'housing') {
@@ -37,8 +84,11 @@
       this.wheels = [];
       for (const w of L.wheels) {
         if (!w.track) continue;                                   // hub wheels belong to the hub
-        const piv = new T.Group();
-        piv.position.set(w.pos[0], w.pos[1] + 0.05, w.pos[2]);
+        const base = new T.Group(), piv = new T.Group();
+        base.position.set(w.pos[0], w.pos[1], w.pos[2]);
+        if (w.axis) base.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), new T.Vector3(w.axis[0], w.axis[1], w.axis[2]));
+        piv.position.y = 0.05;
+        base.add(piv);
         const fr = L.foamR;
         const foam = new T.Mesh(new T.CylinderGeometry(fr, fr, 1.3, 40, 1), foamMat);
         foam.position.y = 0.65;
@@ -48,7 +98,7 @@
         spoke.position.y = 1.42;
         piv.add(foam, hubcap, spoke);
         piv.userData.spin = w.spin || 1;
-        g.add(piv);
+        g.add(base);
         this.wheels.push(piv);
       }
 

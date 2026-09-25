@@ -18,6 +18,7 @@
       R.sim = sim;
       R.buildOverlay(root);
       R.buildTuner(root);
+      if (sim.challenge) R.buildChallenge(root, sim.challenge);
       const race = sim.race;
       if (!race) return;
       R.state = h('span', { class: 'chip', text: STATE.idle });
@@ -77,6 +78,28 @@
         R.tree.forEach((el, k) => el.classList.toggle('on', k < 3 ? race.lights > k && race.lights < 4 : race.lights === 4 && race.state === 'running'));
       }
       R.updateOverlay(sim);
+      const ch = sim.challenge;
+      if (ch && ch.state === 'running') R.chSt.textContent = ch.t0 == null ? 'Drop the cars in with Add car (A).' : `${ch.done.size} of ${ch.need} done · laps ${ch.cars.map((c) => ch.lapsOf(c)).join(' ')} · none lost · ${ch.elapsed.toFixed(1)} s`;
+    },
+
+    // ---------------------------------------------------------------- the set's challenge
+    buildChallenge(root, ch) {
+      const words = (id) => String(id).replace(/([a-z])([A-Z0-9])/g, '$1 $2').toLowerCase();
+      R.chSt = h('p', { class: 'st', text: `Get all ${ch.need} cars round ${ch.laps} times without losing one. Press Start, then drop them in with Add car (A): too close together and they meet on the table.` });
+      R.chRec = h('p', { class: 'rec' });
+      const showRec = () => { R.chRec.textContent = (ch.record ? `Lap record ${ch.record.time.toFixed(2)} s · ${ch.record.car}` : 'No lap record yet') + (ch.best ? ` · best challenge ${ch.best.time.toFixed(1)} s` : ''); };
+      showRec();
+      root.append(h('div', { id: 'challenge', class: 'panel' },
+        h('div', { class: 'row' }, h('span', { class: 'lbl', text: 'Challenge' }), h('button', { class: 'hot', onclick: () => ch.start() }, 'Start')),
+        R.chSt, R.chRec));
+      R.ch = ch;
+      const bus = R.sim.bus;
+      bus.on('lapRecord', () => { showRec(); R.chRec.textContent = 'New lap record! ' + R.chRec.textContent; });
+      bus.on('challenge', (e) => {
+        R.chSt.className = 'st ' + e.state;
+        if (e.state === 'won') { R.chSt.textContent = `Done: ${ch.need} cars × ${ch.laps} laps in ${ch.took.toFixed(1)} s, none lost!` + (ch.newBest ? ' Best yet.' : ''); showRec(); }
+        else if (e.state === 'lost') R.chSt.textContent = `Lost the ${ch.lost.car.name} at the ${words(ch.lost.where)}. Try again?`;
+      });
     },
 
     // ---------------------------------------------------------------- tuner

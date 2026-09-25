@@ -257,5 +257,28 @@
    "foam": 0
   },
   "hash": "558cc44c75788d9a"
+ },
+ "kitchen3-s4": {
+  "name": "kitchen3-s4",
+  "summary": {
+   "counts": {
+    "crash": 0,
+    "bump": 1,
+    "derail": 15,
+    "recapture": 15,
+    "retrieve": 0,
+    "stall": 0,
+    "dropped": 3,
+    "lap": 15
+   },
+   "laps": [
+    5,
+    5,
+    5
+   ],
+   "crashes": 0,
+   "foam": 409.964
+  },
+  "hash": "caba49c7d336e6e5"
  }
 }

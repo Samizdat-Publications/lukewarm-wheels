@@ -104,9 +104,11 @@ if (mode === 'geomset') {
         roll = Math.max(roll, Math.acos(Math.max(-1, Math.min(1, t.U.y[i]))) * 57.3);
         ylo = Math.min(ylo, t.P.y[i]); yhi = Math.max(yhi, t.P.y[i]);
       }
-      console.log(`   ${id.padEnd(12)} ${pr.type.padEnd(10)} s ${fmt(pr.s0, 1).padStart(6)}..${fmt(pr.s1, 1).padEnd(6)} minR ${kmax > 1e-4 ? fmt(1 / kmax, 1) : '-'}  roll<=${fmt(roll)}  y ${fmt(ylo, 1)}..${fmt(yhi, 1)}`);
+      const f0 = t.frame(pr.s0, {}), f1 = t.frame(pr.s1, {}), hd = (f) => fmt(Math.atan2(f.tx, -f.tz) * 57.3);
+      console.log(`   ${id.padEnd(12)} ${pr.type.padEnd(10)} s ${fmt(pr.s0, 1).padStart(6)}..${fmt(pr.s1, 1).padEnd(6)} minR ${kmax > 1e-4 ? fmt(1 / kmax, 1) : '-'}  roll<=${fmt(roll)}  y ${fmt(ylo, 1)}..${fmt(yhi, 1)}  xz ${fmt(f0.px)},${fmt(f0.pz)} -> ${fmt(f1.px)},${fmt(f1.pz)} hdg ${hd(f1)}`);
     }
   }
+  for (const b of (L.solids || []).filter((x) => x.furniture && (x.look === 'tabletop' || x.look === 'chair'))) console.log('  ' + b.look, 'x', fmt(b.c[0] - b.h[0]), '..', fmt(b.c[0] + b.h[0]), 'z', fmt(b.c[2] - b.h[2]), '..', fmt(b.c[2] + b.h[2]), 'top', fmt(b.c[1] + b.h[1], 1));
   console.log('boosters', L.boosters.map((b) => b.id + '@' + b.track.id + ':' + fmt(b.s, 1)).join(' '), ' launchers', L.launchers.map((l) => l.id + '@' + fmt(l.s, 1)).join(' '), ' hazards', L.hazards.map((h) => h.type + '@' + fmt(h.s, 1)).join(' '), ' supports', L.supports.length);
   const b = L.bounds; console.log('bounds', b.lo.map((x) => fmt(x)).join(','), '..', b.hi.map((x) => fmt(x)).join(','));
   process.exit(0);
@@ -180,6 +182,22 @@ if (mode === 'code') {
     const r = HW.builderCodec.testRun(set, R, i, strength);
     console.log(`  ${HW.catalog[i].name.padEnd(15)} ${r.ok ? 'OK ' + (r.laps ? r.laps + ' laps' : fmt(r.time, 2) + ' s') : 'FAIL ' + r.fail.kind + ' at run ' + (r.fail.run + 1) + ' piece ' + (r.fail.piece + 1) + ' (' + r.fail.region + ')'}  top ${fmt(r.top)} cm/s`);
   }
+  process.exit(0);
+}
+
+if (mode === 'challenge') {
+  // node tools/simtest.mjs challenge [set] [secs] : run the set's challenge once
+  HW.config.set = process.argv[3] || 'kitchenGP';
+  const secs = +(process.argv[4] || 60), every = +(process.argv[5] || 1.5);
+  const R = await rapier();
+  const sim = new HW.Sim({ RAPIER: R });
+  const ch = sim.challenge;
+  ch.start();
+  // drop the cars in the way a player would: one every `every` seconds
+  ch.cars.forEach((car, k) => sim.queue.push({ car, at: sim.time + 0.3 + every * k }));
+  const h = 1 / sim.cfg.substepHz;
+  for (let i = 0; i < secs / h && ch.state === 'running'; i++) sim.step(h);
+  console.log(`${sim.layout.set.name} challenge, drops every ${every} s: ${ch.state}` + (ch.state === 'lost' ? ` (${ch.lost.car.name} at ${ch.lost.where})` : ch.state === 'won' ? ` in ${fmt(ch.took, 1)} s` : '') + `, laps ${ch.cars.map((c) => ch.lapsOf(c)).join(' ')}`);
   process.exit(0);
 }
 

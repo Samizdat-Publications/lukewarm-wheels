@@ -51,7 +51,7 @@
             const sg = side === 'right' ? 1 : -1;
             const pos = at(f, sg * (reach + foamR), 0, 0);
             const name = ft.piece + '/' + side;
-            L.wheels.push({ name, pos, spin: sg, track: tr });
+            L.wheels.push({ name, pos, spin: sg, track: tr, axis: [f.ux, f.uy, f.uz] });
             L.boosters.push({ id: name, wheel: name, track: tr, s: sc, foamR, foamEdge: reach, pushSign: -sg, side, wheelPos: pos });
             // housing beside the lane, open on the lane side where the wheel reaches in
             const hw = 2.6, hh = 0.6;

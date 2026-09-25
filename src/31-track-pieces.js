@@ -166,7 +166,7 @@
     // helix bottom (th = 0) so that its point at th0 is where the ease-in curve ends
     const B = add(add(pose.p, sc(t, ce.x - r * Math.sin(th0))), sc(side, ce.y - r * (1 - Math.cos(th0))));
     const c = add(B, sc(side, r)), e1 = sc(side, -1), e2 = t;
-    const hx = HW.Path.helix(c, e1, e2, axis, r, b, th0, th1, Object.assign({}, meta));
+    const hx = HW.Path.helix(c, e1, e2, axis, r, b, th0, th1, Object.assign({ helix: { c, axis, r } }, meta));
     const P = [0, 0, 0], D1 = [0, 0, 0], D2 = [0, 0, 0];
     const at = (th) => {
       hx.point(th, P, D1, D2);

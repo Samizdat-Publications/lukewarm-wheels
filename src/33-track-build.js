@@ -169,6 +169,8 @@
         const top = f.py - f.uy * cfg.floorT - 0.5;
         if (f.uy < 0.5 || top < 2.5) continue;
         if (out.some((o) => Math.hypot(o.x - f.px, o.z - f.pz) < 9)) continue;
+        // the track rests on (or passes over) a piece of furniture here: it needs no tower
+        if ((L.solids || []).some((b) => b.furniture && Math.abs(f.px - b.c[0]) < b.h[0] + 2 && Math.abs(f.pz - b.c[2]) < b.h[2] + 2 && b.c[1] - b.h[1] < top)) continue;
         let blocked = false;
         for (const tr of L.tracks) {
           const P = tr.P;
@@ -217,8 +219,8 @@
           L.channels.push(cur);
         }
       }
-      for (const pr of set.props || []) HW.propTypes[pr.kind].finish(ctx, L, pr);
       L.solids = [];
+      for (const pr of set.props || []) HW.propTypes[pr.kind].finish(ctx, L, pr);
       HW.features.finish(ctx, L);
       L.joints = L.path.joints;
 

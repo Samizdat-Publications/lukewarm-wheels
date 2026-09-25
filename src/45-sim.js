@@ -31,6 +31,7 @@
       HW.tune.load();
       for (const e of catalog) this.addCar(e);
       this.race = this.layout.set.race ? new HW.Race(this) : null;
+      this.challenge = this.layout.set.challenge ? new HW.Challenge(this, this.layout.set.challenge) : null;
     }
 
     emit(type, data) {

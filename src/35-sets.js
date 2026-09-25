@@ -163,4 +163,90 @@
     race: { lanes: ['lane1', 'lane2', 'lane3', 'lane4'], hold: 4 },
     view: { camera: [-150, 60, 90], orbit: [-20, 8, 0], look: [-20, 10, 0] },
   };
+
+  // ---------------------------------------------------------------- #5 Kitchen Table Grand Prix
+  // Our own set, built through the room the app already renders. The hand drops a car on the
+  // kitchen table; it spirals down a table leg to the floor, runs through a cardboard-box
+  // tunnel, gets a push, climbs a stack of books and jumps to another, lands in a funnel,
+  // loops between the legs of a chair and is boosted back up a long ramp onto the table.
+  // One continuous circuit across two tracks (the jump splits it), every mechanic in the box.
+  const TABLE = 75, ON_TABLE = TABLE + 0.25;           // [M] kitchen table height; track running surface on it
+  S.kitchenGP = {
+    id: 'kitchenGP', name: 'Kitchen Table Grand Prix', year: 2026, floor: 'rug',
+    tag: 'table · spiral · box tunnel · book jump · chair loop · booster ramp',
+    blurb: 'Our own set, through the kitchen. A car leaves the kitchen table in a spiral down a table leg, runs through a cardboard-box tunnel, gets a push from a booster, climbs a stack of books and jumps the gap to the next stack, loops under a chair, and two boosters drive it back up a long ramp onto the table. The challenge: get all five cars round without losing one, and beat the lap record.',
+    tracks: [
+      {
+        id: 'table', name: 'table, spiral and book jump', vIn: 250,
+        from: { at: [-70, ON_TABLE, -30], heading: 90 },
+        pieces: [
+          { type: 'straight', len: 3, id: 'startLine' },
+          { type: 'gate', kind: 'lap' },
+          { type: 'straight', len: 27.5, id: 'tableRun' },
+          { type: 'straight', len: 20, id: 'toEdge' },
+          { type: 'spiral', radius: 12, turns: 4, drop: 18.5, dir: 'left', v: 260, id: 'spiral' },
+          { type: 'straight', len: 20, id: 'floor1' },
+          { type: 'straight', len: 30.5, id: 'tunnel' },
+          { type: 'straight', len: 12, id: 'floor2' },
+          { type: 'booster', len: 12, id: 'boost1' },
+          { type: 'straight', len: 12, id: 'floor3' },
+          { type: 'bend', angle: -90, radius: 26, id: 'turnSouth' },
+          { type: 'straight', len: 10, id: 'approach' },
+          { type: 'pitch', angle: 16, radius: 40, id: 'bookRamp' },
+          { type: 'straight', len: 18, id: 'bookClimb' },
+          { type: 'pitch', angle: -8, radius: 130, id: 'bookLip' },
+          { type: 'straight', len: 9, id: 'lip' },
+        ],
+        start: { to: 'catch' }, end: 'fly',
+      },
+      {
+        id: 'catch', name: 'catch, chairs and the climb home', vIn: 280,
+        from: { rel: 'table', forward: 24, up: -1.5, pitch: -6 },
+        pieces: [
+          { type: 'straight', len: 30, width: [8, 3.6], id: 'funnel' },
+          { type: 'pitch', angle: 6, radius: 40, width: [3.6, 3.175], id: 'bookB' },
+          { type: 'straight', len: 6, id: 'bookBtop' },
+          { type: 'pitch', angle: -12, radius: 120, id: 'offBooks' },
+          { type: 'straight', len: 8, id: 'bookSlope' },
+          { type: 'pitch', angle: 12, radius: 40, id: 'toFloor' },
+          { type: 'straight', len: 39, id: 'southRun' },
+          { type: 'bend', angle: -90, radius: 26, id: 'turnWest' },
+          { type: 'straight', len: 20, id: 'westRun' },
+          { type: 'booster', len: 12, id: 'boost2' },
+          { type: 'straight', len: 20, id: 'toChair' },
+          { type: 'loop', radius: 12.5, lateral: 6.5, v: 400, id: 'chairLoop' },
+          { type: 'straight', len: 30.5, id: 'westRun2' },
+          { type: 'straight', len: 30.5, id: 'westRun3' },
+          { type: 'straight', len: 28, id: 'westRun4' },
+          { type: 'bend', angle: -90, radius: 26, id: 'turnNorth' },
+          { type: 'booster', len: 12, id: 'rampBoost0' },
+          { type: 'pitch', angle: 32, radius: 35, id: 'rampFoot' },
+          { type: 'booster', len: 12, id: 'rampBoost1' },
+          { type: 'straight', len: 26, id: 'ramp1' },
+          { type: 'straight', len: 26, id: 'ramp2' },
+          { type: 'straight', len: 19.7, id: 'ramp3' },
+          // a long crest: a car coming over at speed must not take off (v^2 < g R cos 32)
+          { type: 'pitch', angle: -32, radius: 150, id: 'rampTop' },
+          { type: 'straight', len: 40.5, id: 'onTable' },
+          { type: 'bend', angle: -90, radius: 20, id: 'toStart' },
+          { type: 'join', to: [-70, ON_TABLE, -30], heading: 90, id: 'merge' },
+        ],
+        start: 'fly', end: { to: 'table', s: 0 },
+      },
+    ],
+    props: [{
+      kind: 'furniture', seed: 7, items: [
+        { type: 'table', leg: { track: 'table', piece: 'spiral' }, corner: 'ne', size: [120, 76], top: TABLE },
+        { type: 'box', around: { track: 'table', piece: 'tunnel' }, width: 17, height: 11 },
+        { type: 'books', under: { track: 'table', piece: 'lip', at: 'end', offset: -6 }, size: [17, 24] },
+        { type: 'books', under: { track: 'catch', piece: 'bookBtop', at: 'mid', offset: -8 }, size: [17, 26] },
+        { type: 'chair', over: { track: 'catch', piece: 'chairLoop', at: 'apex' }, size: 42, seat: 46 },
+        { type: 'mug', at: [-30, 18] },
+      ],
+    }],
+    start: { track: 'table', s: 8 }, startV: 250,
+    autoStart: { cars: 3, every: 3 },
+    challenge: { cars: 5, laps: 3 },
+    view: { camera: [195, 150, 330], orbit: [3, 25, 78], look: [3, 25, 78], bound: 150 },
+  };
 })(window.HW);

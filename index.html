@@ -167,6 +167,14 @@
   #builder .status p.warn { color: #ffb37a; }
   #builder input[type=text] { flex: 1; min-width: 120px; font: 600 13px ui-monospace, monospace; background: rgba(0,0,0,.35); color: var(--text); border: 1px solid rgba(255,255,255,.2); border-radius: 6px; padding: 5px 8px; }
   #builder .hint { font: 500 12px var(--label); color: var(--muted); }
+  #challenge { position: absolute; left: var(--gut); top: calc(118px + env(safe-area-inset-top, 0px)); width: 320px; padding: 12px 14px; display: grid; gap: 7px; }
+  #challenge .row { display: flex; align-items: center; gap: 10px; }
+  #challenge .row button { margin-left: auto; }
+  #challenge p { margin: 0; font: 500 13px/1.35 var(--label); color: var(--text); }
+  #challenge .st { font-weight: 700; }
+  #challenge .st.won { color: #6ff09a; }
+  #challenge .st.lost { color: #ff8a6a; }
+  #challenge .rec { color: var(--flame); font-weight: 600; font-variant-numeric: tabular-nums; }
   #actions { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--gut) + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; padding: 8px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 2 * var(--gut)); }
 
   #speedo { position: absolute; right: var(--gut); bottom: calc(var(--gut) + env(safe-area-inset-bottom, 0px)); padding: 12px 16px; text-align: right; min-width: 190px; }
@@ -235,6 +243,7 @@
     #builder .palette { grid-template-columns: 1fr; }
     #race { left: var(--gut); right: var(--gut); width: auto; top: calc(92px + env(safe-area-inset-top, 0px)); padding: 8px 10px; gap: 5px; }
     #race .why { display: none; }
+    #challenge { left: var(--gut); right: var(--gut); width: auto; top: calc(92px + env(safe-area-inset-top, 0px)); padding: 8px 10px; }
     #overlay { display: none; }
     #launch { left: var(--gut); right: var(--gut); width: auto; bottom: calc(var(--gut) + 158px + env(safe-area-inset-bottom, 0px)); padding: 8px 10px; gap: 5px; }
     #actions { left: var(--gut); right: var(--gut); max-width: none; transform: none; bottom: calc(var(--gut) + 104px + env(safe-area-inset-bottom, 0px));
@@ -301,6 +310,7 @@
 <script src="src/34-track-features.js"></script>
 <script src="src/35-sets.js"></script>
 <script src="src/36-builder-codec.js"></script>
+<script src="src/37-furniture.js"></script>
 <script src="src/40-power.js"></script>
 <script src="src/41-cars.js"></script>
 <script src="src/42-collide.js"></script>
@@ -308,6 +318,7 @@
 <script src="src/44-stunts.js"></script>
 <script src="src/45-sim.js"></script>
 <script src="src/46-race.js"></script>
+<script src="src/47-challenge.js"></script>
 <script src="src/50-render-core.js"></script>
 <script src="src/51-render-world.js"></script>
 <script src="src/52-render-track.js"></script>
