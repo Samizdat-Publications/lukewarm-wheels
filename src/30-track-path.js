@@ -1,7 +1,7 @@
 // 30-track-path.js - a track centreline, resampled uniformly by arc length, with a banked
 // frame (T forward, U up out of the running surface, R = T x U to the right). A path is
 // either CLOSED (a circuit: s wraps) or OPEN (a run with two ends: s is clamped, and what
-// happens at an end is up to the track graph, see 32-track-build.js).
+// happens at an end is up to the track graph, see 33-track-build.js).
 //
 // The circuit is a chain of segments: exact straight lines (the hub lanes) and clamped
 // cubic B-splines (the lobes). A clamped B-spline whose first three control points are
@@ -111,6 +111,24 @@
         h[2] = 1 - 9 * t + 18 * t2 - 10 * t3; h[3] = 3 * t - 12 * t2 + 10 * t3;
         h[4] = -24 * t + 84 * t2 - 60 * t3; h[5] = 60 * t - 180 * t2 + 120 * t3;
         comb(h, d2);
+      },
+    };
+  }
+
+  // Helix: c + r (cos th e1 + sin th e2) + b th a, for th in [th0, th1]. e1, e2, a are
+  // orthonormal. About a horizontal axis across the track it is a loop, about the track's
+  // own direction a corkscrew, about the vertical a spiral. Constant curvature
+  // r / (r^2 + b^2), so it is joined to its neighbours by quintics that match it.
+  function helix(c, e1, e2, a, r, b, th0, th1, meta = {}) {
+    return {
+      kind: 'helix', meta, t0: th0, t1: th1,
+      point(t, p, d1, d2) {
+        const cs = Math.cos(t), sn = Math.sin(t);
+        for (let k = 0; k < 3; k++) {
+          p[k] = c[k] + r * (cs * e1[k] + sn * e2[k]) + b * t * a[k];
+          d1[k] = r * (-sn * e1[k] + cs * e2[k]) + b * a[k];
+          d2[k] = -r * (cs * e1[k] + sn * e2[k]);
+        }
       },
     };
   }
@@ -251,8 +269,9 @@
         }
         gain[i] = spec.gain == null ? 1 : spec.gain;
       }
-      // keep continuity: never let U flip relative to the previous sample
-      if (i > 0 && ux * px + uy * py + uz * pz < -0.2) { ux = px; uy = py; uz = pz; }
+      // keep continuity: never let a banked U flip relative to the previous sample (a flat
+      // sample's up is defined outright, so it must not inherit a flip)
+      if (i > 0 && !flat[i] && ux * px + uy * py + uz * pz < -0.2) { ux = px; uy = py; uz = pz; }
       Ux[i] = ux; Uy[i] = uy; Uz[i] = uz; px = ux; py = uy; pz = uz;
     }
     // Smooth the ROLL, not the vector. Roll is measured about T from a rotation-minimising
@@ -409,5 +428,5 @@
     path.grid = { cell, map };
   }
 
-  HW.Path = { line, bspline, quintic, build };
+  HW.Path = { line, bspline, quintic, helix, build };
 })(window.HW);

@@ -29,7 +29,7 @@
   }
 
   // Sweep the profile over [s0, s1] with extra rings hugging each joint so seams are crisp.
-  function sweep(path, s0, s1, prof, joints, step) {
+  function sweep(path, s0, s1, prof, joints, step, profAt) {
     const T = window.THREE;
     const ss = [];
     const n = Math.max(2, Math.ceil((s1 - s0) / step));
@@ -40,12 +40,14 @@
     const pos = [], nor = [], uv = [], col = [], idx = [];
     const f = {};
     let base = 0;
-    for (const pts of prof) {
-      const m = pts.length;
+    // a funnel changes width along its length: one profile per ring
+    const rings = profAt ? ss.map((s) => profAt(s)) : null;
+    for (let pi = 0; pi < prof.length; pi++) {
+      const m = prof[pi].length;
       for (let i = 0; i < ss.length; i++) {
         path.frame(ss[i], f);
         const shade = nearJoint(ss[i]) ? 0.42 : 1;
-        for (const [r, u, nr, nu, v] of pts) {
+        for (const [r, u, nr, nu, v] of (rings ? rings[i][pi] : prof[pi])) {
           pos.push(f.px + f.rx * r + f.ux * u, f.py + f.ry * r + f.uy * u, f.pz + f.rz * r + f.uz * u);
           const nx = f.rx * nr + f.ux * nu, ny = f.ry * nr + f.uy * nu, nz = f.rz * nr + f.uz * nu, l = Math.hypot(nx, ny, nz) || 1;
           nor.push(nx / l, ny / l, nz / l);
@@ -99,7 +101,9 @@
       const group = new T.Group();
       const prof = profile(d);
       for (const ch of L.channels) {
-        const geo = sweep(ch.track, ch.s0, ch.s1, prof, ch.track.joints, 0.35);
+        const tr = ch.track;
+        const profAt = tr.W ? (s) => profile({ W: tr.widthAt(s), wallT: d.wallT, wallH: d.wallH, floorT: d.floorT }) : null;
+        const geo = sweep(tr, ch.s0, ch.s1, prof, tr.joints, 0.35, profAt);
         const mesh = new T.Mesh(geo, mat);
         mesh.castShadow = true; mesh.receiveShadow = true;
         mesh.name = 'track-' + ch.track.id + '-' + ch.name;

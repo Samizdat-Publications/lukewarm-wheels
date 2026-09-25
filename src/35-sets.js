@@ -84,4 +84,54 @@
     start: { track: 'drop', s: 2 },
     autoStart: { cars: 3, every: 2.2 },
   };
+
+  // ---------------------------------------------------------------- #3 Loop & Leap
+  // The stunt set, after Hot Wheels' Loop & Launch / Double Loop Dare / Stunt Kicker. A spring
+  // launcher fires a car through a double loop and off a kicker; it flies a gap into a funnel
+  // catch ramp, swings round, gets a push from a two-wheel booster, rolls through a corkscrew,
+  // dodges a swinging hammer and crosses the finish. Too weak and it drops off a loop top or
+  // short into the gap; too strong and it sails over the catch. The strength is random each
+  // shot unless you set it.
+  S.loopLeap = {
+    id: 'loopLeap', name: 'Loop & Leap', year: 2026, floor: 'rug',
+    tag: 'launcher · double loop · jump · corkscrew · hammer',
+    blurb: 'A spring launcher, a double loop, a jump, a corkscrew and a swinging hammer. The launcher puts ½kx² into the car and its plunger, so a light casting leaves faster than a heavy one. Too weak and a car drops off a loop top or falls short into the gap; too strong and it sails right over the catch. Off the kicker every car is a free rigid body until it lands upright in the funnel.',
+    tracks: [
+      {
+        id: 'launch', name: 'launch lane', vIn: 330,
+        from: { at: [-110, 1.2, 34], heading: 90 },
+        pieces: [
+          { type: 'launcher', len: 14, id: 'launcher' },
+          { type: 'straight', len: 12, id: 'runup' },
+          { type: 'loop', radius: 12.5, lateral: 6.5, v: 330, id: 'loop1' },
+          { type: 'straight', len: 12, id: 'between' },
+          { type: 'loop', radius: 12.5, lateral: 6.5, v: 310, id: 'loop2' },
+          { type: 'straight', len: 18, id: 'approach' },
+          { type: 'pitch', angle: 24, radius: 30, id: 'kicker' },
+          { type: 'straight', len: 8, id: 'lip' },
+        ],
+        end: 'fly',
+      },
+      {
+        id: 'catch', name: 'catch ramp', vIn: 250,
+        from: { rel: 'launch', forward: 40, up: -0.5, pitch: -8 },
+        pieces: [
+          { type: 'straight', len: 34, width: [8, 3.6], id: 'funnel' },
+          { type: 'pitch', angle: 8, radius: 40, width: [3.6, 3.175], id: 'flare' },
+          { type: 'bend', angle: 180, radius: 22, id: 'hairpin' },
+          { type: 'booster', len: 12, id: 'booster' },
+          { type: 'straight', len: 8, id: 'feed' },
+          { type: 'corkscrew', radius: 7, advance: 34, dir: 'right', v: 330, id: 'corkscrew' },
+          { type: 'straight', len: 40, id: 'hammerRow' },
+          { type: 'gate', kind: 'finish' },
+          { type: 'brake', len: 44, id: 'runout' },
+        ],
+        start: 'fly',
+        end: 'stop',
+      },
+    ],
+    hazards: [{ type: 'hammer', track: 'catch', piece: 'hammerRow', offset: -4, period: 2.2, amp: 40, arm: 16 }],
+    start: { launcher: 'launcher' },
+    autoStart: { cars: 3, every: 3.0 },
+  };
 })(window.HW);

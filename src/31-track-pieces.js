@@ -77,15 +77,17 @@
   const pitchAxis = (t, fallback) => { const a = cross(t, UP); return Math.hypot(a[0], a[1], a[2]) > 1e-6 ? norm(a) : fallback; };
 
   // ------------------------------------------------------------ fair joins
-  // The fairest quintic from pose A to pose B with zero curvature at both ends: two handle
-  // lengths chosen for minimum bending energy plus a curvature-rate term. Cached.
+  // The fairest quintic from pose A to pose B: two handle lengths chosen for minimum
+  // bending energy plus a curvature-rate term. Each end has zero curvature unless a
+  // curvature vector is given (opts.kA, opts.kB, 1/cm), which is how a straight eases into
+  // a helix: position, tangent AND curvature match, so the join is G2. Cached.
   const cache = new Map();
   function fairJoin(A, tA, B, tB, opts = {}) {
-    const key = JSON.stringify([A, tA, B, tB, opts.floorY]).replace(/(\.\d{6})\d+/g, '$1');
+    const key = JSON.stringify([A, tA, B, tB, opts.floorY, opts.kA, opts.kB]).replace(/(\.\d{6})\d+/g, '$1');
     if (cache.has(key)) return cache.get(key);
     const chord = Math.hypot(B[0] - A[0], B[1] - A[1], B[2] - A[2]);
-    const Z = [0, 0, 0];
-    const ctrlOf = (a, b) => [A, sc(tA, a), Z, Z, sc(tB, b), B];
+    const kA = opts.kA || [0, 0, 0], kB = opts.kB || [0, 0, 0];
+    const ctrlOf = (a, b) => [A, sc(tA, a), sc(kA, a * a), sc(kB, b * b), sc(tB, b), B];
     const floorY = opts.floorY;
     const cost = (q) => {
       if (q[0] < 0.2 * chord || q[1] < 0.2 * chord) return 1e9;
@@ -141,6 +143,64 @@
     const B = pc.to, tB = dirOf(pc.heading, pc.pitch || 0);
     const j = fairJoin(pose.p, pose.t, B, tB, { floorY: ctx.floorY });
     return { segs: [HW.Path.quintic(...j.ctrl, {})], pose: { p: B, t: tB, right: pitchAxis(tB, pose.right) } };
+  };
+
+  // ------------------------------------------------------------ helix pieces
+  // One construction for three pieces. The car turns toward `side` about an axis `a`
+  // (unit, perpendicular to the entry tangent t), on a helix of radius r that advances b per
+  // radian along a. A clothoid-like quintic eases in from the straight (curvature ramping
+  // 0 -> 1/r over `lead`), the exact helix runs for `turns`, and a mirrored quintic eases
+  // out onto a straight. loop: side = up, a = left (a vertical loop, offset sideways so the
+  // exit clears the entry). corkscrew: a small loop with a big sideways advance, so the car
+  // rolls right over while it crosses. spiral: side = left or right, a = down (a helter-
+  // skelter, the table-leg descent).
+  function clothoidEnd(r, L) {
+    // end of a curve whose curvature ramps linearly from 0 to 1/r over length L (in its plane)
+    let x = 0, y = 0; const n = 200, ds = L / n;
+    for (let i = 0; i < n; i++) { const s = (i + 0.5) * ds, ph = s * s / (2 * r * L); x += Math.cos(ph) * ds; y += Math.sin(ph) * ds; }
+    return { x, y, phi: L / (2 * r) };
+  }
+  function helixRun(pose, ctx, { side, axis, r, b, turns, lead, meta }) {
+    const t = pose.t, L = lead == null ? 1.2 * r : lead;
+    const ce = clothoidEnd(r, L), th0 = ce.phi, thE = 2 * Math.PI * turns, th1 = thE - th0;
+    // helix bottom (th = 0) so that its point at th0 is where the ease-in curve ends
+    const B = add(add(pose.p, sc(t, ce.x - r * Math.sin(th0))), sc(side, ce.y - r * (1 - Math.cos(th0))));
+    const c = add(B, sc(side, r)), e1 = sc(side, -1), e2 = t;
+    const hx = HW.Path.helix(c, e1, e2, axis, r, b, th0, th1, Object.assign({}, meta));
+    const P = [0, 0, 0], D1 = [0, 0, 0], D2 = [0, 0, 0];
+    const at = (th) => {
+      hx.point(th, P, D1, D2);
+      const sp2 = D1[0] * D1[0] + D1[1] * D1[1] + D1[2] * D1[2], tt = norm(D1);
+      return { p: P.slice(), t: tt, k: sc(D2, 1 / sp2) };          // D2 is normal to D1 on a helix
+    };
+    const h0 = at(th0), h1 = at(th1);
+    // the exit mirrors the entry about the helix's last "bottom" (th = thE)
+    const cs = Math.cos(thE), sn = Math.sin(thE);
+    const inE = sc(add(sc(e1, cs), sc(e2, sn)), -1);             // toward the axis at thE
+    const tE = norm(add(sc(e1, -sn), sc(e2, cs)));                // the helix direction there, less its advance
+    const BE = add(add(c, sc(add(sc(e1, cs), sc(e2, sn)), r)), sc(axis, b * thE));
+    const E = add(add(BE, sc(tE, ce.x - r * Math.sin(th0))), sc(inE, -(ce.y - r * (1 - Math.cos(th0)))));
+    const j0 = fairJoin(pose.p, t, h0.p, h0.t, { kB: h0.k, floorY: ctx.floorY });
+    const j1 = fairJoin(h1.p, h1.t, E, tE, { kA: h1.k, floorY: ctx.floorY });
+    const segs = [HW.Path.quintic(...j0.ctrl, Object.assign({}, meta)), hx, HW.Path.quintic(...j1.ctrl, Object.assign({}, meta))];
+    const right = Math.abs(tE[1]) < 0.99 ? norm(cross(tE, UP)) : pose.right;
+    return { segs, pose: { p: E, t: tE, right } };
+  }
+  const upOf = (pose) => norm(cross(pose.right, pose.t));
+
+  T.loop = (pc, pose, ctx) => {
+    const r = pc.radius || 12, lat = pc.lateral == null ? 5 : pc.lateral;
+    const left = sc(pose.right, -1);
+    return helixRun(pose, ctx, { side: upOf(pose), axis: left, r, b: lat / (2 * Math.PI), turns: 1, lead: pc.lead, meta: { maxBank: null, loop: true } });
+  };
+  T.corkscrew = (pc, pose, ctx) => {
+    const r = pc.radius || 7, adv = pc.advance == null ? 36 : pc.advance, dir = pc.dir === 'right' ? -1 : 1;
+    return helixRun(pose, ctx, { side: upOf(pose), axis: sc(pose.right, -dir), r, b: adv / (2 * Math.PI), turns: 1, lead: pc.lead, meta: { maxBank: null, loop: true } });
+  };
+  T.spiral = (pc, pose, ctx) => {
+    const r = pc.radius || 15, dir = pc.dir === 'right' ? -1 : 1, drop = pc.drop == null ? 12 : pc.drop;
+    const side = sc(pose.right, -dir);
+    return helixRun(pose, ctx, { side, axis: [0, -1, 0], r, b: drop / (2 * Math.PI), turns: pc.turns || 1, lead: pc.lead, meta: {} });
   };
 
   HW.pieces = {

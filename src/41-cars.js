@@ -88,14 +88,14 @@
       }
 
       // ---- foam nips on this car's lane
-      const W = cfg.laneW, dmax = Math.max(0, (W - car.wid) / 2);
+      const W = path.W ? path.W[f.i] : cfg.laneW, dmax = Math.max(0, (W - car.wid) / 2);
       let Fdrive = 0, Flat = 0, tauBack = 0, nip = null;
       for (const b of L.boosters) {
         if (b.track !== path) continue;
         const ds = path.delta(car.s, b.s);
         if (Math.abs(ds) > car.halfLen + 3) continue;
         // right side of the car, measured from the lane centre along R; the wheel is on the right
-        const side = car.d + car.wid / 2;
+        const side = b.side === 'left' ? car.wid / 2 - car.d : car.d + car.wid / 2;
         const foamEdge = b.foamEdge;                         // how far the foam reaches into the lane
         const d0 = side - foamEdge;
         if (d0 <= 0) continue;
@@ -151,7 +151,8 @@
       // ---- along the track
       const Fair = 0.5 * cfg.airRho * car.CdA * v2;
       const muRR = car.crr * car.crrMul * cfg.crrScale;
-      const fric = muRR * Nf + cfg.muWall * Nw;              // Coulomb, opposes motion
+      let fric = muRR * Nf + cfg.muWall * Nw;                // Coulomb, opposes motion
+      if (path.brake) fric += path.brake[f.i] * m * G;        // brake pads on a run-out
       const Fext = m * gT + Fdrive;
       let a;
       if (Math.abs(v) < 0.3 && Math.abs(Fext) <= fric) { a = -v / h; }   // sticks

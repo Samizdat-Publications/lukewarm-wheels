@@ -44,6 +44,7 @@
       if (pc.type === 'gate') { marks.push({ at: segs.length, kind: pc.kind || 'finish', id }); return; }
       const make = HW.pieces.types[pc.type];
       if (!make) throw new Error('unknown piece type ' + pc.type + ' in track ' + ts.id);
+      ctx.curPiece = id; ctx.curTrack = ts.id;
       const r = make(pc, pose, ctx);
       for (const sg of r.segs) {
         const m = sg.meta;
@@ -54,7 +55,9 @@
         if (m.flat == null && (pc.type === 'straight' || pc.type === 'pitch')) m.flat = true;
         if (pc.walls === false) m.noWalls = true;
         if (pc.roll != null) m.roll = pc.roll * D2R;
-        if (pc.maxBank != null) m.maxBank = pc.maxBank;
+        if (pc.maxBank !== undefined) m.maxBank = pc.maxBank;
+        if (pc.v != null) m.vDesign = pc.v;
+        if (pc.width != null) m.width = typeof pc.width === 'number' ? [pc.width, pc.width] : pc.width;
       }
       segs.push(...r.segs);
       pose = r.pose;
@@ -65,22 +68,52 @@
     // curves are flat; anything else is banked by the heartline rule at the speed a car
     // would have there, estimated from the drop since the start of the run.
     const g = HW.units.G, vIn = ts.vIn || 0, lossG = ts.lossG == null ? 0.06 : ts.lossG;
+    // A piece may name its own design entry speed `v` (a loop after a launcher); maxBank:
+    // null lets the bank go all the way round (loops, corkscrews).
     let y0 = null;
+    const entry = new Map();
     const bank = (i, info) => {
       if (y0 == null) y0 = info.y;
       const m = info.seg.meta;
       if (m.bank) return m.bank(info);
       if (m.flat) return { flat: true };
       if (m.roll != null) return { flat: false, roll: m.roll };
-      const v2 = vIn * vIn - 2 * g * (info.y - y0) - 2 * lossG * g * info.s;
-      return { flat: false, vNom: Math.sqrt(Math.max(v2, 60 * 60)), gain: 1, maxDeg: m.maxBank == null ? (ts.maxBank == null ? 50 : ts.maxBank) : m.maxBank };
+      let v2;
+      if (m.vDesign != null) {
+        if (!entry.has(m.piece)) entry.set(m.piece, { s: info.s, y: info.y });
+        const e = entry.get(m.piece);
+        v2 = m.vDesign * m.vDesign - 2 * g * (info.y - e.y) - 2 * lossG * g * (info.s - e.s);
+      } else v2 = vIn * vIn - 2 * g * (info.y - y0) - 2 * lossG * g * info.s;
+      const maxDeg = 'maxBank' in m ? m.maxBank : ts.maxBank == null ? 50 : ts.maxBank;
+      return { flat: false, vNom: Math.sqrt(Math.max(v2, 60 * 60)), gain: 1, maxDeg };
     };
     const path = HW.Path.build(segs, { closed: !!ts.closed, ds: cfg.sampleDs, smoothCm: cfg.bankSmoothCm, bank });
     path.id = ts.id; path.spec = ts; path.name = ts.name || ts.id;
+    // where each piece lies along the track
+    path.pieces = {};
+    for (const sg of segs) {
+      const pr = path.pieces[sg.meta.piece] || (path.pieces[sg.meta.piece] = { s0: sg.s0, s1: sg.s0, type: sg.meta.pieceType });
+      pr.s1 = sg.s0 + sg.length;
+    }
+    // lane width per sample where a piece asks for one (a catch funnel): smoothstep between its ends
+    if (segs.some((sg) => sg.meta.width)) {
+      path.W = new Float32Array(path.N).fill(cfg.laneW);
+      for (let i = 0; i < path.N; i++) {
+        const m = path.segments[path.segIdx[i]].meta;
+        if (!m.width) continue;
+        const pr = path.pieces[m.piece], u = HW.math.clamp((i * path.ds - pr.s0) / Math.max(1e-6, pr.s1 - pr.s0), 0, 1);
+        path.W[i] = m.width[0] + (m.width[1] - m.width[0]) * u * u * (3 - 2 * u);
+      }
+      path.widthAt = (s) => path.W[Math.max(0, Math.min(path.N - 1, Math.round(s / path.ds)))];
+    } else path.widthAt = () => cfg.laneW;
 
-    // per-sample flags used by the physics: 1 = no walls here
+    // per-sample flags used by the physics: 1 = no walls here; brake drag where a piece has pads
     path.noWall = new Uint8Array(path.N);
     for (let i = 0; i < path.N; i++) if (path.segments[path.segIdx[i]].meta.noWalls) path.noWall[i] = 1;
+    if (segs.some((sg) => sg.meta.brake)) {
+      path.brake = new Float32Array(path.N);
+      for (let i = 0; i < path.N; i++) path.brake[i] = path.segments[path.segIdx[i]].meta.brake || 0;
+    }
     // region tags for the renderer and stats
     path.region = (s) => {
       const i = path.closed ? Math.floor((((s % path.length) + path.length) % path.length) / path.ds) % path.N
@@ -149,7 +182,7 @@
       const set = HW.sets[id];
       if (!set) throw new Error('no track set ' + id);
       const params = Object.assign({}, set.params);
-      const ctx = { cfg, set, params, props: {}, ends: {}, floorY: set.floorY == null ? 0.8 : set.floorY };
+      const ctx = { cfg, set, params, props: {}, ends: {}, features: [], floorY: set.floorY == null ? 0.8 : set.floorY };
       for (const pr of set.props || []) HW.propTypes[pr.kind].prepare(ctx, pr);
 
       const tracks = set.tracks.map((ts) => buildTrack(ts, ctx));
@@ -176,6 +209,8 @@
         }
       }
       for (const pr of set.props || []) HW.propTypes[pr.kind].finish(ctx, L, pr);
+      L.solids = [];
+      HW.features.finish(ctx, L);
       L.joints = L.path.joints;
 
       // where the hand drops a car
@@ -183,6 +218,9 @@
       if (st.booster) {
         const b = L.boosters.find((x) => x.id === st.booster);
         L.start = { track: b.track, s: b.s + (st.offset || 0) };
+      } else if (st.launcher) {
+        const ln = L.launchers.find((x) => x.id === st.launcher) || L.launchers[0];
+        L.start = { track: ln.track, s: ln.s };
       } else {
         L.start = { track: byId[st.track] || tracks[0], s: st.s || 0 };
       }
@@ -190,9 +228,8 @@
 
       L.supports.push(...autoSupports(L, cfg));
       // a red end block at every open end that stops the car (the same box Rapier collides with)
-      L.solids = [];
       for (const t of tracks) for (const [lnk, s, sg] of [[t.endLink, t.length, 1], [t.startLink, 0, -1]]) {
-        if (!lnk || lnk.kind !== 'stop') continue;
+        if (!lnk || lnk.kind !== 'stop' || (sg < 0 && t.plunger)) continue;
         const f = t.frame(s, {}), off = sg * 0.7, up = (cfg.wallH - cfg.floorT) / 2;
         L.solids.push({ kind: 'buffer', track: t,
           c: [f.px + f.tx * off + f.ux * up, f.py + f.ty * off + f.uy * up, f.pz + f.tz * off + f.uz * up],

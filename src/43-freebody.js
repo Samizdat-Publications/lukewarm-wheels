@@ -56,9 +56,10 @@
         const hz = step * 0.56;
         const at = (dr, du) => [f.px + f.rx * dr + f.ux * du, f.py + f.ry * dr + f.uy * du, f.pz + f.rz * dr + f.uz * du];
         let c = at(0, -floorT / 2);
-        fixedBox(api, c[0], c[1], c[2], W / 2 + wallT, floorT / 2, hz, q, { friction: 0.3 });
+        const Ws = path.widthAt ? path.widthAt(s) : W;
+        fixedBox(api, c[0], c[1], c[2], Ws / 2 + wallT, floorT / 2, hz, q, { friction: 0.3 });
         for (const sg of [-1, 1]) {
-          c = at(sg * (W / 2 + wallT / 2), (wallH - floorT) / 2);
+          c = at(sg * (Ws / 2 + wallT / 2), (wallH - floorT) / 2);
           fixedBox(api, c[0], c[1], c[2], wallT / 2, (wallH + floorT) / 2, hz, q, { friction: 0.25 });
         }
       }
@@ -80,7 +81,7 @@
       const b = api.world.createRigidBody(R.RigidBodyDesc.kinematicVelocityBased().setTranslation(w.pos[0], w.pos[1] + 0.7, w.pos[2]));
       api.world.createCollider(R.ColliderDesc.cylinder(0.65, fr).setFriction(1.1).setRestitution(0.05)
         .setCollisionGroups(groups(GROUP_WORLD, GROUP_CAR)), b);
-      api.foam.push(b);
+      api.foam.push(b); b.spinSign = w.spin || 1;
     }
 
     // loop support towers and sweep blocks (layout.supports)
@@ -204,6 +205,6 @@
 
   HW.freebody.spinFoam = function (api, omegaW) {
     // all four wheels turn clockwise seen from above: negative angular velocity about +Y
-    for (const b of api.foam) b.setAngvel({ x: 0, y: -omegaW, z: 0 }, true);
+    for (const b of api.foam) b.setAngvel({ x: 0, y: -omegaW * b.spinSign, z: 0 }, true);
   };
 })(window.HW);

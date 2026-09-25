@@ -20,6 +20,7 @@
       this.events = [];
       this.crashCount = 0;
       this.fb = RAPIER ? HW.freebody.create(RAPIER, this.layout, cfg) : null;
+      HW.stunts.create(this);
       this.sub = 0;
       this.acc = 0;
       this.queue = [];                           // cars waiting to be dropped at START HERE
@@ -130,6 +131,8 @@
       for (const car of this.cars) if (car.mode === 'retrieving') this.advanceRetrieve(car, h);
       // car-car contacts
       this.contacts();
+      // hazards and launchers
+      if (this.layout.hazards.length || this.layout.launchers.length) HW.stunts.step(this, h);
       // rigid bodies
       this.sub++;
       const ratio = Math.max(1, Math.round(cfg.substepHz / cfg.physHz));
@@ -214,7 +217,8 @@
         return;
       }
       HW.freebody.spinFoam(fb, this.power.omegaW);
-      if (!free.length) return;
+      if (!free.length) { HW.stunts.park(this); return; }
+      HW.stunts.drive(this, dt);
       for (const car of free) HW.freebody.tyres(fb, car, dt, cfg.muSide);
       const hits = HW.freebody.stepWorld(fb, dt);
       if (hits.length) {
@@ -247,7 +251,7 @@
       const f = path.frame(nr.s, {});
       const dx = car.pos.x - f.px, dy = car.pos.y - f.py, dz = car.pos.z - f.pz;
       const d = dx * f.rx + dy * f.ry + dz * f.rz, hn = dx * f.ux + dy * f.uy + dz * f.uz;
-      const dmax = (cfg.laneW - car.wid) / 2;
+      const dmax = (path.W ? path.W[nr.i] : cfg.laneW) / 2 - car.wid / 2;
       if (Math.abs(d) > dmax + 0.45 || hn < -0.35 || hn > 0.6) return false;
       if (up.x * f.ux + up.y * f.uy + up.z * f.uz < 0.9) return false;
       const al = fwd.x * f.tx + fwd.y * f.ty + fwd.z * f.tz;

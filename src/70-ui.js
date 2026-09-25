@@ -87,6 +87,32 @@
         h('div', {}, h('div', { class: 'lbl', text: 'Booster', style: 'margin-bottom:6px' }), U.switchEl),
         h('div', { class: 'gauges' }, U.g.volt.el, U.g.amp.el, U.g.rpm.el, U.g.foam.el, U.g.soc.el, U.g.load.el)));
 
+      // the spring launcher: strength, random shots, fire
+      U.ln = L.launchers[0] || null;
+      if (U.ln) {
+        const ln = U.ln;
+        const out = h('output', { for: 'ln-str', text: Math.round(ln.strength * 100) + '%' });
+        const rng = h('input', { id: 'ln-str', type: 'range', min: '30', max: '100', step: '1', value: String(Math.round(ln.strength * 100)), 'aria-label': 'Launch strength' });
+        rng.addEventListener('input', () => { ln.strength = +rng.value / 100; out.textContent = rng.value + '%'; ln.vary = false; vary.checked = false; });
+        const vary = h('input', { id: 'ln-vary', type: 'checkbox' }); vary.checked = ln.vary;
+        vary.addEventListener('change', () => { ln.vary = vary.checked; });
+        const auto = h('input', { id: 'ln-auto', type: 'checkbox' }); auto.checked = ln.auto;
+        auto.addEventListener('change', () => { ln.auto = auto.checked; });
+        U.lnReady = h('span', { class: 'chip', text: 'empty' });
+        U.lnLast = h('div', { class: 'last', text: 'No shot yet' });
+        root.append(h('div', { id: 'launch', class: 'panel' },
+          h('div', { class: 'row' }, h('span', { class: 'lbl', text: 'Launcher' }), U.lnReady),
+          h('div', { class: 'row' }, h('label', { for: 'ln-str', class: 'lbl', text: 'Pull' }), rng, out),
+          h('div', { class: 'row' }, h('label', { class: 'check', for: 'ln-vary' }, vary, 'Random'), h('label', { class: 'check', for: 'ln-auto' }, auto, 'Auto-fire'),
+            h('button', { id: 'btn-fire', class: 'hot', onclick: () => U.fire(), title: 'Fire the launcher (F)' }, 'Fire')),
+          U.lnLast));
+        HW.bus.on('launch', (e) => {
+          const pct = Math.round(e.strength * 100);
+          U.lnLast.textContent = e.car.name + ' · ' + pct + '% · ' + Math.round(e.speed) + ' cm/s';
+          if (ln.vary) { rng.value = String(pct); out.textContent = pct + '%'; }
+        });
+      }
+
       // action bar
       U.slowBtn = h('button', { id: 'btn-slow', onclick: () => U.toggleSlow(), title: 'Slow motion (S)' }, 'Slow-mo');
       root.append(h('div', { id: 'actions', class: 'panel' },
@@ -181,6 +207,7 @@
       else if (k === 'c') { const order = ['orbit', 'chase', 'onboard', 'top', 'director']; U.setCam(order[(order.indexOf(HW.cam.mode) + 1) % order.length]); }
       else if (k === 's') U.toggleSlow();
       else if (k === 'n') U.sim.nudge();
+      else if (k === 'f') U.fire();
       else if (k === 'r') U.toggleReplay();
       else if (k === 'a') U.addCar();
       else if (k === 'l') U.sim.lineUpAll();
@@ -188,6 +215,13 @@
       else if (k === 't') U.toggleDrawer();
       else if (k === 'h' || k === '?') U.toggleHelp();
       else if (k === 'escape') { U.toggleHelp(false); U.toggleDrawer(false); if (HW.replay.active) HW.replay.stop(); }
+    },
+
+    fire() {
+      const ln = U.ln;
+      if (!ln) return;
+      if (ln.car) HW.stunts.fire(U.sim, ln, ln.vary ? null : ln.strength);
+      else if (!U.sim.cars.some((c) => c.mode === 'retrieving' || U.sim.queue.some((q) => q.car === c))) U.addCar();
     },
 
     // 'Criss Cross Crash' -> 'Criss Cross <span>Crash</span>' (the last word in flame)
@@ -294,6 +328,7 @@
       g.soc.num.textContent = Math.round(tel.soc * 100);
       g.load.num.textContent = busy;
       U.crashNum.textContent = String(sim.crashCount);
+      if (U.ln) { const ready = !!U.ln.car; U.lnReady.textContent = ready ? 'loaded' : 'empty'; U.lnReady.className = 'chip ' + (ready ? 'running' : 'parked'); }
       for (const [car, r] of U.rows) {
         const st = car.mode === 'parked' ? 'garage' : car.status;
         r.chip.textContent = st === 'retrieving' ? 'carried' : st;

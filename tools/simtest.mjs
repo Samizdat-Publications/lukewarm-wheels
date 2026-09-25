@@ -86,6 +86,105 @@ if (mode === 'lone') {
   process.exit(0);
 }
 
+if (mode === 'geomset') {
+  // node tools/simtest.mjs geomset <setId> : per track, per piece: length, tightest radius, roll, height
+  HW.config.set = process.argv[3] || 'loopLeap';
+  const L = HW.layout.build(HW.config);
+  for (const t of L.tracks) {
+    let kjump = 0, at = 0;
+    for (let i = 1; i < t.N; i++) {
+      const k0 = Math.hypot(t.K.x[i - 1], t.K.y[i - 1], t.K.z[i - 1]), k1 = Math.hypot(t.K.x[i], t.K.y[i], t.K.z[i]);
+      if (Math.abs(k1 - k0) > kjump) { kjump = Math.abs(k1 - k0); at = i * t.ds; }
+    }
+    console.log(`${t.id}: ${fmt(t.length, 1)} cm ${t.closed ? 'closed' : 'open'}, joints ${t.joints.length}, joint errors ${t.jointErrors.length}, largest curvature step ${kjump.toFixed(4)}/cm at s=${fmt(at, 1)}`);
+    for (const [id, pr] of Object.entries(t.pieces)) {
+      let kmax = 0, roll = 0, ylo = 1e9, yhi = -1e9;
+      for (let i = Math.ceil(pr.s0 / t.ds); i < Math.min(t.N, pr.s1 / t.ds); i++) {
+        kmax = Math.max(kmax, Math.hypot(t.K.x[i], t.K.y[i], t.K.z[i]));
+        roll = Math.max(roll, Math.acos(Math.max(-1, Math.min(1, t.U.y[i]))) * 57.3);
+        ylo = Math.min(ylo, t.P.y[i]); yhi = Math.max(yhi, t.P.y[i]);
+      }
+      console.log(`   ${id.padEnd(12)} ${pr.type.padEnd(10)} s ${fmt(pr.s0, 1).padStart(6)}..${fmt(pr.s1, 1).padEnd(6)} minR ${kmax > 1e-4 ? fmt(1 / kmax, 1) : '-'}  roll<=${fmt(roll)}  y ${fmt(ylo, 1)}..${fmt(yhi, 1)}`);
+    }
+  }
+  console.log('boosters', L.boosters.map((b) => b.id + '@' + b.track.id + ':' + fmt(b.s, 1)).join(' '), ' launchers', L.launchers.map((l) => l.id + '@' + fmt(l.s, 1)).join(' '), ' hazards', L.hazards.map((h) => h.type + '@' + fmt(h.s, 1)).join(' '), ' supports', L.supports.length);
+  const b = L.bounds; console.log('bounds', b.lo.map((x) => fmt(x)).join(','), '..', b.hi.map((x) => fmt(x)).join(','));
+  process.exit(0);
+}
+
+if (mode === 'sweep') {
+  // node tools/simtest.mjs sweep <setId> [lo] [hi] [step] [cars] : fire each casting from the
+  // launcher at each strength and classify what happened
+  HW.config.set = process.argv[3] || 'loopLeap';
+  const lo = +(process.argv[4] || 0.5), hi = +(process.argv[5] || 1), step = +(process.argv[6] || 0.05);
+  const which = process.argv[7] ? process.argv[7].split(',').map(Number) : [0, 1, 2, 3, 4];
+  const R = await rapier();
+  const sim = new HW.Sim({ RAPIER: R });
+  const L = sim.layout, ln = L.launchers[0];
+  sim.setSwitch(true);
+  for (const l of L.launchers) l.auto = false;
+  for (const hz of L.hazards) { hz.period = 1e9; hz.phase = Math.PI / 2; }   // hold the hammer at full swing, out of the way
+  const h = 1 / sim.cfg.substepHz;
+  let log = null;
+  const note = (x) => { if (log) log.push(x); };
+  HW.bus.on('derail', (e) => { if (log && e.car === log.car) note(`${e.cause}@${e.car.track.id}:${e.car.track.region(e.car.s)}`); });
+  HW.bus.on('recapture', (e) => { if (log && e.car === log.car) note(`caught@${e.car.track.id}:${fmt(e.car.s)}`); });
+  HW.bus.on('gate', (e) => { if (log && e.car === log.car) note('FINISH'); });
+  HW.bus.on('retrieve', (e) => { if (log && e.car === log.car) log.done = true; });
+  const header = 'strength  ' + which.map((i) => HW.catalog[i].name.slice(0, 13).padEnd(34)).join('');
+  console.log(header);
+  for (let s = lo; s <= hi + 1e-9; s += step) {
+    let row = s.toFixed(2).padEnd(10);
+    for (const idx of which) {
+      const car = sim.cars[idx];
+      for (const c of sim.cars) if (c.mode !== 'parked') sim.park(c);
+      sim.placeOnTrack(car, ln.s, 0, 0, false, ln.track);
+      for (let i = 0; i < 40; i++) sim.step(h);
+      log = []; log.car = car; log.done = false;
+      const shot = HW.stunts.fire(sim, Object.assign(ln, { car }), s);
+      let n = 0;
+      while (!log.done && !(car.finished && Math.abs(car.v) < 3) && n++ < 12 / h) sim.step(h);
+      // what happened: the first way off the track, where it came down, and whether it finished
+      let txt = log.includes('FINISH') ? 'finish ' : '';
+      const first = log.find((x) => !x.startsWith('caught') && x !== 'FINISH');
+      const caught = log.find((x) => x.startsWith('caught'));
+      if (first && first.startsWith('jump')) {
+        if (caught) txt += caught.replace('caught@', 'c@');
+        else {
+          let nr = null; for (const t of L.tracks) { if (t === ln.track) continue; const r = t.nearest(car.pos.x, car.pos.y, car.pos.z); if (!nr || r.dist < nr.dist) nr = r; }
+          // came down before the catch, on it but tumbled out, or past the end of the funnel
+          const catchEnd = nr ? Object.values(nr.track.pieces)[0].s1 : 0;
+          txt += !nr ? '?' : nr.s < 2 ? 'SHORT' : nr.s < catchEnd ? 'CRASHED ' + fmt(nr.s) : 'OVER ' + fmt(nr.s);
+        }
+      } else if (first) txt += first;
+      const later = log.filter((x) => x !== first && x !== caught && x !== 'FINISH');
+      if (later.length) txt += ' ' + later.join(' ');
+      row += (fmt(shot.v) + ' ' + txt).slice(0, 33).padEnd(34);
+      log = null;
+    }
+    console.log(row);
+  }
+  process.exit(0);
+}
+
+if (mode === 'auto') {
+  // node tools/simtest.mjs auto <setId> [secs] [cars] : the set running by itself; what happened
+  HW.config.set = process.argv[3] || 'loopLeap';
+  const secs = +(process.argv[4] || 120), n = +(process.argv[5] || 3);
+  const R = await rapier();
+  const sim = new HW.Sim({ RAPIER: R, catalog: HW.catalog.slice(0, n) });
+  const counts = {}, causes = {};
+  for (const t of ['launch', 'derail', 'recapture', 'gate', 'whack', 'retrieve', 'crash', 'bump', 'buffer', 'stall', 'nudge', 'dropped']) { counts[t] = 0; HW.bus.on(t, () => counts[t]++); }
+  HW.bus.on('derail', (e) => { const k = e.cause + '@' + e.car.track.id + ':' + e.car.track.region(e.car.s); causes[k] = (causes[k] || 0) + 1; });
+  sim.lineUpAll();
+  const h = 1 / sim.cfg.substepHz;
+  for (let i = 0; i < secs / h; i++) sim.step(h);
+  console.log(`${sim.layout.set.name}, ${n} cars, ${secs} s: ` + JSON.stringify(counts));
+  console.log('  derails', JSON.stringify(causes));
+  for (const c of sim.cars) console.log(`  ${c.name.padEnd(15)} runs ${c.laps}  best ${fmt(c.bestLap, 2)} s  mode ${c.mode}`);
+  process.exit(0);
+}
+
 if (mode === 'runs') {
   // node tools/simtest.mjs runs <setId> [runsPerCar] : drop every casting down an open set,
   // one car at a time, and report what happened on each run

@@ -28,6 +28,7 @@
     HW.world.build(HW.render.scene);
     HW.renderTrack.build(HW.render.scene, sim.layout);
     HW.renderHub.build(HW.render.scene, sim.layout);
+    HW.renderProps.build(HW.render.scene, sim);
     HW.renderCars.build(HW.render.scene, sim);
     HW.cam.init(HW.render.camera, canvas, sim.layout.view);
     HW.fx.init(HW.render.scene);
@@ -69,6 +70,7 @@
     HW.replay.update(dt, sim);
     HW.fx.update(dt);
     HW.renderHub.update(dt, sim);
+    HW.renderProps.update(dt, sim);
     HW.renderCars.update(dt, sim, HW.ui.followed);
     HW.cam.update(dt, sim);
     HW.render.render(dt);

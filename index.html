@@ -110,6 +110,13 @@
   .gauge .bar i { display: block; height: 100%; width: 50%; background: linear-gradient(90deg, var(--orange), var(--flame)); border-radius: 3px; transition: width .12s linear; }
   #power .foot { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; }
 
+  #launch { position: absolute; left: var(--gut); bottom: calc(var(--gut) + 132px + env(safe-area-inset-bottom, 0px)); padding: 10px 14px; display: grid; gap: 8px; width: 300px; }
+  #launch .row { display: flex; align-items: center; gap: 10px; }
+  #launch input[type=range] { flex: 1; accent-color: var(--orange); }
+  #launch output { font: 700 15px var(--label); color: var(--text); min-width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+  #launch .check { display: flex; align-items: center; gap: 5px; font: 600 12px var(--label); color: var(--text); }
+  #launch button { margin-left: auto; }
+  #launch .last { font: 600 12px var(--label); letter-spacing: .04em; color: var(--flame); font-variant-numeric: tabular-nums; }
   #actions { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--gut) + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; padding: 8px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 2 * var(--gut)); }
 
   #speedo { position: absolute; right: var(--gut); bottom: calc(var(--gut) + env(safe-area-inset-bottom, 0px)); padding: 12px 16px; text-align: right; min-width: 190px; }
@@ -174,6 +181,7 @@
     #g-rpm, #g-soc, #g-load { font-size: 16px; }
     .num { font-size: 17px; }
     #speedo { display: none; }
+    #launch { left: var(--gut); right: var(--gut); width: auto; bottom: calc(var(--gut) + 158px + env(safe-area-inset-bottom, 0px)); padding: 8px 10px; gap: 5px; }
     #actions { left: var(--gut); right: var(--gut); max-width: none; transform: none; bottom: calc(var(--gut) + 104px + env(safe-area-inset-bottom, 0px));
       flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; padding: 6px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
     #actions button { padding: 8px 10px; font-size: 11px; flex: 0 0 auto; }
@@ -235,11 +243,13 @@
 <script src="src/31-track-pieces.js"></script>
 <script src="src/32-v2791.js"></script>
 <script src="src/33-track-build.js"></script>
+<script src="src/34-track-features.js"></script>
 <script src="src/35-sets.js"></script>
 <script src="src/40-power.js"></script>
 <script src="src/41-cars.js"></script>
 <script src="src/42-collide.js"></script>
 <script src="src/43-freebody.js"></script>
+<script src="src/44-stunts.js"></script>
 <script src="src/45-sim.js"></script>
 <script src="src/50-render-core.js"></script>
 <script src="src/51-render-world.js"></script>
@@ -249,6 +259,7 @@
 <script src="src/55-render-cars.js"></script>
 <script src="src/56-camera.js"></script>
 <script src="src/57-fx.js"></script>
+<script src="src/58-render-props.js"></script>
 <script src="src/60-audio.js"></script>
 <script src="src/61-audio-assets.js"></script>
 <script src="src/70-ui.js"></script>
