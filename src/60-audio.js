@@ -295,6 +295,8 @@
     }],
     whoosh: [2, 0.6, (d, sr) => sweep(d, sr, 0, 0.58, (t) => 300 + 900 * Math.sin(Math.PI * t), 1.3, (t) => Math.pow(Math.sin(Math.PI * t), 2), 1)],
     tick: [2, 0.05, (d, sr) => modes(d, sr, 0, [[3400, 0.8, 0.01], [5100, 0.5, 0.006]], 1, 0.05)],
+    // a glockenspiel bar (E6): the struck partials of a free bar, 1 : 2.76 : 5.40
+    chime: [1, 1.2, (d, sr) => { burst(d, sr, 0, 0.0006, 0.25, 4000, 0); modes(d, sr, 0, [[1319, 1, 0.42], [3640, 0.35, 0.12], [7123, 0.12, 0.05]], 1, 0); }],
     nudge: [2, 0.1, (d, sr) => { burst(d, sr, 0, 0.003, 0.7, 0, 1500); modes(d, sr, 0, [[260, 0.8, 0.02], [640, 0.5, 0.012]], 1, 0.1); modes(d, sr, 0.001, [[3000, 0.2, 0.02]], 1, 0.1); }],
     scrape: [3, 0.25, (d, sr) => sweep(d, sr, 0, 0.22, (t) => 2600 + 700 * Math.sin(t * 40), 1.5, (t) => (1 - t) * (0.6 + 0.4 * Math.sin(t * 230)), 1)],
   };
@@ -447,6 +449,12 @@
       const pos = posOf(e.car), t = when(e.t);
       if (e.cause === 'drift') play('scrape', { when: t, pos, gain: 0.22, rate: rr(0.9, 1.1) });
       else if (e.cause === 'lift') { play('wall', { when: t, pos, gain: 0.25, rate: rr(0.9, 1.05) }); play('scrape', { when: t, pos, gain: 0.14, rate: rr(0.95, 1.1), maxDur: 0.12 }); }
+      else if (e.cause === 'jump') {
+        // off the lip: the rear wheels clack the edge and the air rushes past
+        const sp = fin(e.car && e.car.speed, 250), x = clamp(sp / 350, 0.3, 1.3);
+        play(pick('s:knock', 'wall', 0.5), { when: t, pos, gain: 0.16 * x, rate: rr(1.05, 1.2), maxDur: 0.06 });
+        play('whoosh', { when: t, pos, gain: P.whoosh * 0.55 * x, rate: 1.1 + 0.4 * x, maxDur: 0.35 });
+      }
     },
     recapture(e) { play(pick('s:knock', 'land', 0.5), { when: when(e.t), pos: posOf(e.car), gain: P.land * 0.5, rate: rr(0.95, 1.08) }); },
     retrieve(e) {
@@ -470,7 +478,15 @@
     },
     buffer(e) { play(pick('s:knock', 'wall', 0.5), { when: when(e.t), pos: posOf(e.car), gain: clamp((e.speed || 60) / 300, 0.08, 0.45), rate: rr(0.85, 1.0), maxDur: 0.1 }); },
     gate(e) { if (e.gate && e.gate.kind === 'finish') play('tick', { when: when(e.t), pos: posOf(e.car), gain: Math.max(P.lap, 0.2), rate: rr(1.3, 1.4) }); },
+    // records and results: a little arpeggio on the glockenspiel, not placed in the room
+    lapRecord() { arp([1, 1.26, 1.5], 0.09, 0.22); },
+    record() { arp([1, 1.26, 1.5], 0.09, 0.22); },
+    challenge(e) { if (e.state === 'won') arp([1, 1.26, 1.5, 2], 0.12, 0.26); else if (e.state === 'lost') arp([0.75, 0.63], 0.16, 0.18); },
   };
+  function arp(rates, gap, gain) {
+    const t0 = ctx.currentTime + 0.02;
+    rates.forEach((r, i) => play('chime', { when: t0 + i * gap, gain: gain * (i === rates.length - 1 ? 1.15 : 1), rate: r }));
+  }
   let subscribed = false;
   function subscribe() {
     if (subscribed || !HW.bus || typeof HW.bus.on !== 'function') return;

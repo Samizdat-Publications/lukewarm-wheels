@@ -269,7 +269,7 @@
       U.showJumps();
       // the banner only for news: a record, a wipeout, or a big one (and never back to back)
       const quiet = U._toastAt && performance.now() - U._toastAt < 3500;
-      if (record) U.flash('RECORD JUMP!', e.car.name + '  ·  ' + fmtJ(e), 'air');
+      if (record) { U.flash('RECORD JUMP!', e.car.name + '  ·  ' + fmtJ(e), 'air'); HW.bus.emit('record', { kind: 'jump', car: e.car }); }
       else if (quiet) return;
       else if (!e.landed && e.air > 0.08) U.flash('WIPEOUT!', e.car.name + ' missed the catch', '');
       else if (e.landed && e.air > 0.24) U.flash(e.dist > 65 ? 'HUGE AIR!' : 'BIG AIR!', e.car.name + '  ·  ' + fmtJ(e), 'air');
