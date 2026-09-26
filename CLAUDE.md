@@ -7,8 +7,8 @@ before context runs low). Any session must be able to resume from `HANDOFF.md` a
 ## What this is
 **Shipped as v1 "Lukewarm Wheels" on 2026-09-26** (a parody name: keep "Hot Wheels" out of
 anything a player sees; set 1 is "Criss Cross Calamity"). Live: https://lukewarm-wheels.pages.dev
-(landing) and /play/ (the sim). The public GitHub repo `lukewarm-wheels` is prepared (local branch `public-main`, filtered
-history) but not created: see HANDOFF "v1 release". `origin` is the private repo. Deploy with `npm run deploy`;
+(landing) and /play/ (the sim). Public repo: `Samizdat-Publications/lukewarm-wheels` (remote `origin`, filtered history); the
+full history is in the private `hot-wheels-criss-cross-crash-sim` (remote `archive`). Deploy with `npm run deploy`;
 footage with `npm run film` + `npm run media` (see HANDOFF "v1 release").
 
 A browser simulation (Three.js r185 + Rapier 0.20, no bundler) of Hot Wheels track: since
