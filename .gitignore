@@ -6,3 +6,6 @@ node_modules/
 tools/vendor/
 media/raw/
 site-dist/
+docs/screenshots/
+dist/
+docs/V2791-*

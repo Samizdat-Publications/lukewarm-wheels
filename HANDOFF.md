@@ -1,7 +1,40 @@
 # HANDOFF - live project state
 
-_Last updated: 2026-09-25 by Opus 5.5 (overnight polish after the five phases, see "Overnight
-2026-09-25" below). Update this block whenever you stop._
+_Last updated: 2026-09-26 by Opus 5.5 (the v1 ship night: Lukewarm Wheels, see "v1 release
+2026-09-26" below). Update this block whenever you stop._
+
+## v1 release 2026-09-26 (read this first)
+
+Stewart (2026-09-25, going to bed): "finish development ... add whatever makes this a proper
+v1 with enough content to ship, then ship it", a high-quality README, a landing page with
+recordings like his VoidWing / antikythera / oil-dashboard pages, deployed live on Cloudflare,
+and a funny parody name instead of Hot Wheels. Full permission for all of it. Done:
+
+- **The name is Lukewarm Wheels** (parody). Set 1 shows as **Criss Cross Calamity**; its blurb
+  and the README credit the real 2010 Criss Cross Crash / Mattel V2791 once, nominatively. The
+  hub decal says LUKEWARM WHEELS. Keep "Hot Wheels" out of anything a player sees.
+- **Live:** https://lukewarm-wheels.pages.dev (landing page) and https://lukewarm-wheels.pages.dev/play/
+  (the sim). Cloudflare Pages project `lukewarm-wheels` (classic Pages, created once with
+  `--force`; never pass `--force` again). Deploy: `npm run deploy` (= `node tools/site.mjs --deploy`).
+- **GitHub:** public repo `Samizdat-Publications/lukewarm-wheels` (remote `origin`). Its history
+  was rewritten with git-filter-repo to drop Mattel's instruction scans (`docs/V2791-*`), the
+  working screenshots (`docs/screenshots/`) and old builds (`dist/`); those stay on disk here,
+  gitignored. The full unfiltered history is in the PRIVATE repo
+  `Samizdat-Publications/hot-wheels-criss-cross-crash-sim` (remote `archive`, branch `main`).
+- **New in the game:** a title screen (`73-title.js`: opens on a bare link over the running set,
+  Esc or the menu button brings it back; a card per set with a live thumbnail from
+  `62-thumbs.js`, built by `tools/thumbs.mjs`), six **featured builder tracks**
+  (`HW.builderCodec.FEATURED`, also in the builder's Featured menu), **27 trophies**
+  (`75-trophies.js`, localStorage `hw.trophies`, toast + chime, cabinet on Y), **photo mode**
+  (`76-photo.js`, P: HUD off, Freeze, Save PNG), closed rooms (near walls + ceiling as one-sided
+  planes: low cameras used to see black), the builder camera keeps the track framed and the
+  builder no longer shows the set's cars, the builder's letter keys no longer trigger game keys.
+- **Footage pipeline:** `npm install` (Playwright + ffmpeg-static), then `npm run film [scene..]`
+  (`tools/film.mjs`: virtual clock, 60 fps, into `media/raw/`, gitignored), `npm run media`
+  (`tools/media.mjs`: site clips + posters, hero reel, README GIFs, stills, og image, progress
+  thumbnails; the cut points are at the top of the file). The landing page is `site/`
+  (index.html, site.css, site.js); `npm run site` builds `site-dist/` = site + `play/`.
+- Physics unchanged all night: `node tools/regress.mjs` identical after every step.
 
 ## Where we are
 
@@ -128,6 +161,16 @@ bodies against free cars (`44-stunts.js`). A sim can run on its own event bus (`
 - The other sets could get rooms too (`set.room`); Race Day would suit a hallway.
 
 ## Gotchas (each cost time)
+
+- `npm install` of ffmpeg-static can leave a truncated `ffmpeg.exe` (21 MB, "Exec format error");
+  delete it and run `node node_modules/ffmpeg-static/install.js` (the real one is 83 MB).
+- `wrangler pages deploy` must get a path without spaces when run through `npx.cmd` with a shell:
+  `tools/site.mjs` passes `site-dist` relative to the project.
+- A running `python -m http.server` inside `site-dist/` locks it; `tools/site.mjs` cannot rebuild.
+- The Playwright MCP browser may only write under the OneDrive project copy's `.playwright-mcp/`
+  (it was started there); save screenshots there and copy them over, never work in that copy.
+- Film scenes need a car-framing `__look(...)` (localhost only) or orbit autoRotate; the Director
+  alone often cuts to blank walls. Playwright's bundled Chromium plays the site's H.264 fine.
 
 - `node tools/regress.mjs save <name>` saves ONE scenario per call (a second name is ignored).
 - `__shot('a/b.png')` becomes a dot-file `.._a_b.png` (the server sanitises names); save into

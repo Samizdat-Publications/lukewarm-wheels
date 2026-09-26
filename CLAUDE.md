@@ -1,10 +1,17 @@
-# Hot Wheels Criss Cross Crash - simulation project
+# Lukewarm Wheels (the Hot Wheels Criss Cross Crash sim) - simulation project
 
 **READ `HANDOFF.md` FIRST.** It is the live state of this project: what is built, the design
 decisions and why, what is next, and the gotchas. Update it at the end of every work block (and
 before context runs low). Any session must be able to resume from `HANDOFF.md` alone.
 
 ## What this is
+**Shipped as v1 "Lukewarm Wheels" on 2026-09-26** (a parody name: keep "Hot Wheels" out of
+anything a player sees; set 1 is "Criss Cross Calamity"). Live: https://lukewarm-wheels.pages.dev
+(landing) and /play/ (the sim). Public repo: `Samizdat-Publications/lukewarm-wheels` (remote
+`origin`, history filtered: no Mattel scans, no working screenshots, no dist). The full history is
+in the private `hot-wheels-criss-cross-crash-sim` (remote `archive`). Deploy with `npm run deploy`;
+footage with `npm run film` + `npm run media` (see HANDOFF "v1 release").
+
 A browser simulation (Three.js r185 + Rapier 0.20, no bundler) of Hot Wheels track: since
 2026-09-24 a platform where every set is data (`src/35-sets.js`: Criss Cross Crash, Drop & Jump,
 Loop & Leap, Race Day, Kitchen Table Grand Prix) plus a Track Builder. It began as the 2010 Hot Wheels
@@ -55,5 +62,6 @@ Working shots go in `docs/screenshots/`.
   `30-track-path.js` are the known exceptions; split them if they grow).
 - A new set is data in `35-sets.js`; a new piece type goes in `31-track-pieces.js` or
   `34-track-features.js`; furniture/props are placed from the track, not by hand.
-- No git remote; commit locally after each meaningful step with a descriptive message.
+- Commit after each meaningful step with a descriptive message; push `origin` (public) when a step
+  is done. `docs/screenshots/`, `dist/`, `docs/V2791-*` and `media/raw/` are gitignored on purpose.
 - **Never write an em dash** (Stewart's global rule): commas, colons or spaced hyphens instead.

@@ -13,7 +13,8 @@ the pairing is the interesting part.
 
 ### 00 - What we were building from
 `../V2791-instructions.png` (and `V2791-half0.png` / `V2791-half1.png` for the two halves at full
-resolution; zoom them with `tools/imgzoom.html`)
+resolution; zoom them with `tools/imgzoom.html`). These are Mattel's, so they stay on the
+developer's disk and are not in the public repository.
 
 Mattel's own instruction sheet for V2791. Not a render - the source. Its CONTENTS page is what
 settled the architecture: **4 x one moulded ~270 deg arc** and **4 x one adjustable TRACK SUPPORT**,
@@ -270,6 +271,22 @@ V (or the garage's Showroom button) puts one casting on a turning plinth in a sm
 its card (what the real toy is, the numbers the physics uses), what it did this session, and the
 tuner. The Track Builder also gained Merge back (splitter branches come round again), hammer and
 paddle-wheel pieces, and a launcher strength that rides in the code.
+
+## 22 - 2026-09-26 - Lukewarm Wheels: a title screen
+`22-2026-09-26-title-screen.jpg`
+
+v1. The project gets a parody name and a front door: the title screen opens over the running
+set (the Director camera as an attract mode), with a card per set and six featured tracks built
+in the Track Builder, each with a thumbnail taken from the running sim. Behind it: 27 trophies,
+photo mode, rooms closed on all four sides.
+
+*Could it run?* Everything it could before, bit for bit (`tools/regress.mjs` identical).
+
+## 23 - 2026-09-26 - shipped
+`23-2026-09-26-landing-page.png`
+
+The landing page at https://lukewarm-wheels.pages.dev, the sim at `/play/`. Every clip on it was
+filmed from the sim by `tools/film.mjs` on a virtual clock at 60 fps.
 
 ## Adding a frame
 

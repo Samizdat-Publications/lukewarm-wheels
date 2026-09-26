@@ -66,7 +66,7 @@ code { font: 500 .86em ui-monospace, 'Cascadia Mono', Consolas, monospace; color
 :focus-visible { outline: 2px solid var(--flame); outline-offset: 3px; }
 
 /* ------------------------------------------------------------ ledger */
-.ledger { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--ink-2); }
+.ledger { padding: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--ink-2); }
 .ledger dl { margin: 0; display: grid; grid-template-columns: repeat(5, 1fr); }
 .ledger dl > div { padding: 26px 18px; border-left: 1px solid var(--line); }
 .ledger dl > div:first-child { border-left: 0; padding-left: 0; }

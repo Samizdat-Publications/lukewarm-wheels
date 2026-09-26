@@ -41,6 +41,6 @@ console.log(`site-dist: ${files} files, ${(total / 1e6).toFixed(1)} MB`);
 
 if (process.argv.includes('--deploy')) {
   const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-  execFileSync(npx, ['--yes', 'wrangler', 'pages', 'deploy', OUT, '--project-name', PROJECT, '--branch', 'main', '--commit-dirty=true'],
+  execFileSync(npx, ['--yes', 'wrangler', 'pages', 'deploy', 'site-dist', '--project-name', PROJECT, '--branch', 'main', '--commit-dirty=true'],
     { stdio: 'inherit', cwd: ROOT, shell: process.platform === 'win32' });
 }
