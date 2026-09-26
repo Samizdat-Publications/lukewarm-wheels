@@ -75,13 +75,13 @@
     x.bezierCurveTo(360, 110, 420, 118, 470, 132); x.bezierCurveTo(360, 140, 240, 170, 200, 206); x.bezierCurveTo(150, 190, 90, 190, 40, 170);
     x.fill();
     x.save(); x.translate(256, 150); x.transform(1, 0, -0.22, 1, 0, 0);
-    x.font = '900 64px "Racing Sans One", "Arial Black", Impact, sans-serif';
+    x.font = '900 46px "Racing Sans One", "Arial Black", Impact, sans-serif';
     x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.lineWidth = 10; x.strokeStyle = '#1b0a02'; x.strokeText('HOT WHEELS', 0, 0);
-    x.fillStyle = '#fff6e0'; x.fillText('HOT WHEELS', 0, 0);
+    x.lineWidth = 10; x.strokeStyle = '#1b0a02'; x.strokeText('LUKEWARM WHEELS', 0, 0);
+    x.fillStyle = '#fff6e0'; x.fillText('LUKEWARM WHEELS', 0, 0);
     x.restore();
     x.font = '700 30px "Barlow Condensed", "Arial Narrow", sans-serif'; x.fillStyle = '#ffe7b0'; x.textAlign = 'center';
-    x.fillText('CRISS CROSS CRASH', 256, 222);
+    x.fillText('CRISS CROSS CALAMITY', 256, 222);
     return c;
   }
 

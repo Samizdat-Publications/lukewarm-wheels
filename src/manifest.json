@@ -33,10 +33,14 @@
     "src/59-render-race.js",
     "src/60-audio.js",
     "src/61-audio-assets.js",
+    "src/62-thumbs.js",
     "src/70-ui.js",
     "src/71-ui-race.js",
     "src/72-builder.js",
+    "src/73-title.js",
     "src/74-showroom.js",
+    "src/75-trophies.js",
+    "src/76-photo.js",
     "src/90-main.js"
   ]
 }

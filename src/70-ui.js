@@ -38,6 +38,7 @@
       pick.value = set.id;
       pick.addEventListener('change', () => { location.hash = 's.' + pick.value; location.reload(); });
       root.append(h('div', { id: 'brand' },
+        h('button', { id: 'btn-menu', title: 'Menu: sets, featured tracks, trophies (Esc)', onclick: () => HW.title && HW.title.open() }, h('span', { class: 'burger', 'aria-hidden': 'true' }), 'Lukewarm Wheels'),
         h('div', { class: 'logo', html: U.logoHtml(set.name) }),
         h('div', { class: 'tag', text: set.tag || 'live physics' }), pick));
 
@@ -213,7 +214,10 @@
 
     onKey(e) {
       if (e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+      if (HW.title && HW.title.isOpen) return;
       const k = e.key.toLowerCase();
+      // the builder types pieces with letters; only Escape reaches the game while it is open
+      if (HW.builderUI && HW.builderUI.panel && k !== 'escape') return;
       if (k === ' ') { e.preventDefault(); U.toggleSwitch(); }
       else if (k >= '1' && k <= '5') { const c = U.sim.cars[+k - 1]; if (c) { if (c.mode === 'parked') U.toggleCar(c); U.follow(c); } }
       else if (k === 'c') { const order = ['orbit', 'chase', 'onboard', 'top', 'director']; U.setCam(order[(order.indexOf(HW.cam.mode) + 1) % order.length]); }
@@ -227,7 +231,16 @@
       else if (k === 'm') U.toggleSound();
       else if (k === 't') U.toggleDrawer();
       else if (k === 'h' || k === '?') U.toggleHelp();
-      else if (k === 'escape') { U.toggleHelp(false); U.toggleDrawer(false); if (HW.replay.active) HW.replay.stop(); }
+      else if (k === 'p' && HW.photo) HW.photo.toggle();
+      else if (k === 'y' && HW.trophies) HW.trophies.toggle();
+      else if (k === 'escape') {
+        // Escape closes what is open; with nothing open it brings up the title screen
+        const any = !U.help.hidden || !U.drawer.hidden || HW.replay.active || (HW.trophies && HW.trophies.isOpen) || (HW.photo && HW.photo.on);
+        U.toggleHelp(false); U.toggleDrawer(false); if (HW.replay.active) HW.replay.stop();
+        if (HW.trophies) HW.trophies.toggle(false);
+        if (HW.photo && HW.photo.on) HW.photo.toggle(false);
+        if (!any && !HW.showroom.active && !(HW.builderUI && HW.builderUI.panel) && HW.title) HW.title.open();
+      }
     },
 
     fire() {
@@ -237,7 +250,7 @@
       else if (!U.sim.cars.some((c) => c.mode === 'retrieving' || U.sim.queue.some((q) => q.car === c))) U.addCar();
     },
 
-    // 'Criss Cross Crash' -> 'Criss Cross <span>Crash</span>' (the last word in flame)
+    // 'Criss Cross Calamity' -> 'Criss Cross <span>Calamity</span>' (the last word in flame)
     logoHtml(name) {
       const w = String(name).split(' '), last = w.pop();
       return (w.length ? w.join(' ') + ' ' : '') + '<span>' + last + '</span>';

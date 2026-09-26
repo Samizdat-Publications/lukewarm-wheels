@@ -126,10 +126,11 @@
       if (closed) pieces.push({ type: 'join', to: from.at, heading: from.heading, pitch: 0, id: 'close' });
       return { id, name: 'run ' + (i + 1), from, vIn, pieces, start, end, closed };
     });
+    const feat = FEATURED.find((f) => f.code === encode(m));
     const set = {
-      id: 'custom', name: 'My Track', year: 2026, floor: 'rug', code: encode(m),
-      tag: 'built in the Track Builder · ' + encode(m),
-      blurb: 'A track from the Track Builder. Share it with its code: the link carries the whole track.',
+      id: 'custom', name: feat ? feat.name : 'My Track', year: 2026, floor: 'rug', code: encode(m),
+      tag: (feat ? feat.tag + ' · ' : 'built in the Track Builder · ') + encode(m),
+      blurb: feat ? feat.blurb + ' Built from stock pieces in the Track Builder: open Build to take it apart.' : 'A track from the Track Builder. Share it with its code: the link carries the whole track.',
       tracks, hazards, startV: m.start === 'P' ? 250 : 0,
       start: m.start === 'L' ? { launcher: 'launcher' } : { track: 'r0', s: m.start === 'T' ? 2 : 4 },
       autoStart: { cars: 3, every: 2.5 }, custom: true,
@@ -198,5 +199,22 @@
     return res;
   }
 
-  HW.builderCodec = { PIECES, STARTS, decode, encode, toSet, tree, deadEnds, testRun };
+  // Featured tracks: builder codes that show the pieces off. Each passed a test drive with
+  // all five castings (tools/simtest.mjs code <code>), except where the blurb says otherwise.
+  const FEATURED = [
+    { id: 'commute', code: 'PSBOSBllSBCSBll~', name: 'The Daily Commute', tag: 'loop · corkscrew · four boosters',
+      blurb: 'An oval with a loop on one straight and a corkscrew on the other. Four boosters keep it going all day, like traffic.' },
+    { id: 'lanes', code: 'PSBY.SBOSuSSSSSSuM.SBCSvSSSSSSvM', name: 'Pick a Lane', tag: 'splitter · loop or corkscrew · merge',
+      blurb: 'A moulded splitter sends each car left into a loop or right into a corkscrew, and both branches come back round to the same start.' },
+    { id: 'hammer', code: 'PSSBSXSBllSBSWSBll~', name: 'Hammer Time', tag: 'swinging hammer · paddle wheel',
+      blurb: 'A booster oval with a swinging hammer on one side and a paddle wheel on the other. Timing is everything; most cars have none.' },
+    { id: 'beltway', code: 'PBSBSbSBSbSBSbSBSb~', name: 'Banked Beltway', tag: 'four banked turns · eight boosters',
+      blurb: 'Flat out on a square of banked turns with a booster on every straight. The fastest lap in the building.' },
+    { id: 'leap', code: 'L9SOOSXSJ.SCSWSF', name: 'Leap of Faith', tag: 'launcher · double loop · hammer · jump · corkscrew',
+      blurb: 'A full-strength launch into a double loop, past a hammer, over a gap, through a corkscrew and a paddle wheel to the finish. Four of the five castings make it.' },
+    { id: 'tower', code: 'TSDSBJ.SBOSF', name: 'Tower of Terror', tag: 'drop tower · down ramp · jump · loop',
+      blurb: 'Off the drop tower, down a ramp, a booster, a jump and a loop to the finish. The Aeroflash, lightest of the five, tends to fly past the catch.' },
+  ];
+
+  HW.builderCodec = { PIECES, STARTS, FEATURED, decode, encode, toSet, tree, deadEnds, testRun };
 })(window.HW);

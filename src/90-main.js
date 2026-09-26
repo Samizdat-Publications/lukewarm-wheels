@@ -7,14 +7,15 @@
 
   // which set: #s.<id> in the URL (an artifact passes only a bare #token)
   const tok = (location.hash || '').slice(1);
+  main.bootToken = tok;
   if (tok.startsWith('s.') && HW.sets[tok.slice(2)]) HW.config.set = tok.slice(2);
   // a Track Builder code: the link carries the whole track
   if (tok.startsWith('t.')) { const set = HW.builderCodec.toSet(tok.slice(2)); if (set) { HW.sets.custom = set; HW.config.set = 'custom'; } }
   const bootSet = HW.sets[HW.config.set || 'crissCross'];
   try {
-    const bl = document.querySelector('#boot .logo');
-    if (bl && bootSet) bl.innerHTML = HW.ui.logoHtml(bootSet.name);
-    document.title = bootSet.name;
+    const bs = document.getElementById('boot-sub');
+    if (bs && bootSet) bs.textContent = bootSet.name + ' · warming the booster to room temperature';
+    document.title = bootSet.name + ' · Lukewarm Wheels';
   } catch (e) { /* no DOM (node) */ }
 
   function boot() {
@@ -42,6 +43,9 @@
     HW.overlay.build(HW.render.scene, sim);
     HW.uiRace.init(sim, document.getElementById('ui'));
     HW.showroom.init(sim);
+    if (HW.trophies) HW.trophies.init(sim);
+    if (HW.photo) HW.photo.init(sim);
+    HW.title.init(sim);
     setupPicking(canvas, sim);
 
     // open running: booster on, a few cars dropped in one after another (a race strip stages its own)

@@ -12,9 +12,9 @@
   // Mattel V2791 (2010). One continuous circuit through the red hub: two tall loops at the
   // back, two low banked sweeps at the front, the four hub lanes crossing in a #.
   S.crissCross = {
-    id: 'crissCross', name: 'Criss Cross Crash', year: 2010, floor: 'rug',
-    tag: 'Mattel V2791 · 1999 five-pack · live physics',
-    blurb: 'The 2010 Hot Wheels <b>Criss Cross Crash</b> (Mattel V2791) with the 1999 five-pack. One continuous circuit runs through a red hub, two tall loops and two low banked sweeps. The four lanes in the hub cross in a <b>#</b>: four crash points.',
+    id: 'crissCross', name: 'Criss Cross Calamity', year: 2010, floor: 'rug',
+    tag: 'motorised hub · two loops · four crash points',
+    blurb: 'Modelled on the 2010 <b>Criss Cross Crash</b> set (Mattel V2791) and the 1999 five-pack of the same name, down to the D cells and the foam. One continuous circuit runs through a red hub, two tall loops and two low banked sweeps. The four lanes in the hub cross in a <b>#</b>: four crash points.',
     params: {
       hubLane: 3.0,        // [E] lane centreline offset from the hub axes (lanes 6 cm apart)
       hubHalf: 14.5,       // [E] hub arm half-length: lanes leave the hub at +-14.5 cm

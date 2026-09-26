@@ -481,6 +481,7 @@
     // records and results: a little arpeggio on the glockenspiel, not placed in the room
     lapRecord() { arp([1, 1.26, 1.5], 0.09, 0.22); },
     record() { arp([1, 1.26, 1.5], 0.09, 0.22); },
+    trophy() { arp([1, 1.26, 1.5, 2, 2.52], 0.075, 0.2); },
     challenge(e) { if (e.state === 'won') arp([1, 1.26, 1.5, 2], 0.12, 0.26); else if (e.state === 'lost') arp([0.75, 0.63], 0.16, 0.18); },
   };
   function arp(rates, gap, gain) {

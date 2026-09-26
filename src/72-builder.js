@@ -62,12 +62,15 @@
           h('button', { onclick: () => B.remove(), title: 'Remove the selected piece (Backspace)' }, 'Remove'),
           h('button', { onclick: () => { B.sel = null; B.refresh(); }, title: 'Add new pieces at the end of the run' }, 'At end'),
           B.closeBtn,
-          h('button', { onclick: () => { B.model = C.decode(B.model.start); B.run = 0; B.sel = null; B.refresh(); } }, 'Clear')),
+          h('button', { onclick: () => { B.model = C.decode(B.model.start); B.run = 0; B.sel = null; B.refresh(); } }, 'Clear'),
+          B.featured = h('select', { id: 'b-featured', 'aria-label': 'Start from a featured track' },
+            h('option', { value: '', text: 'Featured…' }), C.FEATURED.map((f) => h('option', { value: f.code, text: f.name })))),
         h('div', { class: 'palette' }, palette),
         B.status,
         h('div', { class: 'row' }, h('label', { for: 'b-code', class: 'lbl', text: 'Code' }), B.code,
           h('button', { onclick: () => B.copy(), title: 'Copy a link to this track' }, 'Copy link'),
           h('button', { class: 'hot', onclick: () => B.play(), title: 'Load this track and run it' }, 'Play')));
+      B.featured.addEventListener('change', () => { const m = C.decode(B.featured.value); B.featured.value = ''; if (m) { B.model = m; B.run = 0; B.sel = null; B.refresh(); } });
       root.append(B.panel);
       addEventListener('keydown', B.onKey);
     },

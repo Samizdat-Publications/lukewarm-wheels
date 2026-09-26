@@ -20,7 +20,7 @@
       S.sim = sim;
       HW.bus.on('jump', (e) => { if (e.landed && (!S.best.get(e.car) || e.dist > S.best.get(e.car).dist)) S.best.set(e.car, { dist: e.dist, air: e.air }); });
       addEventListener('keydown', (e) => {
-        if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) || (HW.builderUI && HW.builderUI.panel)) return;
+        if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) || (HW.builderUI && HW.builderUI.panel) || (HW.title && HW.title.isOpen)) return;
         const k = e.key.toLowerCase();
         if (k === 'v') { S.active ? S.close() : S.open(); }
         else if (!S.active) return;
