@@ -1,6 +1,7 @@
 {
   "name": "lukewarm-wheels",
   "private": true,
+  "license": "MIT",
   "version": "1.0.0",
   "description": "Lukewarm Wheels: a die-cast toy track physics sim in the browser (Three.js + Rapier, no bundler)",
   "scripts": {

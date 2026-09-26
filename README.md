@@ -175,5 +175,5 @@ by or connected to Mattel or any toy company. Hot Wheels and Criss Cross Crash a
 Mattel, named here only to credit the set this models. Car names describe the real vehicles the
 toys depict.
 
-© 2026 Samizdat Publications. The source is here to read and learn from; no open-source licence
-has been chosen yet.
+**Licence:** [MIT](LICENSE). Fork it, remix it, build your own sets. The MIT licence covers the
+code and the footage here; it grants no rights to anyone's trademarks.
