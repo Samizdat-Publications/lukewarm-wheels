@@ -59,6 +59,16 @@
       west.rotation.y = Math.PI / 2;
       west.position.set(xW, H / 2 - 0.45, zN + len / 2);
       g.add(north, west);
+      // the near walls and the ceiling close the room for low and upward views (chase, onboard,
+      // the Director): one-sided planes facing in, so a camera outside the room sees through them
+      const exL = (sx > 0 ? hi[0] - cx : cx - lo[0]) + 300, ezL = ez + 300;
+      const east = new T.Mesh(new T.PlaneGeometry(len, H), wallMat);
+      east.rotation.y = -Math.PI / 2; east.position.set(exL, H / 2 - 0.45, zN + len / 2);
+      const south = new T.Mesh(new T.PlaneGeometry(len, H), wallMat);
+      south.rotation.y = Math.PI; south.position.set(xW + len / 2, H / 2 - 0.45, ezL);
+      const ceil = new T.Mesh(new T.PlaneGeometry(len, len), new T.MeshStandardMaterial({ color: 0xf3efe6, roughness: 0.95 }));
+      ceil.rotation.x = Math.PI / 2; ceil.position.set(xW + len / 2, H - 0.45, zN + len / 2);
+      g.add(east, south, ceil);
 
       // skirting board
       const skirt = new T.MeshStandardMaterial({ color: 0xf1ede4, roughness: 0.5 });

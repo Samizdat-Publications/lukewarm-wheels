@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lukewarm Wheels: a toy car track physics sim you can play in your browser</title>
+<meta name="description" content="Orange plastic track, taken far too seriously. Five die-cast cars, a battery-powered booster hub, loops, jumps, a drag strip and a kitchen table, all simulated. Free, in your browser.">
+<meta name="theme-color" content="#0a1230">
+<meta property="og:title" content="Lukewarm Wheels">
+<meta property="og:description" content="Orange plastic track, taken far too seriously. Every battery, booster, loop and crash is simulated, and none of it is scripted.">
+<meta property="og:image" content="https://lukewarm-wheels.pages.dev/media/og.jpg">
+<meta property="og:url" content="https://lukewarm-wheels.pages.dev/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='13' width='28' height='6' rx='2' fill='%23ff6a13'/%3E%3Crect x='13' y='2' width='6' height='28' rx='2' fill='%23ff6a13'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23c8141c'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Racing+Sans+One&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,800&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<link rel="preload" href="media/hero.jpg" as="image">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#sets">Skip to the track sets</a>
+
+<header class="hero" id="top">
+  <video class="hero-video" id="hero-video" muted loop playsinline preload="metadata" poster="media/hero.jpg" aria-hidden="true">
+    <source src="media/hero.mp4" type="video/mp4">
+  </video>
+  <div class="hero-shade" aria-hidden="true"></div>
+  <nav class="bar" aria-label="Site">
+    <a class="mark" href="#top">Lukewarm <span>Wheels</span></a>
+    <div class="bar-links">
+      <a href="#sets">Track sets</a>
+      <a href="#physics">The physics</a>
+      <a href="#builder">Builder</a>
+      <a href="#making">How it was made</a>
+      <a href="https://github.com/Samizdat-Publications/lukewarm-wheels">GitHub</a>
+      <a class="bar-play" href="play/">Play</a>
+    </div>
+  </nav>
+  <div class="hero-copy">
+    <p class="kicker">A die-cast physics simulator</p>
+    <h1 class="logo">Lukewarm <span>Wheels</span></h1>
+    <p class="pitch">Orange plastic track, taken far too seriously. The batteries, the motor, the foam boosters, every loop, jump and crash are simulated. None of it is scripted.</p>
+    <div class="cta">
+      <a class="btn btn-play" href="play/">Play in your browser <kbd>free</kbd></a>
+      <a class="btn btn-ghost" href="#sets">See the sets</a>
+    </div>
+    <p class="fine">No install. Desktop or phone, any browser with WebGL. About 0.8 MB, plus three.js and Rapier from a CDN.</p>
+  </div>
+  <button class="hero-toggle" id="hero-toggle" type="button" aria-pressed="false">Pause video</button>
+</header>
+
+<main>
+
+<section class="ledger" aria-label="In numbers">
+  <div class="wrap">
+    <dl>
+      <div><dt>1920</dt><dd>physics steps a second for every car on the track</dd></div>
+      <div><dt>5</dt><dd>die-cast castings, each with its own mass, wheels and drag</dd></div>
+      <div><dt>11</dt><dd>tracks: five sets and six featured builder tracks</dd></div>
+      <div><dt>27</dt><dd>trophies, from Fender Bender to Knockout Champion</dd></div>
+      <div><dt>0</dt><dd>scripted crashes. They happen because the physics says so</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section class="sets" id="sets" aria-labelledby="sets-h">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="sets-h">Five sets, one engine</h2>
+      <p>Every set is plain data, built into track by one engine. A car in the channel is held to the track surface exactly; the moment it leaves, by a crash, a fall or a jump, it becomes a real tumbling rigid body, and it is caught again only if it lands upright in a lane. All footage on this page is the finished sim, filmed frame by frame at 60 fps.</p>
+    </div>
+
+    <ol class="stops">
+      <li class="stop" style="--c: var(--orange)">
+        <figure class="panel"><video data-inview muted loop playsinline preload="none" poster="media/crossing.jpg" aria-label="Five cars lapping the Criss Cross Calamity and colliding in the crossing, with slow-motion crash cameras."><source src="media/crossing.mp4" type="video/mp4"></video></figure>
+        <div class="stop-text">
+          <p class="who">Set 1 · Criss Cross Calamity</p>
+          <h3>Four lanes, one crossing, eventually a crash</h3>
+          <p>A motorised hub with four foam booster wheels, two tall loops and two banked sweeps, and four lanes that cross in a <b>#</b>. The boosters keep cars in step, so two rarely meet. Uneven foam and clacking joints let them drift until they do. Line up all five and the crossing becomes a demolition derby.</p>
+          <p class="note">Modelled on the 2010 Criss Cross Crash set and the 1999 five-pack of the same name, down to the D cells.</p>
+        </div>
+      </li>
+      <li class="stop" style="--c: var(--flame)">
+        <figure class="panel"><video data-inview muted loop playsinline preload="none" poster="media/onboard.jpg" aria-label="An onboard camera riding a car upside down through a loop."><source src="media/onboard.mp4" type="video/mp4"></video></figure>
+        <div class="stop-text">
+          <p class="who">Onboard camera</p>
+          <h3>Upside down, held by nothing but speed</h3>
+          <p>The track can only push. Over the top of a loop, what keeps a car on is its own speed: v² over the radius has to beat gravity. Too slow, and the floor stops pushing and the car falls off. The Onboard camera goes round with it.</p>
+        </div>
+      </li>
+      <li class="stop" style="--c: var(--good)">
+        <figure class="panel"><video data-inview muted loop playsinline preload="none" poster="media/leap.jpg" aria-label="Cars fired from a spring launcher through a double loop and over a jump into a catch ramp, with a slow-motion jump camera."><source src="media/leap.mp4" type="video/mp4"></video></figure>
+        <div class="stop-text">
+          <p class="who">Set 3 · Loop &amp; Leap</p>
+          <h3>A launcher, a double loop and a gap</h3>
+          <p>The spring launcher puts ½kx² into the car and its plunger, so a light casting leaves faster than a heavy one. Off the lip, a car rides on until its rear axle leaves, then flies with the pitch it got from pivoting off the edge. Every jump is scored: airtime, distance, the set's best. Too weak and it drops into the gap; the Director camera cuts to slow motion.</p>
+        </div>
+      </li>
+      <li class="stop" style="--c: var(--blue)">
+        <figure class="panel"><video data-inview muted loop playsinline preload="none" poster="media/race.jpg" aria-label="Four cars racing down a gravity drag strip to a timing gate, then a card explaining why the winner won."><source src="media/race.mp4" type="video/mp4"></video></figure>
+        <div class="stop-text">
+          <p class="who">Set 4 · Race Day</p>
+          <h3>Gravity drag racing, and a card that says why</h3>
+          <p>A four-lane drag strip where gravity is the only engine. Every car keeps an energy ledger, so the result is explained, not invented: the card names the loss that differed most between the winner and the runner-up and the property of the car behind it. Add a coin, swap wheels, repaint, and run a knockout.</p>
+        </div>
+      </li>
+      <li class="stop" style="--c: var(--orange)">
+        <figure class="panel"><video data-inview muted loop playsinline preload="none" poster="media/kitchen.jpg" aria-label="A car spiralling down a kitchen table leg, through a cardboard box, over a book jump and round a loop under a chair."><source src="media/kitchen.mp4" type="video/mp4"></video></figure>
+        <div class="stop-text">
+          <p class="who">Set 5 · Kitchen Table Grand Prix</p>
+          <h3>Off the table, down the leg, over the books</h3>
+          <p>Our own set, built through a kitchen: a spiral clipped to the table leg, a cardboard-box tunnel, a jump between two stacks of books, a loop hanging from a chair and a boosted ramp back up to the table. The challenge: get all five round three times without losing one.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="physics" id="physics" aria-labelledby="physics-h">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="physics-h">What is actually simulated</h2>
+      <p>Press <kbd>O</kbd> in the sim and the forces on each car are drawn live: the floor pushing, the wall scrubbing, the foam wheel pinching. The numbers below are the chain every launch travels through.</p>
+    </div>
+    <div class="split">
+      <figure class="panel"><video data-inview muted loop playsinline preload="none" poster="media/forces.jpg" aria-label="A chase camera following a car with force arrows drawn on it."><source src="media/forces.mp4" type="video/mp4"></video></figure>
+      <ol class="chain">
+        <li><b>4 × D cells</b><span>Internal resistance that rises as they drain. Tired batteries sag under load: weaker launches, cars that miss the loops.</span></li>
+        <li><b>Brushed DC motor</b><span>Back-EMF and a gear train. Every launch loads the same motor, so five cars in the nips at once bog it, and the gauges show it.</span></li>
+        <li><b>Foam booster wheels</b><span>Each pinches a passing car against the far wall: a squeeze from how much wider the car is than the gap, a drive from foam friction that saturates with slip.</span></li>
+        <li><b>The car on the track</b><span>Gravity, the centripetal demand of every curve, a floor and walls that can only push, rolling resistance per wheel type, wall scrub, side-slip, air drag. At 1920 Hz.</span></li>
+        <li><b>The crash</b><span>Cars hit as rigid boxes with restitution and friction. A hard hit throws them out of the channel into Rapier, a full rigid-body engine, until they land upright or a hand carries them back.</span></li>
+      </ol>
+    </div>
+    <div class="split rev">
+      <figure class="panel"><video data-inview muted loop playsinline preload="none" poster="media/crashhud.jpg" aria-label="The full game interface: power gauges, the garage of five cars, crash banners and trophy notifications."><source src="media/crashhud.mp4" type="video/mp4"></video></figure>
+      <div class="prose">
+        <h3>A toy, with its gauges showing</h3>
+        <p>The HUD is the inside of the hub: battery voltage, motor current and rpm, foam wheel speed, how many nips are busy. The garage shows each car's laps and best time. Crashes get a banner, jumps get scored, and 27 trophies reward the things worth trying.</p>
+        <p>Imperfection is modelled on purpose. Track joints clack, every car's wheels drag a little differently, worn foam grips each pass at a slightly different speed. Without that, the boosters lock the cars in step and they never meet.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="builder" id="builder" aria-labelledby="builder-h">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="builder-h">Build your own, share it as a link</h2>
+      <p>The Track Builder snaps pieces together the way real track does: straights, curves, banked turns, ramps, loops, corkscrews, spirals, jumps, boosters, splitters, hammers and paddle wheels. A car test-drives the track headless after every edit and the builder says where it would fail. The track travels in the link.</p>
+    </div>
+    <div class="duo">
+      <figure class="panel"><video data-inview muted loop playsinline preload="none" poster="media/builder.jpg" aria-label="The Track Builder: pieces being added one letter at a time while the track grows."><source src="media/builder.mp4" type="video/mp4"></video><figcaption>Every piece is one letter; the letters are the share code.</figcaption></figure>
+      <figure class="panel"><video data-inview muted loop playsinline preload="none" poster="media/lanes.jpg" aria-label="The featured track Pick a Lane: a splitter sending cars into a loop or a corkscrew."><source src="media/lanes.mp4" type="video/mp4"></video><figcaption><b>Pick a Lane</b>, one of six featured tracks: <code>PSBY.SBOSuSSSSSSuM.SBCSvSSSSSSvM</code></figcaption></figure>
+    </div>
+    <ul class="featured">
+      <li><a href="play/#t.PSBOSBllSBCSBll~"><b>The Daily Commute</b><span>loop, corkscrew, four boosters</span></a></li>
+      <li><a href="play/#t.PSBY.SBOSuSSSSSSuM.SBCSvSSSSSSvM"><b>Pick a Lane</b><span>splitter, loop or corkscrew, merge</span></a></li>
+      <li><a href="play/#t.PSSBSXSBllSBSWSBll~"><b>Hammer Time</b><span>swinging hammer, paddle wheel</span></a></li>
+      <li><a href="play/#t.PBSBSbSBSbSBSbSBSb~"><b>Banked Beltway</b><span>four banked turns, eight boosters</span></a></li>
+      <li><a href="play/#t.L9SOOSXSJ.SCSWSF"><b>Leap of Faith</b><span>launcher, double loop, hammer, jump</span></a></li>
+      <li><a href="play/#t.TSDSBJ.SBOSF"><b>Tower of Terror</b><span>drop tower, ramp, jump, loop</span></a></li>
+    </ul>
+  </div>
+</section>
+
+<section class="garage" aria-labelledby="garage-h">
+  <div class="wrap">
+    <div class="split">
+      <figure class="panel"><video data-inview muted loop playsinline preload="none" poster="media/showroom.jpg" aria-label="The Showroom: a car turning on a plinth next to its card of numbers."><source src="media/showroom.mp4" type="video/mp4"></video></figure>
+      <div class="prose">
+        <h2 id="garage-h">The garage</h2>
+        <p>The Showroom puts one casting at a time on a turning plinth, with the numbers the physics uses and what it did this session. The five are the 1999 five-pack: a Porsche 959, the Aeroflash, a Ford GT-90, a Chevy Stocker and a Chevy 1500 pickup, from 37 g to 46 g.</p>
+        <p>Photo mode (<kbd>P</kbd>) hides everything, freezes time and saves a PNG. The Director camera cuts between shots on its own, with slow-motion crash and jump cams. Replay (<kbd>R</kbd>) plays the last one back.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="making" id="making" aria-labelledby="making-h">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="making-h">How it was made</h2>
+      <p>Built with Claude Code, from a first render in September 2026 to this. The first version ran everything as free rigid bodies and never held a loop; version two holds each car to the track and only hands it to the rigid-body engine when it leaves. Each frame below is a milestone from the build's own archive.</p>
+    </div>
+    <ol class="reel" id="reel"></ol>
+    <dl class="facts">
+      <div><dt>Engine</dt><dd>Three.js r185 for rendering, Rapier 0.20 for free bodies, plain scripts with no bundler</dd></div>
+      <div><dt>Units</dt><dd>Centimetres, grams and seconds; gravity 981 cm/s²</dd></div>
+      <div><dt>Testing</dt><dd>A headless regression replays 13 scenarios and checks every car's state bit for bit</dd></div>
+      <div><dt>Honesty</dt><dd>Track width, battery count and layout from the real set's instructions; masses, motor constants and foam stiffness are engineering estimates, tagged as such in the code</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section class="closer">
+  <div class="wrap">
+    <h2>Go on, crash something.</h2>
+    <a class="btn btn-play" href="play/">Play Lukewarm Wheels <kbd>free</kbd></a>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p><b>Lukewarm Wheels</b> is a fan-made parody and physics study. It is not affiliated with, endorsed by or connected to Mattel or any toy company; the set it models is named only to credit it. Car names describe the real vehicles the toys depict.</p>
+    <p><a href="https://github.com/Samizdat-Publications/lukewarm-wheels">Source on GitHub</a> · <a href="play/">Play</a> · Built with <a href="https://claude.com/claude-code">Claude Code</a> · Sound effects partly made with ElevenLabs</p>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

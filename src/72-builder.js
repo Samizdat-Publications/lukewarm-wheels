@@ -170,11 +170,16 @@
       for (const w of L.warnings) lines.push({ warn: true, text: 'Run ' + (1 + +w.track.slice(1)) + ': ' + w.text + '.' });
       scene.add(g);
       B.group = g;
-      // frame the preview
-      const b = L.bounds, c = b.centre, r = b.radius;
-      HW.cam.controls.target.set(c[0], Math.max(2, c[1] * 0.4), c[2]);
-      if (!B.framed) { HW.render.camera.position.set(c[0] - r * 0.3, r * 1.1, c[2] + r * 1.5); B.framed = true; }
-      HW.cam.controls.update();
+      // frame the preview: keep the whole track in view as it grows, from wherever the camera
+      // has been turned to, and (on a wide screen) clear of the builder panel on the left
+      const b = L.bounds, c = b.centre, r = Math.max(30, b.radius), cam = HW.render.camera, ctl = HW.cam.controls;
+      if (!B.framed) { cam.position.set(c[0] - r * 0.3, r * 1.1, c[2] + r * 1.5); B.framed = true; }
+      const dir = cam.position.clone().sub(ctl.target).normalize();
+      const tgt = new T.Vector3(c[0], Math.max(2, c[1] * 0.4), c[2]);
+      if (innerWidth > 900) tgt.addScaledVector(new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 0), -r * 0.45);
+      ctl.target.copy(tgt);
+      cam.position.copy(tgt).addScaledVector(dir, r * 2.3);
+      ctl.update();
       // test drive, after the edits settle
       clearTimeout(B.testT);
       B.showStatus(lines, { pending: true });

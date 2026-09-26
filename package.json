@@ -1,0 +1,22 @@
+{
+  "name": "lukewarm-wheels",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Lukewarm Wheels: a die-cast toy track physics sim in the browser (Three.js + Rapier, no bundler)",
+  "scripts": {
+    "dev": "node tools/serve.mjs",
+    "build": "node tools/build.mjs",
+    "regress": "node tools/regress.mjs",
+    "film": "node tools/film.mjs",
+    "media": "node tools/media.mjs",
+    "site": "node tools/site.mjs",
+    "deploy": "node tools/site.mjs --deploy"
+  },
+  "devDependencies": {
+    "ffmpeg-static": "^5.3.0",
+    "playwright": "^1.63.0"
+  },
+  "allowScripts": {
+    "ffmpeg-static@5.3.0": true
+  }
+}

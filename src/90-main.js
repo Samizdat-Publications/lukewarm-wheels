@@ -83,6 +83,8 @@
   main.step = (dt) => {
     const sim = HW.sim;
     if (HW.showroom.active) { HW.showroom.frame(dt); return; }
+    // the Track Builder shows only its preview: the set and its cars stay hidden and still
+    if (HW.builderUI && HW.builderUI.panel) { HW.cam.update(dt, sim); HW.render.render(dt); return; }
     if (main.slowmoT > 0) { main.slowmoT -= dt; if (main.slowmoT <= 0) HW.config.timeScale = main.slow ? 0.25 : main.slowBefore || 1; }
     if (!main.paused) sim.update(dt);
     HW.replay.update(dt, sim);
