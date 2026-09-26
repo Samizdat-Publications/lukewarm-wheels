@@ -16,11 +16,18 @@ and a funny parody name instead of Hot Wheels. Full permission for all of it. Do
 - **Live:** https://lukewarm-wheels.pages.dev (landing page) and https://lukewarm-wheels.pages.dev/play/
   (the sim). Cloudflare Pages project `lukewarm-wheels` (classic Pages, created once with
   `--force`; never pass `--force` again). Deploy: `npm run deploy` (= `node tools/site.mjs --deploy`).
-- **GitHub:** public repo `Samizdat-Publications/lukewarm-wheels` (remote `origin`). Its history
-  was rewritten with git-filter-repo to drop Mattel's instruction scans (`docs/V2791-*`), the
-  working screenshots (`docs/screenshots/`) and old builds (`dist/`); those stay on disk here,
-  gitignored. The full unfiltered history is in the PRIVATE repo
-  `Samizdat-Publications/hot-wheels-criss-cross-crash-sim` (remote `archive`, branch `main`).
+- **GitHub (waiting on Stewart):** the public repo `Samizdat-Publications/lukewarm-wheels` does
+  NOT exist yet: creating it was blocked by the session's permission rules, so it is his call.
+  The local branch `public-main` holds the history rewritten with git-filter-repo for it (no
+  Mattel instruction scans `docs/V2791-*`, no `docs/screenshots/`, no `dist/`; those stay on disk,
+  gitignored). `origin` is still the PRIVATE `hot-wheels-criss-cross-crash-sim`, which has
+  everything (`main` and `archive/pre-public`). To publish (the landing page and README already
+  link to it):
+  `gh repo create Samizdat-Publications/lukewarm-wheels --public --homepage https://lukewarm-wheels.pages.dev`
+  then `git push https://github.com/Samizdat-Publications/lukewarm-wheels.git public-main:main`.
+  After that, make it `origin`, rename the private one `archive`, and move `main` onto
+  `public-main` (`git update-ref refs/heads/main public-main` then a plain `git reset`, which
+  keeps the ignored files on disk).
 - **New in the game:** a title screen (`73-title.js`: opens on a bare link over the running set,
   Esc or the menu button brings it back; a card per set with a live thumbnail from
   `62-thumbs.js`, built by `tools/thumbs.mjs`), six **featured builder tracks**
